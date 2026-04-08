@@ -1,0 +1,8 @@
+{
+  "name": "swissviz",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "bunx serve . -l 3000"
+  }
+}
