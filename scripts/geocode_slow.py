@@ -65,20 +65,20 @@ for fname in sorted(os.listdir(INPUT_DIR)):
     fpath = os.path.join(INPUT_DIR, fname)
     outpath = os.path.join(OUT_DIR, f"companies_{canton}_latlong.csv")
     print(f"\n[CANTON] {canton}", flush=True)
-    
+
     with open(fpath, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         fields = list(reader.fieldnames)
         out_fields = fields + ["lat", "lng"]
-        
+
         with open(outpath, "w", newline="", encoding="utf-8") as out:
             writer = csv.DictWriter(out, fieldnames=out_fields)
             writer.writeheader()
-            
+
             batch = []
             for i, row in enumerate(reader):
                 a = addr_key(row)
-                
+
                 # Write cached first
                 if a and a in cache:
                     coords = cache[a]
@@ -91,9 +91,9 @@ for fname in sorted(os.listdir(INPUT_DIR)):
                 else:
                     row["lat"] = ""
                     row["lng"] = ""
-                
+
                 batch.append(row)
-                
+
                 # Geocode if not cached
                 if a and a not in cache:
                     if total_calls >= MAX_CALLS:
@@ -103,7 +103,7 @@ for fname in sorted(os.listdir(INPUT_DIR)):
                         g = sum(1 for r in csv.DictReader(open(outpath, encoding="utf-8")) if r.get("lat",""))
                         print(f"  {g} companies geocoded in this canton", flush=True)
                         exit(0)
-                    
+
                     result = geocode(a)
                     cache[a] = result
                     if result:
@@ -111,27 +111,27 @@ for fname in sorted(os.listdir(INPUT_DIR)):
                         batch[-1]["lat"] = result[0]
                         batch[-1]["lng"] = result[1]
                     time.sleep(SLEEP_SEC)
-                
+
                 # Write batch
                 if len(batch) >= BATCH_SIZE:
                     writer.writerows(batch)
                     batch = []
-                    
+
                     # Save cache periodically
                     if (i+1) % 2000 == 0:
                         save_cache(cache)
                         g = sum(1 for r in csv.DictReader(open(outpath, encoding="utf-8")) if r.get("lat",""))
                         print(f"  [PROG] {i+1} rows | calls: {total_calls} | geocoded: {g}", flush=True)
-            
+
             # Write remaining
             if batch:
                 writer.writerows(batch)
-        
+
         # Final count
         g = sum(1 for r in csv.DictReader(open(outpath, encoding="utf-8")) if r.get("lat",""))
         total = i + 1
         print(f"  [DONE] {g}/{total} geocoded ({100*g//total}%)", flush=True)
-    
+
     save_cache(cache)
     print(f"  [CACHE] {len(cache)} total entries", flush=True)
 
