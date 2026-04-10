@@ -5,13 +5,11 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Swiss Companies Map</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇨🇭</text></svg>" />
-        <script>window.MAPBOX_DEV_TOKEN=""</script>
-        <script src="dev-token.js" onerror=""></script>
-        <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
+<script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
         <script src="https://unpkg.com/deck.gl@8.9.33/dist.min.js"></script>
-        <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+        <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
         <link
-            href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css"
+            href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
             rel="stylesheet"
         />
         <style>
@@ -31,8 +29,8 @@
                 color: #fff;
                 overflow: hidden;
             }
-            .mapboxgl-ctrl-logo,
-            .mapboxgl-ctrl-attrib {
+            .maplibregl-ctrl-logo,
+            .maplibregl-ctrl-attrib {
                 opacity: 0.3;
             }
             #map {
@@ -106,6 +104,7 @@
 
             /* Shared panel */
             .panel {
+                opacity: 0.97;
                 position: absolute;
                 background: rgb(16, 23, 41);
                 border: 1px solid rgba(255, 255, 255, 0.07);
@@ -388,40 +387,40 @@
                 #title p {
                     font-size: 13px;
                 }
-                .mapboxgl-ctrl-bottom-right {
+                .maplibregl-ctrl-bottom-right {
                     bottom: 16px !important;
                     right: 16px !important;
                 }
             }
-            .mapboxgl-ctrl-group {
+            .maplibregl-ctrl-group {
                 background: rgb(16, 23, 41) !important;
                 border: 1px solid rgba(255, 255, 255, 0.07) !important;
                 border-radius: 6px !important;
                 overflow: hidden;
             }
-            .mapboxgl-ctrl-group button {
+            .maplibregl-ctrl-group button {
                 background: transparent !important;
                 border: none !important;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
                 width: 36px !important;
                 height: 36px !important;
             }
-            .mapboxgl-ctrl-group button:last-child {
+            .maplibregl-ctrl-group button:last-child {
                 border-bottom: none !important;
             }
-            .mapboxgl-ctrl-group button:hover {
+            .maplibregl-ctrl-group button:hover {
                 background: rgba(255, 255, 255, 0.08) !important;
             }
-            .mapboxgl-ctrl-group button .mapboxgl-ctrl-icon {
+            .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
                 filter: invert(1) brightness(0.7);
             }
-            .mapboxgl-ctrl-compass .mapboxgl-ctrl-icon {
+            .maplibregl-ctrl-compass .maplibregl-ctrl-icon {
                 transform: none;
             }
-            .mapboxgl-ctrl-zoom-in .mapboxgl-ctrl-icon {
+            .maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon {
                 filter: invert(1) brightness(0.7);
             }
-            .mapboxgl-ctrl-zoom-out .mapboxgl-ctrl-icon {
+            .maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon {
                 filter: invert(1) brightness(0.7);
             }
         </style>
@@ -792,7 +791,7 @@
                     data: visible,
                     getPosition: (d) => d.position,
                     getFillColor: (d) => {
-                        if (nightView) return [...nightColor, 204];
+                        if (nightView) return [...nightColor, 222];
                         const matched = d.companies.find((c) =>
                             activeLabels.has(c.label),
                         );
@@ -904,11 +903,33 @@
                     });
                 });
 
-                // Map — Mapbox dark style with blue water (Snazzymaps "Modest" vibe)
-                mapboxgl.accessToken = window.MAPBOX_DEV_TOKEN || "YOUR_MAPBOX_TOKEN_HERE";
-                const map = new mapboxgl.Map({
+                // Map — MapLibre + CartoDB Dark Matter (OSM, no token required)
+                const map = new maplibregl.Map({
                     container: "map",
-                    style: "mapbox://styles/mapbox/dark-v11",
+                    style: {
+                        version: 8,
+                        sources: {
+                            "carto-dark": {
+                                type: "raster",
+                                tiles: ["https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                                        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                                        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"],
+                                tileSize: 256,
+                                attribution: "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> © <a href='https://carto.com/attributions'>CARTO</a>",
+                            },
+                        },
+                        layers: [{
+                            id: "carto-dark",
+                            type: "raster",
+                            source: "carto-dark",
+                            paint: {
+                                "raster-brightness-min": 0.07,
+                                "raster-hue-rotate": 210,
+                                "raster-saturation": 0.4,
+                                "raster-contrast": -0.1,
+                            },
+                        }],
+                    },
                     center: [7.58, 47.56],
                     zoom: 12,
                     minZoom: 6,
@@ -919,17 +940,12 @@
                     dragRotate: true,
                 });
 
-map.on("style.load", () => {
-                    map.setPaintProperty("water", "fill-color", "#29446b");
-                    map.setPaintProperty("water", "fill-opacity", 0.9);
-                });
-
                 overlay = new deck.MapboxOverlay({ layers: [buildLayer()] });
 
                 map.on("load", () => {
                     map.addControl(overlay);
                     map.addControl(
-                        new mapboxgl.NavigationControl({
+                        new maplibregl.NavigationControl({
                             visualizePitch: true,
                         }),
                         "bottom-right",
