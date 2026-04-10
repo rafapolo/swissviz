@@ -4,6 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Swiss Companies Map</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇨🇭</text></svg>" />
         <script>window.MAPBOX_DEV_TOKEN=""</script>
         <script src="dev-token.js" onerror=""></script>
         <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
@@ -112,7 +113,7 @@
                 padding: 14px 16px;
                 font-size: 14px;
                 overflow-y: auto;
-                max-height: calc(100vh - 80px);
+                max-height: min(520px, calc(100vh - 80px));
             }
             .panel::-webkit-scrollbar {
                 width: 3px;
@@ -131,11 +132,10 @@
                 margin-bottom: 4px;
             }
             .panel-dot {
-                width: 6px;
-                height: 6px;
-                background: #6c8eff;
-                border-radius: 50%;
-                box-shadow: 0 0 6px #6c8eff;
+                color: #6c8eff;
+                font-size: 14px;
+                line-height: 1;
+                padding-bottom: 3px;
             }
             .panel-header h2 {
                 color: rgba(255, 255, 255, 0.9);
@@ -229,6 +229,7 @@
                 top: 20px;
                 left: 20px;
                 min-width: 200px;
+                max-height: calc(100vh - 40px);
             }
             .canton-item {
                 display: flex;
@@ -320,7 +321,7 @@
                 z-index: 10;
             }
 
-            @media (max-width: 600px) {
+            @media (max-width: 980px) {
                 .panel-toggle {
                     display: flex;
                 }
@@ -424,7 +425,7 @@
 
         <div id="canton-panel" class="panel">
             <div class="panel-header">
-                <div class="panel-dot"></div>
+                <span class="panel-dot">⌖</span>
                 <h2>Cantons</h2>
             </div>
             <div class="panel-subtitle">Select regions</div>
@@ -437,7 +438,7 @@
 
         <div id="legend" class="panel">
             <div class="panel-header">
-                <div class="panel-dot"></div>
+                <span class="panel-dot">⊟</span>
                 <h2>Legend</h2>
             </div>
             <div class="panel-subtitle">Rechtsform</div>
@@ -453,6 +454,13 @@
         </div>
 
         <script>
+            // ── URL params ────────────────────────────────────────────────────────
+            // ?r=min,max  e.g. ?r=0.5,2  controls radiusMinPixels,radiusMaxPixels
+            const _rParam = new URLSearchParams(location.search).get("r");
+            const [RADIUS_MIN, RADIUS_MAX] = _rParam
+                ? _rParam.split(",").map(Number)
+                : [0.5, 2];
+
             // ── Legal form color config ────────────────────────────────────────────
             // Alphabetical order matching basel.png, warm→cool spectrum
             const colorAssignments = [
@@ -785,8 +793,8 @@
                     },
                     getRadius: 18,
                     radiusScale: 1,
-                    radiusMinPixels: 1.5,
-                    radiusMaxPixels: 4,
+                    radiusMinPixels: RADIUS_MIN,
+                    radiusMaxPixels: RADIUS_MAX,
                     pickable: true,
                     opacity: 1,
                     stroked: false,
@@ -894,13 +902,15 @@
                     style: "mapbox://styles/mapbox/dark-v11",
                     center: [7.58, 47.56],
                     zoom: 12,
+                    minZoom: 6,
+                    maxZoom: 16,
                     pitch: 0,
                     bearing: 0,
                     antialias: true,
                     dragRotate: true,
                 });
 
-                map.on("style.load", () => {
+map.on("style.load", () => {
                     map.setPaintProperty("water", "fill-color", "#29446b");
                     map.setPaintProperty("water", "fill-opacity", 0.9);
                 });
