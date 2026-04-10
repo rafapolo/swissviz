@@ -4,6 +4,8 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Swiss Companies Map</title>
+        <script>window.MAPBOX_DEV_TOKEN=""</script>
+        <script src="dev-token.js" onerror=""></script>
         <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
         <script src="https://unpkg.com/deck.gl@8.9.33/dist.min.js"></script>
         <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
@@ -43,10 +45,10 @@
                 outline: none;
             }
             .panel {
-                z-index: 10;
+                z-index: 12;
             }
             #tooltip {
-                z-index: 11;
+                z-index: 13;
             }
             #title {
                 z-index: 10;
@@ -146,16 +148,15 @@
                 font-size: 11px;
                 letter-spacing: 0.05em;
                 text-transform: uppercase;
-                margin-bottom: 12px;
                 padding-bottom: 10px;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.06);
             }
             .panel-controls {
                 display: flex;
                 gap: 6px;
-                margin-top: 12px;
-                padding-top: 10px;
-                border-top: 1px solid rgba(255, 255, 255, 0.06);
+                padding: 10px 0;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+                margin-bottom: 10px;
             }
             .panel-controls button {
                 flex: 1;
@@ -289,6 +290,7 @@
                 justify-content: center;
                 z-index: 10;
                 font-size: 16px;
+                color: #fff;
             }
             #toggle-canton {
                 top: 20px;
@@ -318,26 +320,42 @@
                 z-index: 10;
             }
 
-            /* Tooltip */
             @media (max-width: 600px) {
                 .panel-toggle {
                     display: flex;
                 }
+                /* Panels become full-width bottom sheets */
                 .panel {
-                    display: none;
-                    max-height: 55vh;
-                    width: calc(100vw - 40px) !important;
+                    position: fixed !important;
+                    top: auto !important;
+                    left: 0 !important;
+                    right: 0 !important;
+                    bottom: 0 !important;
+                    width: 100% !important;
+                    max-height: 75vh;
+                    min-width: unset;
+                    border-radius: 16px 16px 0 0;
+                    border-left: none;
+                    border-right: none;
+                    border-bottom: none;
+                    transform: translateY(100%);
+                    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+                    overflow-y: auto;
+                    display: block;
+                    /* drag handle */
+                    padding-top: 20px;
+                }
+                .panel::before {
+                    content: "";
+                    display: block;
+                    width: 36px;
+                    height: 4px;
+                    background: rgba(255, 255, 255, 0.15);
+                    border-radius: 2px;
+                    margin: -12px auto 12px;
                 }
                 .panel.open {
-                    display: block;
-                }
-                #canton-panel {
-                    top: 74px;
-                    left: 20px;
-                }
-                #legend {
-                    top: 74px;
-                    right: 20px;
+                    transform: translateY(0);
                 }
                 #tooltip {
                     max-width: calc(100vw - 20px);
@@ -360,7 +378,8 @@
                     font-size: 13px;
                 }
                 .mapboxgl-ctrl-bottom-right {
-                    bottom: 90px;
+                    bottom: 16px !important;
+                    right: 16px !important;
                 }
             }
             .mapboxgl-ctrl-group {
@@ -398,10 +417,10 @@
     </head>
     <body>
         <div id="map"></div>
-        <div id="tooltip"><button id="tooltip-close">✕</button></div>
+        <div id="tooltip"><button id="tooltip-close">✕</button><div id="tooltip-content"></div></div>
 
-        <button class="panel-toggle" id="toggle-canton">☰</button>
-        <button class="panel-toggle" id="toggle-legend">◉</button>
+        <button class="panel-toggle" id="toggle-canton">◫</button>
+        <button class="panel-toggle" id="toggle-legend">◈</button>
 
         <div id="canton-panel" class="panel">
             <div class="panel-header">
@@ -409,11 +428,11 @@
                 <h2>Cantons</h2>
             </div>
             <div class="panel-subtitle">Select regions</div>
-            <div id="canton-items"></div>
             <div class="panel-controls">
                 <button id="btn-canton-all">Select all</button>
                 <button id="btn-canton-none">Deselect all</button>
             </div>
+            <div id="canton-items"></div>
         </div>
 
         <div id="legend" class="panel">
@@ -422,11 +441,11 @@
                 <h2>Legend</h2>
             </div>
             <div class="panel-subtitle">Rechtsform</div>
-            <div id="legend-items"></div>
-            <div class="panel-controls">
+<div class="panel-controls">
                 <button id="btn-select-all">Select all</button>
                 <button id="btn-deselect-all">Deselect all</button>
             </div>
+            <div id="legend-items"></div>
         </div>
 
         <div id="title">
@@ -605,7 +624,7 @@
                     const lng = parseFloat(row["lng"]);
                     if (isNaN(lat) || isNaN(lng)) continue;
 
-                    const key = `${lng.toFixed(5)},${lat.toFixed(5)}`;
+                    const key = Math.round(lat * 1e5) * 1000000 + Math.round(lng * 1e5);
                     const label = getLabel(rechtsform);
                     const company = {
                         name: row["n"] || "",
@@ -649,6 +668,14 @@
                 });
             }
 
+            function showLoadError(cantonId) {
+                const el = document.createElement("div");
+                el.style.cssText = "position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:rgba(200,60,60,0.85);color:#fff;padding:8px 16px;border-radius:4px;font-size:13px;z-index:20;pointer-events:none";
+                el.textContent = `Failed to load ${cantonId} data. Try reloading.`;
+                document.body.appendChild(el);
+                setTimeout(() => el.remove(), 4000);
+            }
+
             async function gunzipJson(url) {
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -667,11 +694,19 @@
                 const meta = await fetch(`data/${cantonId}.json`).then((r) =>
                     r.json(),
                 );
-                const chunks = await Promise.all(
-                    Array.from({ length: meta._chunks }, (_, i) =>
+                let chunkPromises;
+                if (Array.isArray(meta.chunks)) {
+                    // Format: { chunks: ["XX_0.json.gz", ...] }
+                    chunkPromises = meta.chunks.map((filename) =>
+                        gunzipJson(`data/${filename}`),
+                    );
+                } else {
+                    // Format: { _chunks: N }
+                    chunkPromises = Array.from({ length: meta._chunks }, (_, i) =>
                         loadCantonChunk(cantonId, i),
-                    ),
-                );
+                    );
+                }
+                const chunks = await Promise.all(chunkPromises);
                 return chunks.flat();
             }
 
@@ -716,12 +751,14 @@
                     const rows = await loadCantonAll(canton.id);
                     const points = parseCantonData(rows, canton.id);
                     cantonData[canton.id] = points;
+                    const companyCount = points.reduce((s, p) => s + p.companies.length, 0);
                     if (countEl)
-                        countEl.textContent = `(${points.length.toLocaleString()})`;
+                        countEl.textContent = `(${companyCount.toLocaleString()})`;
                     return points;
                 } catch (e) {
                     cantonData[canton.id] = [];
                     if (countEl) countEl.textContent = "(–)";
+                    showLoadError(canton.id);
                     return [];
                 }
             }
@@ -795,32 +832,32 @@
                 // Build canton list
                 const cantonEl = document.getElementById("canton-items");
                 const cantonCounts = {
-                    AG: 45528,
+                    AG: 28367,
                     AI: 2102,
                     AR: 5773,
-                    BE: 68716,
-                    BL: 20129,
+                    BE: 41612,
+                    BL: 11819,
                     BS: 18850,
-                    FR: 25439,
-                    GE: 56043,
+                    FR: 13730,
+                    GE: 16819,
                     GL: 3610,
-                    GR: 19683,
-                    JU: 6428,
-                    LU: 34316,
-                    NE: 13221,
-                    NW: 5620,
-                    OW: 4346,
-                    SG: 42504,
-                    SH: 6444,
-                    SO: 18332,
-                    SZ: 22034,
-                    TG: 23363,
-                    TI: 42655,
-                    UR: 2397,
-                    VD: 67772,
-                    VS: 34480,
-                    ZG: 41801,
-                    ZH: 133703,
+                    GR: 11369,
+                    JU: 6425,
+                    LU: 17558,
+                    NE: 13160,
+                    NW: 5607,
+                    OW: 4291,
+                    SG: 24092,
+                    SH: 6413,
+                    SO: 11558,
+                    SZ: 8907,
+                    TG: 14130,
+                    TI: 15901,
+                    UR: 2376,
+                    VD: 31789,
+                    VS: 18290,
+                    ZG: 6973,
+                    ZH: 64837,
                 };
                 CANTONS.forEach((canton) => {
                     const isActive = activeCantons.has(canton.id);
@@ -851,8 +888,7 @@
                 });
 
                 // Map — Mapbox dark style with blue water (Snazzymaps "Modest" vibe)
-                mapboxgl.accessToken =
-                    "pk.eyJ1IjoicmFmYXBvbG8iLCJhIjoiY21hcnl2bDY4MGRpdjJqc2M3OGZ4cXdnZCJ9.fmEqBBXCyPDPwIPhKjAkCA";
+                mapboxgl.accessToken = window.MAPBOX_DEV_TOKEN || "YOUR_MAPBOX_TOKEN_HERE";
                 const map = new mapboxgl.Map({
                     container: "map",
                     style: "mapbox://styles/mapbox/dark-v11",
@@ -879,6 +915,10 @@
                         }),
                         "bottom-right",
                     );
+                });
+
+                document.getElementById("tooltip-close").addEventListener("click", () => {
+                    document.getElementById("tooltip").style.display = "none";
                 });
 
                 // ── Legend toggles ─────────────────────────────────────────────────
@@ -979,23 +1019,16 @@
                         ? `<div style="color:rgba(255,255,255,0.3);font-size:11px;margin-top:8px">+${list.length - MAX} more</div>`
                         : "";
 
-                const closeBtn = '<button id="tooltip-close">✕</button>';
                 tt.style.display = "block";
                 tt.style.left =
                     Math.min(info.x + 15, window.innerWidth - 340) + "px";
                 tt.style.top =
                     Math.min(info.y + 15, window.innerHeight - 220) + "px";
-                tt.innerHTML = `
-        ${closeBtn}
+                document.getElementById("tooltip-content").innerHTML = `
         <div style="color:rgba(255,255,255,0.4);font-size:11px;letter-spacing:.05em;text-transform:uppercase">
           ${list.length} ${list.length === 1 ? "company" : "companies"} · ${info.object.canton}
         </div>
         ${rows}${more}`;
-                document
-                    .getElementById("tooltip-close")
-                    .addEventListener("click", () => {
-                        tt.style.display = "none";
-                    });
             }
 
             // ── Panel toggles (mobile) ─────────────────────────────────────────────
