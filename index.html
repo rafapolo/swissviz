@@ -178,6 +178,11 @@
                 background: rgba(255, 255, 255, 0.12);
                 color: rgba(255, 255, 255, 0.9);
             }
+            .panel-controls button.active {
+                background: rgba(255, 203, 153, 0.18);
+                border-color: rgba(255, 203, 153, 0.5);
+                color: rgb(255, 203, 153);
+            }
 
             /* Legend — right */
             #legend {
@@ -447,6 +452,10 @@
                 <button id="btn-deselect-all">Deselect all</button>
             </div>
             <div id="legend-items"></div>
+            <hr class="legend-hr">
+            <div class="panel-controls">
+                <button id="btn-night-view">Night view</button>
+            </div>
         </div>
 
         <div id="title">
@@ -611,6 +620,8 @@
             // ── State ──────────────────────────────────────────────────────────────
             const activeLabels = new Set(colorAssignments.map((a) => a.label)); // active legal forms
             const activeCantons = new Set(["BS"]);
+            let nightView = false;
+            const nightColor = [255, 197, 143];
             const cantonData = {}; // id → point array
             let overlay = null;
 
@@ -777,6 +788,7 @@
                     data: visible,
                     getPosition: (d) => d.position,
                     getFillColor: (d) => {
+                        if (nightView) return [...nightColor, 204];
                         const matched = d.companies.find((c) =>
                             activeLabels.has(c.label),
                         );
@@ -786,8 +798,8 @@
                     },
                     getRadius: 18,
                     radiusScale: 1,
-                    radiusMinPixels: RADIUS_MIN,
-                    radiusMaxPixels: RADIUS_MAX,
+                    radiusMinPixels: nightView ? RADIUS_MIN * 0.9 : RADIUS_MIN,
+                    radiusMaxPixels: nightView ? RADIUS_MAX * 0.9 : RADIUS_MAX,
                     pickable: true,
                     opacity: 1,
                     stroked: false,
@@ -962,6 +974,17 @@ map.on("style.load", () => {
                             .forEach((el) => el.classList.add("inactive"));
                         refreshLayer();
                     });
+
+                document
+                    .getElementById("btn-night-view")
+                    .addEventListener("click", () => {
+                        nightView = !nightView;
+                        document
+                            .getElementById("btn-night-view")
+                            .classList.toggle("active", nightView);
+                        refreshLayer();
+                    });
+
 
                 // ── Canton all / none ──────────────────────────────────────────────
                 document
