@@ -183,12 +183,17 @@
                 border-color: rgba(255, 203, 153, 0.5);
                 color: rgb(255, 203, 153);
             }
+            #night-view-controls {
+                border-top: 1px solid rgba(255, 255, 255, 0.06);
+                border-bottom: none;
+                margin-bottom: 0;
+            }
 
             /* Legend — right */
             #legend {
                 top: 20px;
                 right: 20px;
-                min-width: 230px;
+                min-width: 285px;
                 padding: 14px 16px;
             }
             .legend-item {
@@ -233,7 +238,7 @@
             #canton-panel {
                 top: 20px;
                 left: 20px;
-                min-width: 200px;
+                min-width: 285px;
                 max-height: calc(100vh - 40px);
             }
             .canton-item {
@@ -452,8 +457,7 @@
                 <button id="btn-deselect-all">Deselect all</button>
             </div>
             <div id="legend-items"></div>
-            <hr class="legend-hr">
-            <div class="panel-controls">
+            <div class="panel-controls" id="night-view-controls">
                 <button id="btn-night-view">Night view</button>
             </div>
         </div>
