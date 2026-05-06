@@ -53,42 +53,6 @@
             #tooltip {
                 z-index: 13;
             }
-            #title {
-                z-index: 10;
-            }
-            /* Title */
-            #title {
-                position: absolute;
-                bottom: 28px;
-                left: 20px;
-                width: 285px;
-                text-align: center;
-            }
-            #title h1 {
-                color: rgba(255, 255, 255, 0.9);
-                font-size: 24px;
-                font-weight: 600;
-                letter-spacing: -0.02em;
-                line-height: 1;
-            }
-            #title p {
-                color: rgba(255, 255, 255, 0.3);
-                font-size: 13px;
-                margin-top: 4px;
-            }
-            #stats-count {
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                font-size: 10px;
-                color: rgba(255, 255, 255, 0.4);
-                background: rgba(0, 0, 0, 0.6);
-                padding: 4px 8px;
-                letter-spacing: 0.02em;
-                z-index: 1000;
-                margin: 0;
-            }
-
             /* Tooltip */
             #tooltip {
                 position: absolute;
@@ -188,28 +152,6 @@
                 background: rgba(108, 142, 255, 0.15);
                 border-color: rgba(108, 142, 255, 0.4);
                 color: #6c8eff;
-            }
-            #geo-line {
-                position: fixed;
-                bottom: 0;
-                right: 0;
-                font-size: 10px;
-                color: rgba(255, 255, 255, 0.4);
-                background: rgba(0, 0, 0, 0.6);
-                padding: 4px 8px;
-                letter-spacing: 0.02em;
-                z-index: 1000;
-            }
-            #stats-line {
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                font-size: 10px;
-                color: rgba(255, 255, 255, 0.4);
-                background: rgba(0, 0, 0, 0.6);
-                padding: 4px 8px;
-                letter-spacing: 0.02em;
-                z-index: 1000;
             }
             .panel-subtitle {
                 color: rgba(255, 255, 255, 0.35);
@@ -464,31 +406,9 @@
                 #tooltip-close {
                     display: block;
                 }
-                #title {
-                    bottom: 20px;
-                    left: 16px;
-                    right: 16px;
-                    text-align: center;
-                }
-                #geo-line {
-                    display: none !important;
-                }
-                #title h1 {
-                    font-size: 20px;
-                }
-                #title p {
-                    font-size: 13px;
-                }
                 .maplibregl-ctrl-bottom-right {
                     bottom: 16px !important;
                     right: 16px !important;
-                }
-                #stats-count {
-                    display: none !important;
-                }
-                #geo-line {
-                    font-size: 11px !important;
-                    display: block !important;
                 }
             }
             .maplibregl-ctrl-group {
@@ -582,12 +502,7 @@
             </div>
         </div>
 
-        <div id="title">
-            <p id="stats-count">
-                <span id="total-count">0</span> companies loaded
-            </p>
-            <p id="geo-line" style="display: none"></p>
-        </div>
+
 
         <script>
             // ── URL params ────────────────────────────────────────────────────────
@@ -596,23 +511,6 @@
             const [RADIUS_MIN, RADIUS_MAX] = _rParam
                 ? _rParam.split(",").map(Number)
                 : [0.5, 2];
-
-            // ── IP geolocation (non-blocking, started immediately) ────────────────
-            const geoPromise = fetch(
-                "http://ip-api.com/json?fields=status,country,city,isp,lat,lon",
-            )
-                .then((r) => r.json())
-                .catch(() => null);
-
-            function detectOS() {
-                const ua = navigator.userAgent;
-                if (/Mac OS X/.test(ua)) return "macOS";
-                if (/Windows/.test(ua)) return "Windows";
-                if (/Android/.test(ua)) return "Android";
-                if (/iPhone|iPad/.test(ua)) return "iOS";
-                if (/Linux/.test(ua)) return "Linux";
-                return null;
-            }
 
             // ── i18n ──────────────────────────────────────────────────────────────
             let currentLang = "de";
@@ -676,7 +574,7 @@
                 document.getElementById("legend-title").textContent =
                     t.legendTitle;
                 document.getElementById("legend-subtitle").textContent =
-                    t.legendSubtitle;
+                    t.legendSubtitle + " (" + displayTotal.toLocaleString() + ")";
                 document.querySelectorAll(".legend-item").forEach((el) => {
                     const lbl = el.dataset.label;
                     const span = el.querySelector(".legend-label");
@@ -842,6 +740,7 @@
             // ── State ──────────────────────────────────────────────────────────────
             const activeLabels = new Set(colorAssignments.map((a) => a.label)); // active legal forms
             const activeCantons = new Set();
+            let displayTotal = 0;
             const BERN = { lng: 7.44, lat: 46.95 };
             let nightView = false;
             let anchorIntensity = 50;
@@ -1103,24 +1002,21 @@
             function refreshLayer() {
                 if (!overlay) return;
                 overlay.setProps({ layers: [buildLayer()] });
-                const total = Object.values(cantonData)
+                displayTotal = Object.values(cantonData)
                     .flat()
                     .filter((d) => activeCantons.has(d.canton))
                     .reduce((s, p) => s + p.companies.length, 0);
-                document.getElementById("total-count").textContent =
-                    total.toLocaleString();
+                document.getElementById("legend-subtitle").textContent =
+                    TRANSLATIONS[currentLang].legendSubtitle + " (" + displayTotal.toLocaleString() + ")";
                 updateLegendCounts();
             }
 
             // ── Boot ───────────────────────────────────────────────────────────────
             loadBsData().then((points) => {
                 cantonData["BS"] = points;
-                const totalCompanies = points.reduce(
-                    (s, p) => s + p.companies.length,
-                    0,
-                );
-                document.getElementById("total-count").textContent =
-                    totalCompanies.toLocaleString();
+                displayTotal = points.reduce((s, p) => s + p.companies.length, 0);
+                document.getElementById("legend-subtitle").textContent =
+                    TRANSLATIONS[currentLang].legendSubtitle + " (" + displayTotal.toLocaleString() + ")";
 
                 // Build canton list
                 const cantonEl = document.getElementById("canton-items");
@@ -1239,83 +1135,20 @@
                         "bottom-right",
                     );
 
-                    const geo = await geoPromise;
-                    if (geo?.status === "success") {
-                        const geoEl = document.getElementById("geo-line");
-                        let nearest;
-                        if (geo.country === "Switzerland") {
-                            nearest = CANTONS.reduce(
-                                (best, c) => {
-                                    const d = Math.hypot(
-                                        c.lat - geo.lat,
-                                        c.lng - geo.lon,
-                                    );
-                                    return d < best.d ? { canton: c, d } : best;
-                                },
-                                { canton: CANTONS[0], d: Infinity },
-                            ).canton;
-                            const parts = [
-                                nearest.name,
-                                geo.country,
-                                geo.isp,
-                                detectOS(),
-                            ].filter(Boolean);
-                            geoEl.textContent =
-                                "you are probably in " + parts.join(" · ");
-                        } else {
-                            const parts = [
-                                geo.city,
-                                geo.country,
-                                geo.isp,
-                                detectOS(),
-                            ].filter(Boolean);
-                            geoEl.textContent =
-                                "you are probably in " + parts.join(" · ");
-                        }
-                        geoEl.style.display = "";
+                    map.flyTo({
+                        center: [BERN.lng, BERN.lat],
+                        zoom: 11,
+                        duration: 1500,
+                    });
 
-                        map.flyTo({
-                            center: [BERN.lng, BERN.lat],
-                            zoom: 11.5,
-                            duration: 2000,
-                            essential: true,
-                        });
-
-                        if (!activeCantons.has("BE")) {
-                            activeCantons.add("BE");
-                            const el = document.querySelector(
-                                `.canton-item[data-id="BE"]`,
-                            );
-                            if (el) {
-                                el.classList.add("active");
-                                el.classList.remove("inactive");
-                            }
-                            await loadCantonData(
-                                CANTONS.find((c) => c.id === "BE"),
-                            );
-                            refreshLayer();
-                        }
-                    } else {
-                        map.flyTo({
-                            center: [BERN.lng, BERN.lat],
-                            zoom: 11,
-                            duration: 1500,
-                        });
-                        if (!activeCantons.has("BE")) {
-                            activeCantons.add("BE");
-                            const el = document.querySelector(
-                                `.canton-item[data-id="BE"]`,
-                            );
-                            if (el) {
-                                el.classList.add("active");
-                                el.classList.remove("inactive");
-                            }
-                            await loadCantonData(
-                                CANTONS.find((c) => c.id === "BE"),
-                            );
-                            refreshLayer();
-                        }
+                    activeCantons.add("BE");
+                    const el = document.querySelector('.canton-item[data-id="BE"]');
+                    if (el) {
+                        el.classList.add("active");
+                        el.classList.remove("inactive");
                     }
+                    await loadCantonData(CANTONS.find((c) => c.id === "BE"));
+                    refreshLayer();
                 });
 
                 map.on("zoom", () => {
