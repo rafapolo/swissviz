@@ -4,7 +4,10 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Swiss Companies Map</title>
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇨🇭</text></svg>" />
+        <link
+            rel="icon"
+            href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇨🇭</text></svg>"
+        />
         <script src="https://unpkg.com/deck.gl@8.9.33/dist.min.js"></script>
         <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
         <link
@@ -68,12 +71,12 @@
                 letter-spacing: -0.02em;
                 line-height: 1;
             }
-#title p {
+            #title p {
                 color: rgba(255, 255, 255, 0.3);
                 font-size: 13px;
                 margin-top: 4px;
             }
-            #title p:first-child {
+            #stats-count {
                 position: fixed;
                 bottom: 0;
                 left: 0;
@@ -171,7 +174,10 @@
                 letter-spacing: 0.05em;
                 padding: 2px 5px;
                 cursor: pointer;
-                transition: background 0.15s, color 0.15s, border-color 0.15s;
+                transition:
+                    background 0.15s,
+                    color 0.15s,
+                    border-color 0.15s;
                 line-height: 1.4;
             }
             .lang-btn:hover {
@@ -255,14 +261,17 @@
                 opacity: 0;
                 overflow: hidden;
                 padding: 0 0;
-                transition: max-height 0.3s ease, opacity 0.25s ease, padding 0.3s ease;
+                transition:
+                    max-height 0.3s ease,
+                    opacity 0.25s ease,
+                    padding 0.3s ease;
             }
             #night-intensity-row.visible {
                 max-height: 60px;
                 opacity: 1;
                 padding: 10px 0 14px;
             }
-            #night-intensity-row input[type=range] {
+            #night-intensity-row input[type="range"] {
                 width: 100%;
                 accent-color: rgba(255, 197, 143, 0.9);
                 cursor: pointer;
@@ -474,6 +483,13 @@
                     bottom: 16px !important;
                     right: 16px !important;
                 }
+                #stats-count {
+                    display: none !important;
+                }
+                #geo-line {
+                    font-size: 11px !important;
+                    display: block !important;
+                }
             }
             .maplibregl-ctrl-group {
                 background: rgb(16, 23, 41) !important;
@@ -506,11 +522,20 @@
             .maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon {
                 filter: invert(1) brightness(0.7);
             }
+            .maplibregl-ctrl-attrib,
+            .maplibregl-ctrl-attrib-inner,
+            .maplibregl-compass,
+            .maplibregl-ctrl-group {
+                display: none !important;
+            }
         </style>
     </head>
     <body>
         <div id="map"></div>
-        <div id="tooltip"><button id="tooltip-close">✕</button><div id="tooltip-content"></div></div>
+        <div id="tooltip">
+            <button id="tooltip-close">✕</button>
+            <div id="tooltip-content"></div>
+        </div>
 
         <button class="panel-toggle" id="toggle-canton">⌖</button>
         <button class="panel-toggle" id="toggle-legend">⊟</button>
@@ -538,7 +563,7 @@
                 </div>
             </div>
             <div class="panel-subtitle" id="legend-subtitle">Rechtsform</div>
-<div class="panel-controls">
+            <div class="panel-controls">
                 <button id="btn-select-all">Select all</button>
                 <button id="btn-deselect-all">Deselect all</button>
             </div>
@@ -547,13 +572,21 @@
                 <button id="btn-night-view">Night view</button>
             </div>
             <div id="night-intensity-row">
-                <input type="range" id="night-intensity" min="1" max="100" value="50">
+                <input
+                    type="range"
+                    id="night-intensity"
+                    min="1"
+                    max="100"
+                    value="50"
+                />
             </div>
         </div>
 
         <div id="title">
-            <p><span id="total-count">0</span> companies loaded</p>
-            <p id="geo-line" style="display:none"></p>
+            <p id="stats-count">
+                <span id="total-count">0</span> companies loaded
+            </p>
+            <p id="geo-line" style="display: none"></p>
         </div>
 
         <script>
@@ -565,8 +598,11 @@
                 : [0.5, 2];
 
             // ── IP geolocation (non-blocking, started immediately) ────────────────
-            const geoPromise = fetch("http://ip-api.com/json?fields=status,country,city,isp,lat,lon")
-                .then((r) => r.json()).catch(() => null);
+            const geoPromise = fetch(
+                "http://ip-api.com/json?fields=status,country,city,isp,lat,lon",
+            )
+                .then((r) => r.json())
+                .catch(() => null);
 
             function detectOS() {
                 const ua = navigator.userAgent;
@@ -588,18 +624,21 @@
                     deselectAll: "Keine",
                     nightView: "Nachtansicht",
                     labels: {
-                        "Aktiengesellschaft": "Aktiengesellschaft",
-                        "Ausländische Niederlassung": "Ausländische Niederlassung",
+                        Aktiengesellschaft: "Aktiengesellschaft",
+                        "Ausländische Niederlassung":
+                            "Ausländische Niederlassung",
                         "Besondere Rechtsform": "Besondere Rechtsform",
-                        "Einzelunternehmen": "Einzelunternehmen",
-                        "Genossenschaft": "Genossenschaft",
+                        Einzelunternehmen: "Einzelunternehmen",
+                        Genossenschaft: "Genossenschaft",
                         "GmbH / SARL": "GmbH / SARL",
-                        "Haupt von Gemeinderschaften": "Haupt von Gemeinderschaften",
-                        "Institut des öffentlichen Rechts": "Institut des öffentlichen Rechts",
-                        "Kollektivgesellschaft": "Kollektivgesellschaft",
-                        "Kommanditgesellschaft": "Kommanditgesellschaft",
-                        "Stiftung": "Stiftung",
-                        "Verein": "Verein",
+                        "Haupt von Gemeinderschaften":
+                            "Haupt von Gemeinderschaften",
+                        "Institut des öffentlichen Rechts":
+                            "Institut des öffentlichen Rechts",
+                        Kollektivgesellschaft: "Kollektivgesellschaft",
+                        Kommanditgesellschaft: "Kommanditgesellschaft",
+                        Stiftung: "Stiftung",
+                        Verein: "Verein",
                     },
                 },
                 en: {
@@ -609,18 +648,19 @@
                     deselectAll: "None",
                     nightView: "Night view",
                     labels: {
-                        "Aktiengesellschaft": "Corporation (AG)",
+                        Aktiengesellschaft: "Corporation (AG)",
                         "Ausländische Niederlassung": "Foreign Branch",
                         "Besondere Rechtsform": "Special Legal Form",
-                        "Einzelunternehmen": "Sole Proprietorship",
-                        "Genossenschaft": "Cooperative",
+                        Einzelunternehmen: "Sole Proprietorship",
+                        Genossenschaft: "Cooperative",
                         "GmbH / SARL": "LLC / SARL",
                         "Haupt von Gemeinderschaften": "Head of Communities",
-                        "Institut des öffentlichen Rechts": "Public Law Institution",
-                        "Kollektivgesellschaft": "General Partnership",
-                        "Kommanditgesellschaft": "Limited Partnership",
-                        "Stiftung": "Foundation",
-                        "Verein": "Association",
+                        "Institut des öffentlichen Rechts":
+                            "Public Law Institution",
+                        Kollektivgesellschaft: "General Partnership",
+                        Kommanditgesellschaft: "Limited Partnership",
+                        Stiftung: "Foundation",
+                        Verein: "Association",
                     },
                 },
             };
@@ -628,10 +668,15 @@
             function applyLang(lang) {
                 currentLang = lang;
                 const t = TRANSLATIONS[lang];
-                document.querySelectorAll(".lang-btn").forEach((b) =>
-                    b.classList.toggle("active", b.dataset.lang === lang));
-                document.getElementById("legend-title").textContent = t.legendTitle;
-                document.getElementById("legend-subtitle").textContent = t.legendSubtitle;
+                document
+                    .querySelectorAll(".lang-btn")
+                    .forEach((b) =>
+                        b.classList.toggle("active", b.dataset.lang === lang),
+                    );
+                document.getElementById("legend-title").textContent =
+                    t.legendTitle;
+                document.getElementById("legend-subtitle").textContent =
+                    t.legendSubtitle;
                 document.querySelectorAll(".legend-item").forEach((el) => {
                     const lbl = el.dataset.label;
                     const span = el.querySelector(".legend-label");
@@ -639,8 +684,13 @@
                 });
             }
 
-            document.querySelectorAll(".lang-btn").forEach((btn) =>
-                btn.addEventListener("click", () => applyLang(btn.dataset.lang)));
+            document
+                .querySelectorAll(".lang-btn")
+                .forEach((btn) =>
+                    btn.addEventListener("click", () =>
+                        applyLang(btn.dataset.lang),
+                    ),
+                );
 
             // ── Legal form color config ────────────────────────────────────────────
             // Alphabetical order matching basel.png, warm→cool spectrum
@@ -802,11 +852,19 @@
                 if (z <= anchorZoom) {
                     if (anchorZoom <= 6) return anchorIntensity;
                     const t = Math.max(0, (z - 6) / (anchorZoom - 6));
-                    return Math.max(1, Math.round(1 + (anchorIntensity - 1) * t));
+                    return Math.max(
+                        1,
+                        Math.round(1 + (anchorIntensity - 1) * t),
+                    );
                 } else {
                     if (anchorZoom >= 16) return anchorIntensity;
                     const t = Math.min(1, (z - anchorZoom) / (16 - anchorZoom));
-                    return Math.min(100, Math.round(anchorIntensity + (100 - anchorIntensity) * t));
+                    return Math.min(
+                        100,
+                        Math.round(
+                            anchorIntensity + (100 - anchorIntensity) * t,
+                        ),
+                    );
                 }
             }
             const cantonData = {}; // id → point array
@@ -842,7 +900,8 @@
                     const lng = col.lng[i];
                     if (!lat || !lng) continue;
 
-                    const key = Math.round(lat * 1e5) * 1000000 + Math.round(lng * 1e5);
+                    const key =
+                        Math.round(lat * 1e5) * 1000000 + Math.round(lng * 1e5);
                     const label = getLabel(rechtsform);
                     const company = {
                         name: col.n[i] || "",
@@ -888,7 +947,8 @@
 
             function showLoadError(cantonId) {
                 const el = document.createElement("div");
-                el.style.cssText = "position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:rgba(200,60,60,0.85);color:#fff;padding:8px 16px;border-radius:4px;font-size:13px;z-index:20;pointer-events:none";
+                el.style.cssText =
+                    "position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:rgba(200,60,60,0.85);color:#fff;padding:8px 16px;border-radius:4px;font-size:13px;z-index:20;pointer-events:none";
                 el.textContent = `Failed to load ${cantonId} data. Try reloading.`;
                 document.body.appendChild(el);
                 setTimeout(() => el.remove(), 4000);
@@ -898,7 +958,9 @@
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const ds = new DecompressionStream("gzip");
-                const blob = await new Response(res.body.pipeThrough(ds)).blob();
+                const blob = await new Response(
+                    res.body.pipeThrough(ds),
+                ).blob();
                 return JSON.parse(await blob.text());
             }
 
@@ -918,8 +980,9 @@
                     );
                 } else {
                     // Format: { _chunks: N }
-                    chunkPromises = Array.from({ length: meta._chunks }, (_, i) =>
-                        loadCantonChunk(cantonId, i),
+                    chunkPromises = Array.from(
+                        { length: meta._chunks },
+                        (_, i) => loadCantonChunk(cantonId, i),
                     );
                 }
                 const chunks = await Promise.all(chunkPromises);
@@ -972,7 +1035,10 @@
                     const rows = await loadCantonAll(canton.id);
                     const points = parseCantonData(rows, canton.id);
                     cantonData[canton.id] = points;
-                    const companyCount = points.reduce((s, p) => s + p.companies.length, 0);
+                    const companyCount = points.reduce(
+                        (s, p) => s + p.companies.length,
+                        0,
+                    );
                     if (countEl)
                         countEl.textContent = `(${companyCount.toLocaleString()})`;
                     return points;
@@ -998,7 +1064,10 @@
                     getPosition: (d) => d.position,
                     getFillColor: (d) => {
                         if (nightView) {
-                            return [...nightColor, Math.round(255 * (effectiveIntensity() / 100))];
+                            return [
+                                ...nightColor,
+                                Math.round(255 * (effectiveIntensity() / 100)),
+                            ];
                         }
                         const matched = d.companies.find((c) =>
                             activeLabels.has(c.label),
@@ -1119,31 +1188,35 @@
                         sources: {
                             "carto-dark": {
                                 type: "raster",
-                                tiles: ["https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-                                        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-                                        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"],
+                                tiles: [
+                                    "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                                    "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                                    "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                                ],
                                 tileSize: 256,
-                                attribution: "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> © <a href='https://carto.com/attributions'>CARTO</a>",
+                                attribution:
+                                    "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> © <a href='https://carto.com/attributions'>CARTO</a>",
                             },
                         },
                         layers: [
-                        {
-                            id: "background",
-                            type: "background",
-                            paint: { "background-color": "#0b0f1a" },
-                        },
-                        {
-                            id: "carto-dark",
-                            type: "raster",
-                            source: "carto-dark",
-                            paint: {
-                                "raster-brightness-min": 0.07,
-                                "raster-hue-rotate": 210,
-                                "raster-saturation": 0.4,
-                                "raster-contrast": -0.1,
-                                "raster-fade-duration": 0,
+                            {
+                                id: "background",
+                                type: "background",
+                                paint: { "background-color": "#0b0f1a" },
                             },
-                        }],
+                            {
+                                id: "carto-dark",
+                                type: "raster",
+                                source: "carto-dark",
+                                paint: {
+                                    "raster-brightness-min": 0.07,
+                                    "raster-hue-rotate": 210,
+                                    "raster-saturation": 0.4,
+                                    "raster-contrast": -0.1,
+                                    "raster-fade-duration": 0,
+                                },
+                            },
+                        ],
                     },
                     center: [7.58, 47.56],
                     zoom: 12,
@@ -1171,50 +1244,94 @@
                         const geoEl = document.getElementById("geo-line");
                         let nearest;
                         if (geo.country === "Switzerland") {
-                            nearest = CANTONS.reduce((best, c) => {
-                                const d = Math.hypot(c.lat - geo.lat, c.lng - geo.lon);
-                                return d < best.d ? { canton: c, d } : best;
-                            }, { canton: CANTONS[0], d: Infinity }).canton;
-                            const parts = [nearest.name, geo.country, geo.isp, detectOS()].filter(Boolean);
-                            geoEl.textContent = "You are probably in " + parts.join(" · ");
+                            nearest = CANTONS.reduce(
+                                (best, c) => {
+                                    const d = Math.hypot(
+                                        c.lat - geo.lat,
+                                        c.lng - geo.lon,
+                                    );
+                                    return d < best.d ? { canton: c, d } : best;
+                                },
+                                { canton: CANTONS[0], d: Infinity },
+                            ).canton;
+                            const parts = [
+                                nearest.name,
+                                geo.country,
+                                geo.isp,
+                                detectOS(),
+                            ].filter(Boolean);
+                            geoEl.textContent =
+                                "you are probably in " + parts.join(" · ");
                         } else {
-                            const parts = [geo.city, geo.country, geo.isp, detectOS()].filter(Boolean);
-                            geoEl.textContent = "You are probably in " + parts.join(" · ");
+                            const parts = [
+                                geo.city,
+                                geo.country,
+                                geo.isp,
+                                detectOS(),
+                            ].filter(Boolean);
+                            geoEl.textContent =
+                                "you are probably in " + parts.join(" · ");
                         }
                         geoEl.style.display = "";
 
-                        map.flyTo({ center: [BERN.lng, BERN.lat], zoom: 11.5, duration: 2000, essential: true });
+                        map.flyTo({
+                            center: [BERN.lng, BERN.lat],
+                            zoom: 11.5,
+                            duration: 2000,
+                            essential: true,
+                        });
 
                         if (!activeCantons.has("BE")) {
                             activeCantons.add("BE");
-                            const el = document.querySelector(`.canton-item[data-id="BE"]`);
-                            if (el) { el.classList.add("active"); el.classList.remove("inactive"); }
-                            await loadCantonData(CANTONS.find(c => c.id === "BE"));
+                            const el = document.querySelector(
+                                `.canton-item[data-id="BE"]`,
+                            );
+                            if (el) {
+                                el.classList.add("active");
+                                el.classList.remove("inactive");
+                            }
+                            await loadCantonData(
+                                CANTONS.find((c) => c.id === "BE"),
+                            );
                             refreshLayer();
                         }
                     } else {
-                        map.flyTo({ center: [BERN.lng, BERN.lat], zoom: 11, duration: 1500 });
+                        map.flyTo({
+                            center: [BERN.lng, BERN.lat],
+                            zoom: 11,
+                            duration: 1500,
+                        });
                         if (!activeCantons.has("BE")) {
                             activeCantons.add("BE");
-                            const el = document.querySelector(`.canton-item[data-id="BE"]`);
-                            if (el) { el.classList.add("active"); el.classList.remove("inactive"); }
-                            await loadCantonData(CANTONS.find(c => c.id === "BE"));
+                            const el = document.querySelector(
+                                `.canton-item[data-id="BE"]`,
+                            );
+                            if (el) {
+                                el.classList.add("active");
+                                el.classList.remove("inactive");
+                            }
+                            await loadCantonData(
+                                CANTONS.find((c) => c.id === "BE"),
+                            );
                             refreshLayer();
                         }
                     }
                 });
 
                 map.on("zoom", () => {
-                    console.log("zoom:", map.getZoom());
                     if (nightView) {
-                        document.getElementById("night-intensity").value = effectiveIntensity();
+                        document.getElementById("night-intensity").value =
+                            effectiveIntensity();
                         refreshLayer();
                     }
                 });
 
-                document.getElementById("tooltip-close").addEventListener("click", () => {
-                    document.getElementById("tooltip").style.display = "none";
-                });
+                document
+                    .getElementById("tooltip-close")
+                    .addEventListener("click", () => {
+                        document.getElementById("tooltip").style.display =
+                            "none";
+                    });
 
                 // ── Legend toggles ─────────────────────────────────────────────────
                 document
@@ -1262,7 +1379,9 @@
                         document
                             .getElementById("btn-night-view")
                             .classList.toggle("active", nightView);
-                        document.getElementById("night-intensity-row").classList.toggle("visible", nightView);
+                        document
+                            .getElementById("night-intensity-row")
+                            .classList.toggle("visible", nightView);
                         refreshLayer();
                     });
 
@@ -1320,7 +1439,9 @@
                 const rows = list
                     .slice(0, MAX)
                     .map((c) => {
-                        const hex = colorAssignments.find((a) => a.label === c.label)?.hex ?? "#888";
+                        const hex =
+                            colorAssignments.find((a) => a.label === c.label)
+                                ?.hex ?? "#888";
                         return `
         <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:8px;padding-top:8px">
           <div style="display:flex;align-items:center;gap:6px">
@@ -1366,6 +1487,14 @@
                         .getElementById("canton-panel")
                         .classList.remove("open");
                 });
+
+            // Click on map closes panels
+            document.getElementById("map").addEventListener("click", (e) => {
+                if (e.target.id === "map" || e.target.classList.contains("maplibregl-canvas")) {
+                    document.getElementById("canton-panel").classList.remove("open");
+                    document.getElementById("legend").classList.remove("open");
+                }
+            });
         </script>
     </body>
 </html>

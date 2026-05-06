@@ -20,7 +20,9 @@ Interactive map of Swiss companies built with Open Data
 - **Night view mode** — adjust intensity slider for dark-mode visualisation
 - **DE/EN language switcher** — switch between German and English (legend only, panel controls stay in English)
 - **Geo-location** — detects your location and shows canton/country in bottom bar
-- **Smooth initial animation** — on load, smoothly flies from Bern to starting position
+- **Smooth initial animation** — on load, smoothly flies to Bern at zoom 11.5
+- **Mobile responsive** — bottom sheet panels on small screens
+- **Click map to close panels** — tap anywhere on map to dismiss open panels
 
 ---
 
