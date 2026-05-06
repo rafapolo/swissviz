@@ -5,7 +5,6 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Swiss Companies Map</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇨🇭</text></svg>" />
-<script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
         <script src="https://unpkg.com/deck.gl@8.9.33/dist.min.js"></script>
         <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
         <link
@@ -54,12 +53,13 @@
             #title {
                 z-index: 10;
             }
-
             /* Title */
             #title {
                 position: absolute;
                 bottom: 28px;
-                left: 24px;
+                left: 20px;
+                width: 285px;
+                text-align: center;
             }
             #title h1 {
                 color: rgba(255, 255, 255, 0.9);
@@ -68,11 +68,22 @@
                 letter-spacing: -0.02em;
                 line-height: 1;
             }
-            #title p {
+#title p {
                 color: rgba(255, 255, 255, 0.3);
                 font-size: 13px;
                 margin-top: 4px;
-                letter-spacing: 0.05em;
+            }
+            #title p:first-child {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                font-size: 10px;
+                color: rgba(255, 255, 255, 0.4);
+                background: rgba(0, 0, 0, 0.6);
+                padding: 4px 8px;
+                letter-spacing: 0.02em;
+                z-index: 1000;
+                margin: 0;
             }
 
             /* Tooltip */
@@ -114,7 +125,7 @@
                 padding: 14px 16px;
                 font-size: 14px;
                 overflow-y: auto;
-                max-height: min(520px, calc(100vh - 80px));
+                max-height: calc(100vh - 40px);
             }
             .panel::-webkit-scrollbar {
                 width: 3px;
@@ -143,6 +154,56 @@
                 font-size: 14px;
                 font-weight: 500;
                 letter-spacing: 0.02em;
+            }
+            .lang-switcher {
+                display: flex;
+                gap: 2px;
+                margin-left: auto;
+            }
+            .lang-btn {
+                background: rgba(255, 255, 255, 0.06);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 3px;
+                color: rgba(255, 255, 255, 0.38);
+                font-family: inherit;
+                font-size: 10px;
+                font-weight: 600;
+                letter-spacing: 0.05em;
+                padding: 2px 5px;
+                cursor: pointer;
+                transition: background 0.15s, color 0.15s, border-color 0.15s;
+                line-height: 1.4;
+            }
+            .lang-btn:hover {
+                background: rgba(255, 255, 255, 0.1);
+                color: rgba(255, 255, 255, 0.7);
+            }
+            .lang-btn.active {
+                background: rgba(108, 142, 255, 0.15);
+                border-color: rgba(108, 142, 255, 0.4);
+                color: #6c8eff;
+            }
+            #geo-line {
+                position: fixed;
+                bottom: 0;
+                right: 0;
+                font-size: 10px;
+                color: rgba(255, 255, 255, 0.4);
+                background: rgba(0, 0, 0, 0.6);
+                padding: 4px 8px;
+                letter-spacing: 0.02em;
+                z-index: 1000;
+            }
+            #stats-line {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                font-size: 10px;
+                color: rgba(255, 255, 255, 0.4);
+                background: rgba(0, 0, 0, 0.6);
+                padding: 4px 8px;
+                letter-spacing: 0.02em;
+                z-index: 1000;
             }
             .panel-subtitle {
                 color: rgba(255, 255, 255, 0.35);
@@ -188,6 +249,23 @@
                 border-top: 1px solid rgba(255, 255, 255, 0.06);
                 border-bottom: none;
                 margin-bottom: 0;
+            }
+            #night-intensity-row {
+                max-height: 0;
+                opacity: 0;
+                overflow: hidden;
+                padding: 0 0;
+                transition: max-height 0.3s ease, opacity 0.25s ease, padding 0.3s ease;
+            }
+            #night-intensity-row.visible {
+                max-height: 60px;
+                opacity: 1;
+                padding: 10px 0 14px;
+            }
+            #night-intensity-row input[type=range] {
+                width: 100%;
+                accent-color: rgba(255, 197, 143, 0.9);
+                cursor: pointer;
             }
 
             /* Legend — right */
@@ -383,6 +461,9 @@
                     right: 16px;
                     text-align: center;
                 }
+                #geo-line {
+                    display: none !important;
+                }
                 #title h1 {
                     font-size: 20px;
                 }
@@ -450,9 +531,13 @@
         <div id="legend" class="panel">
             <div class="panel-header">
                 <span class="panel-dot">⊟</span>
-                <h2>Legend</h2>
+                <h2 id="legend-title">Legende</h2>
+                <div class="lang-switcher">
+                    <button class="lang-btn active" data-lang="de">DE</button>
+                    <button class="lang-btn" data-lang="en">EN</button>
+                </div>
             </div>
-            <div class="panel-subtitle">Rechtsform</div>
+            <div class="panel-subtitle" id="legend-subtitle">Rechtsform</div>
 <div class="panel-controls">
                 <button id="btn-select-all">Select all</button>
                 <button id="btn-deselect-all">Deselect all</button>
@@ -461,10 +546,14 @@
             <div class="panel-controls" id="night-view-controls">
                 <button id="btn-night-view">Night view</button>
             </div>
+            <div id="night-intensity-row">
+                <input type="range" id="night-intensity" min="1" max="100" value="50">
+            </div>
         </div>
 
         <div id="title">
             <p><span id="total-count">0</span> companies loaded</p>
+            <p id="geo-line" style="display:none"></p>
         </div>
 
         <script>
@@ -474,6 +563,84 @@
             const [RADIUS_MIN, RADIUS_MAX] = _rParam
                 ? _rParam.split(",").map(Number)
                 : [0.5, 2];
+
+            // ── IP geolocation (non-blocking, started immediately) ────────────────
+            const geoPromise = fetch("http://ip-api.com/json?fields=status,country,city,isp,lat,lon")
+                .then((r) => r.json()).catch(() => null);
+
+            function detectOS() {
+                const ua = navigator.userAgent;
+                if (/Mac OS X/.test(ua)) return "macOS";
+                if (/Windows/.test(ua)) return "Windows";
+                if (/Android/.test(ua)) return "Android";
+                if (/iPhone|iPad/.test(ua)) return "iOS";
+                if (/Linux/.test(ua)) return "Linux";
+                return null;
+            }
+
+            // ── i18n ──────────────────────────────────────────────────────────────
+            let currentLang = "de";
+            const TRANSLATIONS = {
+                de: {
+                    legendTitle: "Legende",
+                    legendSubtitle: "Rechtsform",
+                    selectAll: "Alle",
+                    deselectAll: "Keine",
+                    nightView: "Nachtansicht",
+                    labels: {
+                        "Aktiengesellschaft": "Aktiengesellschaft",
+                        "Ausländische Niederlassung": "Ausländische Niederlassung",
+                        "Besondere Rechtsform": "Besondere Rechtsform",
+                        "Einzelunternehmen": "Einzelunternehmen",
+                        "Genossenschaft": "Genossenschaft",
+                        "GmbH / SARL": "GmbH / SARL",
+                        "Haupt von Gemeinderschaften": "Haupt von Gemeinderschaften",
+                        "Institut des öffentlichen Rechts": "Institut des öffentlichen Rechts",
+                        "Kollektivgesellschaft": "Kollektivgesellschaft",
+                        "Kommanditgesellschaft": "Kommanditgesellschaft",
+                        "Stiftung": "Stiftung",
+                        "Verein": "Verein",
+                    },
+                },
+                en: {
+                    legendTitle: "Legend",
+                    legendSubtitle: "Legal Form",
+                    selectAll: "All",
+                    deselectAll: "None",
+                    nightView: "Night view",
+                    labels: {
+                        "Aktiengesellschaft": "Corporation (AG)",
+                        "Ausländische Niederlassung": "Foreign Branch",
+                        "Besondere Rechtsform": "Special Legal Form",
+                        "Einzelunternehmen": "Sole Proprietorship",
+                        "Genossenschaft": "Cooperative",
+                        "GmbH / SARL": "LLC / SARL",
+                        "Haupt von Gemeinderschaften": "Head of Communities",
+                        "Institut des öffentlichen Rechts": "Public Law Institution",
+                        "Kollektivgesellschaft": "General Partnership",
+                        "Kommanditgesellschaft": "Limited Partnership",
+                        "Stiftung": "Foundation",
+                        "Verein": "Association",
+                    },
+                },
+            };
+
+            function applyLang(lang) {
+                currentLang = lang;
+                const t = TRANSLATIONS[lang];
+                document.querySelectorAll(".lang-btn").forEach((b) =>
+                    b.classList.toggle("active", b.dataset.lang === lang));
+                document.getElementById("legend-title").textContent = t.legendTitle;
+                document.getElementById("legend-subtitle").textContent = t.legendSubtitle;
+                document.querySelectorAll(".legend-item").forEach((el) => {
+                    const lbl = el.dataset.label;
+                    const span = el.querySelector(".legend-label");
+                    if (span && t.labels[lbl]) span.textContent = t.labels[lbl];
+                });
+            }
+
+            document.querySelectorAll(".lang-btn").forEach((btn) =>
+                btn.addEventListener("click", () => applyLang(btn.dataset.lang)));
 
             // ── Legal form color config ────────────────────────────────────────────
             // Alphabetical order matching basel.png, warm→cool spectrum
@@ -624,27 +791,61 @@
 
             // ── State ──────────────────────────────────────────────────────────────
             const activeLabels = new Set(colorAssignments.map((a) => a.label)); // active legal forms
-            const activeCantons = new Set(["BS"]);
+            const activeCantons = new Set();
+            const BERN = { lng: 7.44, lat: 46.95 };
             let nightView = false;
+            let anchorIntensity = 50;
+            let anchorZoom = 12;
             const nightColor = [255, 197, 143];
+            function effectiveIntensity() {
+                const z = map.getZoom();
+                if (z <= anchorZoom) {
+                    if (anchorZoom <= 6) return anchorIntensity;
+                    const t = Math.max(0, (z - 6) / (anchorZoom - 6));
+                    return Math.max(1, Math.round(1 + (anchorIntensity - 1) * t));
+                } else {
+                    if (anchorZoom >= 16) return anchorIntensity;
+                    const t = Math.min(1, (z - anchorZoom) / (16 - anchorZoom));
+                    return Math.min(100, Math.round(anchorIntensity + (100 - anchorIntensity) * t));
+                }
+            }
             const cantonData = {}; // id → point array
             let overlay = null;
+            let map = null;
+
+            const T_DECODE = {
+                A: "Aktiengesellschaft",
+                L: "Ausländische Niederlassung",
+                B: "Besondere Rechtsform",
+                E: "Einzelunternehmen",
+                N: "Genossenschaft",
+                G: "GmbH / SARL",
+                H: "Haupt von Gemeinderschaften",
+                I: "Institut des öffentlichen Rechts",
+                K: "Kollektivgesellschaft",
+                O: "Kommanditgesellschaft",
+                Z: "Schweizerische Zweigniederlassung",
+                S: "Stiftung",
+                V: "Verein",
+            };
 
             // ── Parse canton data — groups co-located companies into one point ─────
-            function parseCantonData(rows, cantonId) {
+            function parseCantonData(col, cantonId) {
                 const byPos = new Map();
+                const count = col.n.length;
 
-                for (const row of rows) {
-                    const rechtsform = (row["t"] || "").trim();
+                for (let i = 0; i < count; i++) {
+                    const tRaw = col.t[i] || "";
+                    const rechtsform = (T_DECODE[tRaw] || tRaw).trim();
                     if (!rechtsform) continue;
-                    const lat = parseFloat(row["lat"]);
-                    const lng = parseFloat(row["lng"]);
-                    if (isNaN(lat) || isNaN(lng)) continue;
+                    const lat = col.lat[i];
+                    const lng = col.lng[i];
+                    if (!lat || !lng) continue;
 
                     const key = Math.round(lat * 1e5) * 1000000 + Math.round(lng * 1e5);
                     const label = getLabel(rechtsform);
                     const company = {
-                        name: row["n"] || "",
+                        name: col.n[i] || "",
                         rechtsform,
                         label,
                         address: "",
@@ -696,11 +897,9 @@
             async function gunzipJson(url) {
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const buf = await res.arrayBuffer();
-                const decompressed = pako.ungzip(new Uint8Array(buf), {
-                    to: "string",
-                });
-                return JSON.parse(decompressed);
+                const ds = new DecompressionStream("gzip");
+                const blob = await new Response(res.body.pipeThrough(ds)).blob();
+                return JSON.parse(await blob.text());
             }
 
             async function loadCantonChunk(cantonId, chunk) {
@@ -724,7 +923,12 @@
                     );
                 }
                 const chunks = await Promise.all(chunkPromises);
-                return chunks.flat();
+                return {
+                    n: chunks.flatMap((c) => c.n),
+                    t: chunks.flatMap((c) => c.t),
+                    lat: chunks.flatMap((c) => c.lat),
+                    lng: chunks.flatMap((c) => c.lng),
+                };
             }
 
             // ── Load BS and build legend counts ───────────────────────────────────
@@ -793,7 +997,9 @@
                     data: visible,
                     getPosition: (d) => d.position,
                     getFillColor: (d) => {
-                        if (nightView) return [...nightColor, 222];
+                        if (nightView) {
+                            return [...nightColor, Math.round(255 * (effectiveIntensity() / 100))];
+                        }
                         const matched = d.companies.find((c) =>
                             activeLabels.has(c.label),
                         );
@@ -906,7 +1112,7 @@
                 });
 
                 // Map — MapLibre + CartoDB Dark Matter (OSM, no token required)
-                const map = new maplibregl.Map({
+                map = new maplibregl.Map({
                     container: "map",
                     style: {
                         version: 8,
@@ -920,7 +1126,13 @@
                                 attribution: "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> © <a href='https://carto.com/attributions'>CARTO</a>",
                             },
                         },
-                        layers: [{
+                        layers: [
+                        {
+                            id: "background",
+                            type: "background",
+                            paint: { "background-color": "#0b0f1a" },
+                        },
+                        {
                             id: "carto-dark",
                             type: "raster",
                             source: "carto-dark",
@@ -929,6 +1141,7 @@
                                 "raster-hue-rotate": 210,
                                 "raster-saturation": 0.4,
                                 "raster-contrast": -0.1,
+                                "raster-fade-duration": 0,
                             },
                         }],
                     },
@@ -944,7 +1157,7 @@
 
                 overlay = new deck.MapboxOverlay({ layers: [buildLayer()] });
 
-                map.on("load", () => {
+                map.on("load", async () => {
                     map.addControl(overlay);
                     map.addControl(
                         new maplibregl.NavigationControl({
@@ -952,6 +1165,51 @@
                         }),
                         "bottom-right",
                     );
+
+                    const geo = await geoPromise;
+                    if (geo?.status === "success") {
+                        const geoEl = document.getElementById("geo-line");
+                        let nearest;
+                        if (geo.country === "Switzerland") {
+                            nearest = CANTONS.reduce((best, c) => {
+                                const d = Math.hypot(c.lat - geo.lat, c.lng - geo.lon);
+                                return d < best.d ? { canton: c, d } : best;
+                            }, { canton: CANTONS[0], d: Infinity }).canton;
+                            const parts = [nearest.name, geo.country, geo.isp, detectOS()].filter(Boolean);
+                            geoEl.textContent = "You are probably in " + parts.join(" · ");
+                        } else {
+                            const parts = [geo.city, geo.country, geo.isp, detectOS()].filter(Boolean);
+                            geoEl.textContent = "You are probably in " + parts.join(" · ");
+                        }
+                        geoEl.style.display = "";
+
+                        map.flyTo({ center: [BERN.lng, BERN.lat], zoom: 11.5, duration: 2000, essential: true });
+
+                        if (!activeCantons.has("BE")) {
+                            activeCantons.add("BE");
+                            const el = document.querySelector(`.canton-item[data-id="BE"]`);
+                            if (el) { el.classList.add("active"); el.classList.remove("inactive"); }
+                            await loadCantonData(CANTONS.find(c => c.id === "BE"));
+                            refreshLayer();
+                        }
+                    } else {
+                        map.flyTo({ center: [BERN.lng, BERN.lat], zoom: 11, duration: 1500 });
+                        if (!activeCantons.has("BE")) {
+                            activeCantons.add("BE");
+                            const el = document.querySelector(`.canton-item[data-id="BE"]`);
+                            if (el) { el.classList.add("active"); el.classList.remove("inactive"); }
+                            await loadCantonData(CANTONS.find(c => c.id === "BE"));
+                            refreshLayer();
+                        }
+                    }
+                });
+
+                map.on("zoom", () => {
+                    console.log("zoom:", map.getZoom());
+                    if (nightView) {
+                        document.getElementById("night-intensity").value = effectiveIntensity();
+                        refreshLayer();
+                    }
                 });
 
                 document.getElementById("tooltip-close").addEventListener("click", () => {
@@ -1004,9 +1262,17 @@
                         document
                             .getElementById("btn-night-view")
                             .classList.toggle("active", nightView);
+                        document.getElementById("night-intensity-row").classList.toggle("visible", nightView);
                         refreshLayer();
                     });
 
+                document
+                    .getElementById("night-intensity")
+                    .addEventListener("input", (e) => {
+                        anchorIntensity = +e.target.value;
+                        anchorZoom = map.getZoom();
+                        refreshLayer();
+                    });
 
                 // ── Canton all / none ──────────────────────────────────────────────
                 document
@@ -1053,14 +1319,18 @@
                 const MAX = 10;
                 const rows = list
                     .slice(0, MAX)
-                    .map(
-                        (c) => `
+                    .map((c) => {
+                        const hex = colorAssignments.find((a) => a.label === c.label)?.hex ?? "#888";
+                        return `
         <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:8px;padding-top:8px">
-          <div style="color:#fff;font-weight:500;font-size:13px">${c.name}</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:${hex}"></span>
+            <span style="color:#fff;font-weight:500;font-size:13px">${c.name}</span>
+          </div>
           <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:3px">${c.rechtsform}</div>
           <div style="color:rgba(255,255,255,0.3);font-size:11px">${c.address}</div>
-        </div>`,
-                    )
+        </div>`;
+                    })
                     .join("");
                 const more =
                     list.length > MAX

@@ -13,6 +13,17 @@ Interactive map of Swiss companies built with Open Data
 
 ---
 
+## Features
+
+- **Interactive map** — visualise company locations across Swiss cantons
+- **Canton & legal form filters** — toggle cantons and legal entity types
+- **Night view mode** — adjust intensity slider for dark-mode visualisation
+- **DE/EN language switcher** — switch between German and English (legend only, panel controls stay in English)
+- **Geo-location** — detects your location and shows canton/country in bottom bar
+- **Smooth initial animation** — on load, smoothly flies from Bern to starting position
+
+---
+
 ## Data & Pipeline
 
 1. **Download** — company data fetched from opendata.swiss, one CSV per canton (26 total)
