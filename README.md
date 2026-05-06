@@ -5,9 +5,6 @@ Interactive map of Swiss companies built with Open Data
 ---
 
 <p align="center">
-  <img src="sample.jpg" width="800">
-</p>
-<p align="center">
   <img src="sample2.jpg" width="800">
 </p>
 
