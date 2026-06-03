@@ -18,10 +18,10 @@
             rel="icon"
             href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇨🇭</text></svg>"
         />
-        <script src="https://unpkg.com/deck.gl@8.9.33/dist.min.js"></script>
-        <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+        <script src="https://unpkg.com/deck.gl@9.3.3/dist.min.js"></script>
+        <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
         <link
-            href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
+            href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css"
             rel="stylesheet"
         />
         <style>
@@ -458,9 +458,49 @@
             .maplibregl-ctrl-group {
                 display: none !important;
             }
+
+            /* Loading spinner */
+            #loading-screen {
+                position: fixed;
+                inset: 0;
+                z-index: 100;
+                background: rgb(16, 23, 41);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 20px;
+                transition: opacity 0.4s ease;
+            }
+            #loading-screen.hidden {
+                opacity: 0;
+                pointer-events: none;
+            }
+            .spinner {
+                width: 36px;
+                height: 36px;
+                border: 2px solid rgba(255, 255, 255, 0.08);
+                border-top-color: #6c8eff;
+                border-radius: 50%;
+                animation: spin 0.75s linear infinite;
+            }
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+            .loading-label {
+                color: rgba(255, 255, 255, 0.3);
+                font-size: 12px;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+            }
         </style>
     </head>
     <body>
+        <div id="loading-screen">
+            <div class="spinner"></div>
+            <span class="loading-label">Loading</span>
+        </div>
+
         <div id="map"></div>
         <div id="tooltip">
             <button id="tooltip-close">✕</button>
@@ -486,13 +526,13 @@
         <div id="legend" class="panel">
             <div class="panel-header">
                 <span class="panel-dot">⊟</span>
-                <h2 id="legend-title">Legende</h2>
+                <h2 id="legend-title">Legend</h2>
                 <div class="lang-switcher">
-                    <button class="lang-btn active" data-lang="de">DE</button>
-                    <button class="lang-btn" data-lang="en">EN</button>
+                    <button class="lang-btn" data-lang="de">DE</button>
+                    <button class="lang-btn active" data-lang="en">EN</button>
                 </div>
             </div>
-            <div class="panel-subtitle" id="legend-subtitle">Rechtsform</div>
+            <div class="panel-subtitle" id="legend-subtitle">Legal Form</div>
             <div class="panel-controls">
                 <button id="btn-select-all">Select all</button>
                 <button id="btn-deselect-all">Deselect all</button>
@@ -523,7 +563,7 @@
                 : [0.5, 2];
 
             // ── i18n ──────────────────────────────────────────────────────────────
-            let currentLang = "de";
+            let currentLang = "en";
             const TRANSLATIONS = {
                 de: {
                     legendTitle: "Legende",
@@ -1025,8 +1065,7 @@
             loadBsData().then((points) => {
                 cantonData["BS"] = points;
                 displayTotal = points.reduce((s, p) => s + p.companies.length, 0);
-                document.getElementById("legend-subtitle").textContent =
-                    TRANSLATIONS[currentLang].legendSubtitle + " (" + displayTotal.toLocaleString() + ")";
+                applyLang(currentLang);
 
                 // Build canton list
                 const cantonEl = document.getElementById("canton-items");
@@ -1159,6 +1198,10 @@
                     }
                     await loadCantonData(CANTONS.find((c) => c.id === "BE"));
                     refreshLayer();
+
+                    const ls = document.getElementById("loading-screen");
+                    ls.classList.add("hidden");
+                    setTimeout(() => ls.remove(), 450);
                 });
 
                 map.on("zoom", () => {
