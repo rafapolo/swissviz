@@ -55,24 +55,6 @@ The map tiles (the street map underneath) come from [CartoDB](https://carto.com/
 
 ---
 
-## Company type colour guide
-
-| Colour | Type | German |
-|--------|------|--------|
-| Yellow | Corporation | Aktiengesellschaft (AG) |
-| Gold | Foreign Branch | Ausländische Niederlassung |
-| Orange | Special Legal Form | Besondere Rechtsform |
-| Dark Orange | Sole Proprietorship | Einzelunternehmen |
-| Coral | Cooperative | Genossenschaft |
-| Tomato | LLC | GmbH / SARL |
-| Red | Head of Communities | Haupt von Gemeinderschaften |
-| Pink | Public Law Institution | Institut des öffentlichen Rechts |
-| Violet | General Partnership | Kollektivgesellschaft |
-| Magenta | Limited Partnership | Kommanditgesellschaft |
-| Dark Purple | Foundation | Stiftung |
-| Muted Purple | Association | Verein |
-
----
 
 ## Technical notes
 
