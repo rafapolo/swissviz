@@ -1,8 +1,6 @@
 # SwissViz
 
-**An interactive map of every registered company in Switzerland — all 750,000+ of them.**
-
-Open it, zoom in on your city, and see who's operating around you, colour-coded by company type.
+An interactive map of every registered company in Switzerland — all 750,000+ of them.
 
 ---
 
