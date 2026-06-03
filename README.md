@@ -1,6 +1,8 @@
 # SwissViz
 
-Interactive map of Swiss companies built with Open Data
+**An interactive map of every registered company in Switzerland — all 750,000+ of them.**
+
+Open it, zoom in on your city, and see who's operating around you, colour-coded by company type.
 
 ---
 
@@ -10,21 +12,97 @@ Interactive map of Swiss companies built with Open Data
 
 ---
 
-## Features
+## What is this?
 
-- **Interactive map** — visualise company locations across Swiss cantons
-- **Canton & legal form filters** — toggle cantons and legal entity types; counts shown in legend subtitle
-- **Night view mode** — adjust intensity slider for dark-mode visualisation
-- **DE/EN language switcher** — switch between German and English labels
-- **Smooth initial animation** — on load, smoothly flies to Bern at zoom 11
-- **Mobile responsive** — bottom sheet panels on small screens
-- **Click map to close panels** — tap anywhere on map to dismiss open panels
+SwissViz turns Switzerland's official public business registry into a visual map you can explore. Each dot on the map is a real, registered company. The colour tells you what kind of company it is — corporations in yellow, foundations in purple, sole traders in orange, and so on.
+
+**Live at → [rafapolo.github.io/swissviz](https://rafapolo.github.io/swissviz)**
+
+No account needed. No install. Just open the link.
 
 ---
 
-## Data & Pipeline
+## How to use it
 
-1. **Download** — company data fetched from opendata.swiss, one CSV per canton (26 total)
-2. **Geocode** — `scripts/geocode.py` queries the Mapbox Geocoding API, building each query as `"{street}, {postal_code} {locality}, Switzerland"`; a local cache (`geocode_cache.json`) makes runs resumable; rate and mode are controlled via flags (`--sleep`, `--append`, `--canton`, …)
-3. **Chunk & compress** — geocoded rows serialised to JSON arrays and gzip-compressed into numbered chunks; a `<CANTON>.json` metadata file records the chunk count (`{"_chunks": N}`)
-4. **Render** — static files only, no backend; browser fetches chunks on demand, decompresses with [pako](https://github.com/nodeca/pako), and renders with [deck.gl](https://deck.gl) on a [MapLibre GL](https://maplibre.org/) basemap using [CartoDB Dark Matter](https://carto.com/basemaps/) tiles (OSM data, no token required)
+### Navigating the map
+- **Scroll** (or pinch on mobile) to zoom in and out
+- **Click and drag** to move around
+- **Click any dot** to see the company name and legal form
+
+### Left panel — Cantons
+Choose which cantons (regions) to show on the map. By default Bern is loaded. Click any canton name to load its companies. You can select all or none with the buttons at the top.
+
+### Right panel — Legend
+The legend shows the 12 legal forms and their colours. Click any item to hide or show that company type. The number in brackets shows how many companies of that type are visible.
+
+Switch between **DE** (German labels) and **EN** (English labels) using the buttons in the top-right of the legend.
+
+### Night view
+At the bottom of the legend panel there's a **Night view** toggle. It turns all dots the same warm amber colour, making the density of business activity stand out against the dark map — great for seeing which areas are most commercially active.
+
+### Collapsing the panels
+On desktop, click the **‹** or **›** arrow inside each panel header to slide it out of the way. Click the icon button that appears in the corner to bring it back.
+
+On mobile, tap the corner icons to open panels as bottom sheets. Tap anywhere on the map to close them.
+
+---
+
+## Where does the data come from?
+
+All data is sourced from **[opendata.swiss](https://opendata.swiss)** — Switzerland's official open government data portal. The business registry is public information, updated regularly by the Swiss federal authorities.
+
+The map tiles (the street map underneath) come from [CartoDB](https://carto.com/) using [OpenStreetMap](https://www.openstreetmap.org/) data. Both are free and open.
+
+**No data is collected from visitors.** There is no tracking, no cookies, no login.
+
+---
+
+## Company type colour guide
+
+| Colour | Type | German |
+|--------|------|--------|
+| Yellow | Corporation | Aktiengesellschaft (AG) |
+| Gold | Foreign Branch | Ausländische Niederlassung |
+| Orange | Special Legal Form | Besondere Rechtsform |
+| Dark Orange | Sole Proprietorship | Einzelunternehmen |
+| Coral | Cooperative | Genossenschaft |
+| Tomato | LLC | GmbH / SARL |
+| Red | Head of Communities | Haupt von Gemeinderschaften |
+| Pink | Public Law Institution | Institut des öffentlichen Rechts |
+| Violet | General Partnership | Kollektivgesellschaft |
+| Magenta | Limited Partnership | Kommanditgesellschaft |
+| Dark Purple | Foundation | Stiftung |
+| Muted Purple | Association | Verein |
+
+---
+
+## Technical notes
+
+For those curious about how it works under the hood:
+
+- Company data is downloaded from opendata.swiss (one CSV file per canton, 26 total)
+- Addresses are geocoded (converted to map coordinates) using the Mapbox Geocoding API
+- The coordinates are compressed and stored as small files that the browser downloads on demand — no server needed
+- The map renders entirely in your browser using [deck.gl](https://deck.gl) and [MapLibre GL](https://maplibre.org/)
+- The whole thing is a single HTML file + data files, hosted for free on GitHub Pages
+
+### Data pipeline
+
+```mermaid
+flowchart TD
+    A([opendata.swiss]) -->|CSV per canton\n26 files| B[hr_companies/\n*.csv]
+
+    B --> C[geocode.py]
+    E[(geocode_cache.json\nresume support)] <-->|cache lookup\n& save| C
+    F([Mapbox Geocoding API]) -->|lat · lng| C
+    C -->|address → coordinates| G[hr_companies/\n*_latlong.csv]
+
+    G --> H[repack.py]
+    H -->|columnar JSON\nsingle-char type codes\n4-decimal coords\ngzip compressed| I[data/\n*.json.gz chunks]
+
+    I -->|fetched on demand\ndecompressed in browser| J([Browser\ndeck.gl · MapLibre GL\nCartoDB tiles])
+```
+
+---
+
+Built by [ExtraPolo.com](https://extrapolo.com) · Data: [opendata.swiss](https://opendata.swiss) · Map: [CartoDB](https://carto.com/) / [OpenStreetMap](https://www.openstreetmap.org/)
