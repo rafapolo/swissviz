@@ -18,12 +18,8 @@
             rel="icon"
             href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇨🇭</text></svg>"
         />
-        <script src="https://unpkg.com/deck.gl@9.3.3/dist.min.js"></script>
-        <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
-        <link
-            href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css"
-            rel="stylesheet"
-        />
+        <link rel="preload" href="data/BS_0.json.gz" as="fetch" crossorigin />
+        <link href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" rel="stylesheet" />
         <style>
             @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap");
             * {
@@ -621,13 +617,16 @@
                 display: flex;
                 align-items: center;
                 gap: 8px;
-                padding: 8px 12px;
+                padding: 0 12px;
+                height: 36px;
+                box-sizing: border-box;
                 cursor: pointer;
                 transition: background 0.12s;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+                flex-shrink: 0;
             }
-            .search-result-item:last-child { border-bottom: none; }
             .search-result-item:hover { background: rgba(255, 255, 255, 0.05); }
+            .search-result-item.keyboard-active { background: rgba(255, 255, 255, 0.1); }
             .search-result-name {
                 color: rgba(255, 255, 255, 0.8);
                 font-size: 13px;
@@ -650,6 +649,24 @@
                     max-width: none;
                     transform: none;
                 }
+            }
+            .blink-marker {
+                width: 0; height: 0;
+                pointer-events: none;
+                position: relative;
+            }
+            .blink-marker::after {
+                content: '';
+                position: absolute;
+                width: 20px; height: 20px;
+                top: -10px; left: -10px;
+                border-radius: 50%;
+                background: white;
+                animation: blink-pulse 0.4s ease-out infinite alternate;
+            }
+            @keyframes blink-pulse {
+                from { transform: scale(1); opacity: 1; }
+                to { transform: scale(2.8); opacity: 0; }
             }
         </style>
     </head>
@@ -992,6 +1009,7 @@
             let globalSearchIndex = null;
             let overlay = null;
             let map = null;
+            let blinkMarker = null;
 
             const T_DECODE = {
                 A: "Aktiengesellschaft",
@@ -1556,14 +1574,26 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             });
 
             // ── Search ─────────────────────────────────────────────────────────────
+            const ROW_H = 36;
             let searchTimer = null;
+            let _detachScroll = null;
+            let activeHitIndex = -1, currentHits = [], currentRenderFn = null, currentResultsEl = null;
+
+            function closeResults() {
+                if (_detachScroll) { _detachScroll(); _detachScroll = null; }
+                document.getElementById("search-results").style.display = "none";
+                document.getElementById("search-clear").style.display = "none";
+                document.getElementById("search-count").style.display = "none";
+            }
 
             function runSearch(query) {
+                activeHitIndex = -1; currentHits = []; currentRenderFn = null; currentResultsEl = null;
                 const q = query.trim().toLowerCase();
                 const resultsEl = document.getElementById("search-results");
                 const clearBtn = document.getElementById("search-clear");
                 const countEl = document.getElementById("search-count");
 
+                if (_detachScroll) { _detachScroll(); _detachScroll = null; }
                 clearBtn.style.display = q ? "block" : "none";
 
                 if (!q) {
@@ -1572,71 +1602,117 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     return;
                 }
 
-                const matches = [];
-                let totalCount = 0;
-
+                // collect ALL matching indices
+                const hits = [];
                 if (globalSearchIndex) {
-                    const { n, t, c, lat, lng } = globalSearchIndex;
+                    const { n } = globalSearchIndex;
                     for (let i = 0; i < n.length; i++) {
-                        if (n[i].toLowerCase().includes(q)) {
-                            if (matches.length < 10) {
-                                const rechtsform = T_DECODE[t[i]] || t[i];
-                                matches.push({ name: n[i], label: getLabel(rechtsform), cantonId: c[i], lat: lat[i], lng: lng[i] });
-                            }
-                            totalCount++;
-                        }
+                        if (n[i].toLowerCase().includes(q)) hits.push(i);
                     }
                 } else {
-                    for (const item of searchIndex) {
-                        if (item.name.toLowerCase().includes(q)) {
-                            if (matches.length < 10) matches.push(item);
-                            totalCount++;
-                        }
+                    for (let i = 0; i < searchIndex.length; i++) {
+                        if (searchIndex[i].name.toLowerCase().includes(q)) hits.push(i);
                     }
                 }
 
-                if (totalCount === 0) {
+                if (hits.length === 0) {
                     resultsEl.innerHTML = `<div class="search-no-results">${globalSearchIndex ? "No results" : "No results in loaded cantons"}</div>`;
                     resultsEl.style.display = "block";
                     countEl.style.display = "none";
                     return;
                 }
 
-                countEl.textContent = totalCount.toLocaleString() + " result" + (totalCount === 1 ? "" : "s");
+                countEl.textContent = hits.length.toLocaleString() + " result" + (hits.length === 1 ? "" : "s");
                 countEl.style.display = "block";
 
-                resultsEl.innerHTML = matches.map((m, i) => {
-                    const hex = colorAssignments.find((a) => a.label === m.label)?.hex ?? "#888";
-                    return `<div class="search-result-item" data-idx="${i}">
-                        <div class="legend-color" style="background:${hex}"></div>
-                        <span class="canton-badge">${m.cantonId}</span>
-                        <span class="search-result-name">${m.name}</span>
-                    </div>`;
-                }).join("");
+                // virtual scroll container
+                resultsEl.innerHTML = `<div style="position:relative;height:${hits.length * ROW_H}px"><div class="vs-slab" style="position:absolute;width:100%;top:0;will-change:transform"></div></div>`;
                 resultsEl.style.display = "block";
+                const slab = resultsEl.querySelector(".vs-slab");
 
-                resultsEl.querySelectorAll(".search-result-item").forEach((el, i) => {
-                    el.addEventListener("click", () => {
-                        const m = matches[i];
-                        const center = "lat" in m ? [m.lng, m.lat] : m.point.position;
-                        map.flyTo({ center, zoom: 14, duration: 800 });
-                        if (!activeCantons.has(m.cantonId)) {
-                            activeCantons.add(m.cantonId);
-                            const cantonEl = document.querySelector(`.canton-item[data-id="${m.cantonId}"]`);
-                            if (cantonEl) { cantonEl.classList.add("active"); cantonEl.classList.remove("inactive"); }
-                            loadCantonData(CANTONS.find(c => c.id === m.cantonId)).then(() => refreshLayer());
+                function renderRows() {
+                    const top = resultsEl.scrollTop;
+                    const visH = resultsEl.clientHeight;
+                    const first = Math.max(0, Math.floor(top / ROW_H) - 3);
+                    const last = Math.min(hits.length, Math.ceil((top + visH) / ROW_H) + 3);
+                    slab.style.top = `${first * ROW_H}px`;
+
+                    // recycle existing nodes when count matches to avoid full DOM churn
+                    const needed = last - first;
+                    while (slab.children.length > needed) slab.lastChild.remove();
+                    while (slab.children.length < needed) slab.appendChild(document.createElement("div"));
+
+                    for (let vi = 0; vi < needed; vi++) {
+                        const idx = hits[first + vi];
+                        let name, label, cantonId, lat, lng, point;
+                        if (globalSearchIndex) {
+                            const { n, t, c, lat: la, lng: lo } = globalSearchIndex;
+                            const rf = T_DECODE[t[idx]] || t[idx];
+                            name = n[idx]; label = getLabel(rf); cantonId = c[idx]; lat = la[idx]; lng = lo[idx];
+                        } else {
+                            ({ name, label, cantonId, point } = searchIndex[idx]);
                         }
-                        resultsEl.style.display = "none";
-                        document.getElementById("search-input").value = "";
-                        document.getElementById("search-clear").style.display = "none";
-                        document.getElementById("search-count").style.display = "none";
-                    });
-                });
+                        const hex = colorAssignments.find(a => a.label === label)?.hex ?? "#888";
+                        const el = slab.children[vi];
+                        el.className = "search-result-item" + (first + vi === activeHitIndex ? " keyboard-active" : "");
+
+                        // only rebuild innerHTML if row changed (keyed by index)
+                        if (el.dataset.idx !== String(idx)) {
+                            el.dataset.idx = idx;
+                            const dot = Object.assign(document.createElement("div"), { className: "legend-color" });
+                            dot.style.background = hex;
+                            const badge = Object.assign(document.createElement("span"), { className: "canton-badge", textContent: cantonId });
+                            const nameEl = Object.assign(document.createElement("span"), { className: "search-result-name", textContent: name });
+                            el.replaceChildren(dot, badge, nameEl);
+                            el.onclick = () => {
+                                const center = lat !== undefined ? [lng, lat] : point.position;
+                                map.flyTo({ center, zoom: 14, duration: 800 });
+                                if (!activeCantons.has(cantonId)) {
+                                    activeCantons.add(cantonId);
+                                    const ci = document.querySelector(`.canton-item[data-id="${cantonId}"]`);
+                                    if (ci) { ci.classList.add("active"); ci.classList.remove("inactive"); }
+                                    loadCantonData(CANTONS.find(c => c.id === cantonId)).then(() => refreshLayer());
+                                }
+                                if (blinkMarker) blinkMarker.remove();
+                                const markerEl = document.createElement("div");
+                                markerEl.className = "blink-marker";
+                                blinkMarker = new maplibregl.Marker(markerEl).setLngLat(center).addTo(map);
+                                setTimeout(() => { blinkMarker.remove(); blinkMarker = null; }, 3000);
+                                document.getElementById("search-input").value = "";
+                                closeResults();
+                            };
+                        }
+                    }
+                }
+
+                resultsEl.addEventListener("scroll", renderRows, { passive: true });
+                _detachScroll = () => resultsEl.removeEventListener("scroll", renderRows);
+                currentHits = hits; currentRenderFn = renderRows; currentResultsEl = resultsEl;
+                renderRows();
             }
 
             document.getElementById("search-input").addEventListener("input", (e) => {
                 clearTimeout(searchTimer);
                 searchTimer = setTimeout(() => runSearch(e.target.value), 300);
+            });
+
+            document.getElementById("search-input").addEventListener("keydown", (e) => {
+                if (!currentHits.length) return;
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    activeHitIndex = e.key === "ArrowDown"
+                        ? Math.min(activeHitIndex + 1, currentHits.length - 1)
+                        : Math.max(activeHitIndex - 1, 0);
+                    const top = activeHitIndex * ROW_H;
+                    const bot = top + ROW_H;
+                    if (top < currentResultsEl.scrollTop) currentResultsEl.scrollTop = top;
+                    else if (bot > currentResultsEl.scrollTop + currentResultsEl.clientHeight) currentResultsEl.scrollTop = bot - currentResultsEl.clientHeight;
+                    currentRenderFn?.();
+                } else if (e.key === "Enter" && activeHitIndex >= 0) {
+                    currentResultsEl?.querySelector(".keyboard-active")?.click();
+                } else if (e.key === "Escape") {
+                    closeResults();
+                }
             });
 
             document.getElementById("search-input").addEventListener("focus", () => {
@@ -1661,16 +1737,19 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
 
             document.getElementById("search-clear").addEventListener("click", () => {
                 document.getElementById("search-input").value = "";
-                document.getElementById("search-results").style.display = "none";
-                document.getElementById("search-clear").style.display = "none";
-                document.getElementById("search-count").style.display = "none";
+                closeResults();
             });
 
             document.addEventListener("click", (e) => {
-                if (!document.getElementById("search-bar").contains(e.target)) {
-                    document.getElementById("search-results").style.display = "none";
-                }
+                if (!document.getElementById("search-bar").contains(e.target)) closeResults();
             });
+
+            if ("serviceWorker" in navigator) {
+                navigator.serviceWorker.register("./sw.js").catch(() => {});
+            }
         </script>
+
+        <script src="https://unpkg.com/deck.gl@9.3.3/dist.min.js"></script>
+        <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
     </body>
 </html>
