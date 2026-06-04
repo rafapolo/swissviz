@@ -742,6 +742,8 @@
 
 
 
+        <script src="https://unpkg.com/deck.gl@9.3.3/dist.min.js"></script>
+        <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
         <script>
             // ── URL params ────────────────────────────────────────────────────────
             // ?r=min,max  e.g. ?r=0.5,2  controls radiusMinPixels,radiusMaxPixels
@@ -1605,9 +1607,9 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 // collect ALL matching indices
                 const hits = [];
                 if (globalSearchIndex) {
-                    const { n } = globalSearchIndex;
-                    for (let i = 0; i < n.length; i++) {
-                        if (n[i].toLowerCase().includes(q)) hits.push(i);
+                    const src = globalSearchIndex._nLower;
+                    for (let i = 0; i < src.length; i++) {
+                        if (src[i].includes(q)) hits.push(i);
                     }
                 } else {
                     for (let i = 0; i < searchIndex.length; i++) {
@@ -1723,6 +1725,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 icon.classList.add("loading");
                 input.placeholder = "Loading search index…";
                 gunzipJson("data/search_index.json.gz").then(data => {
+                    data._nLower = data.n.map(s => s.toLowerCase());
                     globalSearchIndex = data;
                     icon.classList.remove("loading");
                     input.placeholder = "Search 760k companies…";
@@ -1748,8 +1751,5 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 navigator.serviceWorker.register("./sw.js").catch(() => {});
             }
         </script>
-
-        <script src="https://unpkg.com/deck.gl@9.3.3/dist.min.js"></script>
-        <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
     </body>
 </html>
