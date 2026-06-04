@@ -523,6 +523,134 @@
                 letter-spacing: 0.1em;
                 text-transform: uppercase;
             }
+
+            /* Search bar — center top */
+            #search-bar {
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 14;
+                width: 400px;
+                max-width: calc(100vw - 200px);
+            }
+            #search-wrapper {
+                display: flex;
+                align-items: center;
+                background: rgb(16, 23, 41);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 6px;
+                padding: 0 12px;
+                gap: 8px;
+                height: 40px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+                transition: border-color 0.15s;
+            }
+            #search-wrapper:focus-within {
+                border-color: rgba(108, 142, 255, 0.4);
+            }
+            #search-icon {
+                color: rgba(255, 255, 255, 0.25);
+                font-size: 15px;
+                flex-shrink: 0;
+                line-height: 1;
+                user-select: none;
+            }
+            #search-icon.loading {
+                font-size: 0;
+                width: 13px;
+                height: 13px;
+                border: 1.5px solid rgba(255, 255, 255, 0.1);
+                border-top-color: rgba(255, 255, 255, 0.45);
+                border-radius: 50%;
+                animation: spin 0.75s linear infinite;
+                flex-shrink: 0;
+            }
+            #search-input {
+                flex: 1;
+                background: none;
+                border: none;
+                outline: none;
+                color: #fff;
+                font-family: inherit;
+                font-size: 13px;
+                letter-spacing: 0.02em;
+                min-width: 0;
+            }
+            #search-input::placeholder {
+                color: rgba(255, 255, 255, 0.22);
+            }
+            #search-input:placeholder-shown {
+                text-align: center;
+            }
+            #search-clear {
+                background: none;
+                border: none;
+                color: rgba(255, 255, 255, 0.25);
+                cursor: pointer;
+                font-size: 12px;
+                padding: 2px;
+                display: none;
+                line-height: 1;
+                flex-shrink: 0;
+            }
+            #search-clear:hover {
+                color: rgba(255, 255, 255, 0.6);
+            }
+            #search-count {
+                color: rgba(255, 255, 255, 0.22);
+                font-size: 11px;
+                letter-spacing: 0.04em;
+                flex-shrink: 0;
+                display: none;
+            }
+            #search-results {
+                margin-top: 6px;
+                background: rgb(16, 23, 41);
+                border: 1px solid rgba(255, 255, 255, 0.07);
+                border-radius: 6px;
+                display: none;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+                max-height: 320px;
+                overflow-y: auto;
+            }
+            #search-results::-webkit-scrollbar { width: 3px; }
+            #search-results::-webkit-scrollbar-track { background: transparent; }
+            #search-results::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+            .search-result-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 12px;
+                cursor: pointer;
+                transition: background 0.12s;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            }
+            .search-result-item:last-child { border-bottom: none; }
+            .search-result-item:hover { background: rgba(255, 255, 255, 0.05); }
+            .search-result-name {
+                color: rgba(255, 255, 255, 0.8);
+                font-size: 13px;
+                flex: 1;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .search-no-results {
+                padding: 12px;
+                color: rgba(255, 255, 255, 0.28);
+                font-size: 12px;
+                text-align: center;
+            }
+            @media (max-width: 980px) {
+                #search-bar {
+                    left: 74px;
+                    right: 74px;
+                    width: auto;
+                    max-width: none;
+                    transform: none;
+                }
+            }
         </style>
     </head>
     <body>
@@ -532,6 +660,17 @@
         </div>
 
         <div id="map"></div>
+
+        <div id="search-bar">
+            <div id="search-wrapper">
+                <span id="search-icon">⌕</span>
+                <input id="search-input" type="text" placeholder="Search companies…" autocomplete="off" spellcheck="false" />
+                <span id="search-count"></span>
+                <button id="search-clear" aria-label="Clear">✕</button>
+            </div>
+            <div id="search-results"></div>
+        </div>
+
         <div id="tooltip">
             <button id="tooltip-close">✕</button>
             <div id="tooltip-content"></div>
@@ -849,6 +988,8 @@
                 }
             }
             const cantonData = {}; // id → point array
+            const searchIndex = []; // flat local index: { name, label, cantonId, point }
+            let globalSearchIndex = null;
             let overlay = null;
             let map = null;
 
@@ -868,44 +1009,30 @@
                 V: "Verein",
             };
 
-            // ── Parse canton data — groups co-located companies into one point ─────
-            function parseCantonData(col, cantonId) {
-                const byPos = new Map();
-                const count = col.n.length;
+            // ── Parse worker — offloads parseCantonData off the main thread ─────────
+            const _workerSrc = `
+const T=${JSON.stringify(T_DECODE)};
+const C=${JSON.stringify(colorAssignments)};
+function h2r(h){const r=/^#?([a-f\\d]{2})([a-f\\d]{2})([a-f\\d]{2})$/i.exec(h);return r?[parseInt(r[1],16),parseInt(r[2],16),parseInt(r[3],16)]:[100,100,100];}
+function gc(rf){const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey))return h2r(a.hex);}return h2r('#1a1a30');}
+function gl(rf){const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey))return a.label;}return rf;}
+function parse(col,canton){const m=new Map(),n=col.n.length;for(let i=0;i<n;i++){const tRaw=col.t[i]||'',rf=(T[tRaw]||tRaw).trim();if(!rf)continue;const lat=col.lat[i],lng=col.lng[i];if(!lat||!lng)continue;const k=Math.round(lat*1e5)*1000000+Math.round(lng*1e5),label=gl(rf),co={name:col.n[i]||'',rechtsform:rf,label,address:'',uid:''};if(!m.has(k))m.set(k,{position:[lng,lat],canton,companies:[],rechtsform:rf,label,color:gc(rf)});m.get(k).companies.push(co);}return[...m.values()];}
+self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col,cantonId)});
+`;
+            const _parseWorker = new Worker(URL.createObjectURL(new Blob([_workerSrc], { type: "application/javascript" })));
+            const _parsePending = new Map();
+            let _parseSeq = 0;
+            _parseWorker.onmessage = ({ data: { id, points } }) => { _parsePending.get(id)(points); _parsePending.delete(id); };
+            function parseCantonDataAsync(col, cantonId) {
+                return new Promise(res => { const id = _parseSeq++; _parsePending.set(id, res); _parseWorker.postMessage({ id, col, cantonId }); });
+            }
 
-                for (let i = 0; i < count; i++) {
-                    const tRaw = col.t[i] || "";
-                    const rechtsform = (T_DECODE[tRaw] || tRaw).trim();
-                    if (!rechtsform) continue;
-                    const lat = col.lat[i];
-                    const lng = col.lng[i];
-                    if (!lat || !lng) continue;
-
-                    const key =
-                        Math.round(lat * 1e5) * 1000000 + Math.round(lng * 1e5);
-                    const label = getLabel(rechtsform);
-                    const company = {
-                        name: col.n[i] || "",
-                        rechtsform,
-                        label,
-                        address: "",
-                        uid: "",
-                    };
-
-                    if (!byPos.has(key)) {
-                        byPos.set(key, {
-                            position: [lng, lat],
-                            canton: cantonId,
-                            companies: [],
-                            rechtsform,
-                            label,
-                            color: getColor(rechtsform),
-                        });
+            function indexCanton(cantonId, points) {
+                for (const point of points) {
+                    for (const co of point.companies) {
+                        searchIndex.push({ name: co.name, label: co.label, cantonId, point });
                     }
-                    byPos.get(key).companies.push(company);
                 }
-
-                return Array.from(byPos.values());
             }
 
             // ── Recompute legend counts from active cantons ────────────────────────────
@@ -978,7 +1105,7 @@
             // ── Load BS and build legend counts ───────────────────────────────────
             async function loadBsData() {
                 const rows = await loadCantonAll("BS");
-                const points = parseCantonData(rows, "BS");
+                const points = await parseCantonDataAsync(rows, "BS");
 
                 const counts = {};
                 points.forEach((p) =>
@@ -1014,8 +1141,9 @@
 
                 try {
                     const rows = await loadCantonAll(canton.id);
-                    const points = parseCantonData(rows, canton.id);
+                    const points = await parseCantonDataAsync(rows, canton.id);
                     cantonData[canton.id] = points;
+                    indexCanton(canton.id, points);
                     const companyCount = points.reduce(
                         (s, p) => s + p.companies.length,
                         0,
@@ -1096,6 +1224,7 @@
             // ── Boot ───────────────────────────────────────────────────────────────
             loadBsData().then((points) => {
                 cantonData["BS"] = points;
+                indexCanton("BS", points);
                 displayTotal = points.reduce((s, p) => s + p.companies.length, 0);
                 applyLang(currentLang);
 
@@ -1423,6 +1552,123 @@
                 if (e.target.id === "map" || e.target.classList.contains("maplibregl-canvas")) {
                     document.getElementById("canton-panel").classList.remove("open");
                     document.getElementById("legend").classList.remove("open");
+                }
+            });
+
+            // ── Search ─────────────────────────────────────────────────────────────
+            let searchTimer = null;
+
+            function runSearch(query) {
+                const q = query.trim().toLowerCase();
+                const resultsEl = document.getElementById("search-results");
+                const clearBtn = document.getElementById("search-clear");
+                const countEl = document.getElementById("search-count");
+
+                clearBtn.style.display = q ? "block" : "none";
+
+                if (!q) {
+                    resultsEl.style.display = "none";
+                    countEl.style.display = "none";
+                    return;
+                }
+
+                const matches = [];
+                let totalCount = 0;
+
+                if (globalSearchIndex) {
+                    const { n, t, c, lat, lng } = globalSearchIndex;
+                    for (let i = 0; i < n.length; i++) {
+                        if (n[i].toLowerCase().includes(q)) {
+                            if (matches.length < 10) {
+                                const rechtsform = T_DECODE[t[i]] || t[i];
+                                matches.push({ name: n[i], label: getLabel(rechtsform), cantonId: c[i], lat: lat[i], lng: lng[i] });
+                            }
+                            totalCount++;
+                        }
+                    }
+                } else {
+                    for (const item of searchIndex) {
+                        if (item.name.toLowerCase().includes(q)) {
+                            if (matches.length < 10) matches.push(item);
+                            totalCount++;
+                        }
+                    }
+                }
+
+                if (totalCount === 0) {
+                    resultsEl.innerHTML = `<div class="search-no-results">${globalSearchIndex ? "No results" : "No results in loaded cantons"}</div>`;
+                    resultsEl.style.display = "block";
+                    countEl.style.display = "none";
+                    return;
+                }
+
+                countEl.textContent = totalCount.toLocaleString() + " result" + (totalCount === 1 ? "" : "s");
+                countEl.style.display = "block";
+
+                resultsEl.innerHTML = matches.map((m, i) => {
+                    const hex = colorAssignments.find((a) => a.label === m.label)?.hex ?? "#888";
+                    return `<div class="search-result-item" data-idx="${i}">
+                        <div class="legend-color" style="background:${hex}"></div>
+                        <span class="canton-badge">${m.cantonId}</span>
+                        <span class="search-result-name">${m.name}</span>
+                    </div>`;
+                }).join("");
+                resultsEl.style.display = "block";
+
+                resultsEl.querySelectorAll(".search-result-item").forEach((el, i) => {
+                    el.addEventListener("click", () => {
+                        const m = matches[i];
+                        const center = "lat" in m ? [m.lng, m.lat] : m.point.position;
+                        map.flyTo({ center, zoom: 14, duration: 800 });
+                        if (!activeCantons.has(m.cantonId)) {
+                            activeCantons.add(m.cantonId);
+                            const cantonEl = document.querySelector(`.canton-item[data-id="${m.cantonId}"]`);
+                            if (cantonEl) { cantonEl.classList.add("active"); cantonEl.classList.remove("inactive"); }
+                            loadCantonData(CANTONS.find(c => c.id === m.cantonId)).then(() => refreshLayer());
+                        }
+                        resultsEl.style.display = "none";
+                        document.getElementById("search-input").value = "";
+                        document.getElementById("search-clear").style.display = "none";
+                        document.getElementById("search-count").style.display = "none";
+                    });
+                });
+            }
+
+            document.getElementById("search-input").addEventListener("input", (e) => {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => runSearch(e.target.value), 300);
+            });
+
+            document.getElementById("search-input").addEventListener("focus", () => {
+                if (globalSearchIndex || globalSearchIndex === false) return;
+                globalSearchIndex = false; // loading sentinel
+                const icon = document.getElementById("search-icon");
+                const input = document.getElementById("search-input");
+                icon.classList.add("loading");
+                input.placeholder = "Loading search index…";
+                gunzipJson("data/search_index.json.gz").then(data => {
+                    globalSearchIndex = data;
+                    icon.classList.remove("loading");
+                    input.placeholder = "Search 760k companies…";
+                    const q = input.value;
+                    if (q.trim()) runSearch(q);
+                }).catch(() => {
+                    globalSearchIndex = null;
+                    icon.classList.remove("loading");
+                    input.placeholder = "Search companies…";
+                });
+            }, { once: true });
+
+            document.getElementById("search-clear").addEventListener("click", () => {
+                document.getElementById("search-input").value = "";
+                document.getElementById("search-results").style.display = "none";
+                document.getElementById("search-clear").style.display = "none";
+                document.getElementById("search-count").style.display = "none";
+            });
+
+            document.addEventListener("click", (e) => {
+                if (!document.getElementById("search-bar").contains(e.target)) {
+                    document.getElementById("search-results").style.display = "none";
                 }
             });
         </script>
