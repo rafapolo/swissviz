@@ -31,7 +31,7 @@ No account needed. No install. Just open the link.
 Type any company name in the **search bar** at the top of the map. Results appear instantly and search across all 760,000+ companies — even ones in cantons you haven't loaded yet.
 
 - Use **↑ / ↓ arrow keys** to move through results, **Enter** to select
-- Click any result to fly directly to that company on the map — the dot pulses white for 3 seconds so you can spot it in a dense area
+- Click any result to fly directly to that company on the map — a white marker appears on the dot for 3 seconds so you can spot it in a dense area
 - If the company's canton wasn't loaded yet, it loads automatically
 
 ### Left panel — Cantons
