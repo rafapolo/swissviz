@@ -644,10 +644,13 @@
                     transform: none;
                 }
             }
-            .blink-marker {
-                width: 0; height: 0;
+            .search-marker {
+                width: 16px; height: 16px;
+                border-radius: 50%;
+                background: #46e821;
+                border: 2px solid #fff;
+                box-shadow: 0 0 0 2px rgba(0,0,0,0.35);
                 pointer-events: none;
-                box-shadow: 0 0 0 6px rgba(255,255,255,0.95), 0 0 0 10px rgba(255,255,255,0.3);
             }
             /* Screen-reader-only utility */
             .sr-only {
@@ -1046,10 +1049,12 @@
             }
             const cantonData = {}; // id → point array
             const searchIndex = []; // flat local index: { name, label, cantonId, point }
+            const pointByName = {}; // cantonId → Map<name, point[]>
             let globalSearchIndex = null;
             let overlay = null;
             let map = null;
-            let blinkMarker = null;
+            let searchMarkers = [];
+            let searchMarkersTimer = null;
 
             const T_DECODE = {
                 A: "Aktiengesellschaft",
@@ -1087,11 +1092,15 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             }
 
             function indexCanton(cantonId, points) {
+                const nameMap = new Map();
                 for (const point of points) {
                     for (const co of point.companies) {
                         searchIndex.push({ name: co.name, label: co.label, cantonId, point });
+                        if (!nameMap.has(co.name)) nameMap.set(co.name, []);
+                        nameMap.get(co.name).push(point);
                     }
                 }
+                pointByName[cantonId] = nameMap;
             }
 
             // ── Recompute legend counts from active cantons ────────────────────────────
@@ -1694,16 +1703,22 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     return;
                 }
 
-                // collect ALL matching indices
+                // collect matching indices, deduplicated by name+canton
                 const hits = [];
+                const seen = new Set();
                 if (globalSearchIndex) {
-                    const src = globalSearchIndex._nLower;
-                    for (let i = 0; i < src.length; i++) {
-                        if (src[i].includes(q)) hits.push(i);
+                    const { _nLower, n, c } = globalSearchIndex;
+                    for (let i = 0; i < _nLower.length; i++) {
+                        if (!_nLower[i].includes(q)) continue;
+                        const key = n[i] + "\0" + c[i];
+                        if (!seen.has(key)) { seen.add(key); hits.push(i); }
                     }
                 } else {
                     for (let i = 0; i < searchIndex.length; i++) {
-                        if (searchIndex[i].name.toLowerCase().includes(q)) hits.push(i);
+                        const e = searchIndex[i];
+                        if (!e.name.toLowerCase().includes(q)) continue;
+                        const key = e.name + "\0" + e.cantonId;
+                        if (!seen.has(key)) { seen.add(key); hits.push(i); }
                     }
                 }
 
@@ -1757,37 +1772,40 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                             const nameEl = Object.assign(document.createElement("span"), { className: "search-result-name", textContent: name });
                             el.replaceChildren(dot, badge, nameEl);
                             el.onclick = () => {
-                                const center = lat !== undefined ? [lng, lat] : point.position;
-                                map.flyTo({ center, zoom: 14, duration: 800 });
+                                const approx = lat !== undefined ? [lng, lat] : point.position;
 
-                                // Find the exact cluster position used by the deck.gl dot
-                                function resolvePos() {
-                                    if (lat === undefined) return point.position;
-                                    const pts = cantonData[cantonId];
-                                    if (!pts) return [lng, lat];
-                                    const k = Math.round(lat * 1e5) * 1000000 + Math.round(lng * 1e5);
-                                    for (const p of pts) {
-                                        const pk = Math.round(p.position[1] * 1e5) * 1000000 + Math.round(p.position[0] * 1e5);
-                                        if (pk === k) return p.position;
-                                    }
-                                    return [lng, lat];
+                                function resolvePts() {
+                                    if (lat === undefined) return [point];
+                                    return pointByName[cantonId]?.get(name) ?? [];
                                 }
 
-                                function placeMarker() {
-                                    if (blinkMarker) blinkMarker.remove();
-                                    const markerEl = document.createElement("div");
-                                    markerEl.className = "blink-marker";
-                                    blinkMarker = new maplibregl.Marker(markerEl).setLngLat(resolvePos()).addTo(map);
-                                    setTimeout(() => { if (blinkMarker) { blinkMarker.remove(); blinkMarker = null; } }, 3000);
+                                function placeMarkers() {
+                                    searchMarkers.forEach(m => m.remove());
+                                    searchMarkers = [];
+                                    clearTimeout(searchMarkersTimer);
+                                    const pts = resolvePts();
+                                    if (pts.length === 0) { map.flyTo({ center: approx, zoom: 14, duration: 800 }); return; }
+                                    for (const p of pts) {
+                                        const el = Object.assign(document.createElement("div"), { className: "search-marker" });
+                                        searchMarkers.push(new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat(p.position).addTo(map));
+                                    }
+                                    if (pts.length === 1) {
+                                        map.flyTo({ center: pts[0].position, zoom: 14, duration: 800 });
+                                    } else {
+                                        const lngs = pts.map(p => p.position[0]), lats = pts.map(p => p.position[1]);
+                                        map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 80, duration: 800 });
+                                    }
+                                    searchMarkersTimer = setTimeout(() => { searchMarkers.forEach(m => m.remove()); searchMarkers = []; }, 3000);
                                 }
 
                                 if (!activeCantons.has(cantonId)) {
+                                    map.flyTo({ center: approx, zoom: 14, duration: 800 });
                                     activeCantons.add(cantonId);
                                     const ci = document.querySelector(`.canton-item[data-id="${cantonId}"]`);
                                     if (ci) { ci.classList.add("active"); ci.classList.remove("inactive"); }
-                                    loadCantonData(_cantonById.get(cantonId)).then(() => { refreshLayer(); placeMarker(); });
+                                    loadCantonData(_cantonById.get(cantonId)).then(() => { refreshLayer(); placeMarkers(); });
                                 } else {
-                                    placeMarker();
+                                    placeMarkers();
                                 }
 
                                 document.getElementById("search-input").value = "";
