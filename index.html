@@ -924,20 +924,43 @@
                     : [100, 100, 100];
             }
 
+            // ── Pre-built lookup Maps — O(1) hot-path access ───────────────────────
+            // label → hex string
+            const _labelToHex = new Map(colorAssignments.map(a => [a.label, a.hex]));
+            // label → [r,g,b] color array
+            const _labelToRgb = new Map(colorAssignments.map(a => [a.label, hexToRgb(a.hex)]));
+            // cantonId → canton object
+            const _cantonById = new Map(CANTONS.map(c => [c.id, c]));
+
+            // Memoized getColor — rechtsform string → [r,g,b]
+            const _colorCache = new Map();
             function getColor(rechtsform) {
+                if (_colorCache.has(rechtsform)) return _colorCache.get(rechtsform);
                 const rf = rechtsform.toUpperCase();
                 for (const a of colorAssignments) {
-                    if (rf.includes(a.rfKey)) return hexToRgb(a.hex);
+                    if (rf.includes(a.rfKey)) {
+                        const v = hexToRgb(a.hex);
+                        _colorCache.set(rechtsform, v);
+                        return v;
+                    }
                 }
-                return hexToRgb("#1a1a30");
+                const fallback = hexToRgb("#1a1a30");
+                _colorCache.set(rechtsform, fallback);
+                return fallback;
             }
 
-            // Map any rechtsform string → the matching colorAssignment label
+            // Memoized getLabel — rechtsform string → label string
+            const _labelCache = new Map();
             function getLabel(rechtsform) {
+                if (_labelCache.has(rechtsform)) return _labelCache.get(rechtsform);
                 const rf = rechtsform.toUpperCase();
                 for (const a of colorAssignments) {
-                    if (rf.includes(a.rfKey)) return a.label;
+                    if (rf.includes(a.rfKey)) {
+                        _labelCache.set(rechtsform, a.label);
+                        return a.label;
+                    }
                 }
+                _labelCache.set(rechtsform, rechtsform);
                 return rechtsform;
             }
 
@@ -998,8 +1021,9 @@
 const T=${JSON.stringify(T_DECODE)};
 const C=${JSON.stringify(colorAssignments)};
 function h2r(h){const r=/^#?([a-f\\d]{2})([a-f\\d]{2})([a-f\\d]{2})$/i.exec(h);return r?[parseInt(r[1],16),parseInt(r[2],16),parseInt(r[3],16)]:[100,100,100];}
-function gc(rf){const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey))return h2r(a.hex);}return h2r('#1a1a30');}
-function gl(rf){const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey))return a.label;}return rf;}
+const _cCache=new Map(),_lCache=new Map();
+function gc(rf){if(_cCache.has(rf))return _cCache.get(rf);const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey)){const v=h2r(a.hex);_cCache.set(rf,v);return v;}}const f=h2r('#1a1a30');_cCache.set(rf,f);return f;}
+function gl(rf){if(_lCache.has(rf))return _lCache.get(rf);const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey)){_lCache.set(rf,a.label);return a.label;}}_lCache.set(rf,rf);return rf;}
 function parse(col,canton){const m=new Map(),n=col.n.length;for(let i=0;i<n;i++){const tRaw=col.t[i]||'',rf=(T[tRaw]||tRaw).trim();if(!rf)continue;const lat=col.lat[i],lng=col.lng[i];if(!lat||!lng)continue;const k=Math.round(lat*1e5)*1000000+Math.round(lng*1e5),label=gl(rf),co={name:col.n[i]||'',rechtsform:rf,label,address:'',uid:''};if(!m.has(k))m.set(k,{position:[lng,lat],canton,companies:[],rechtsform:rf,label,color:gc(rf)});m.get(k).companies.push(co);}return[...m.values()];}
 self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col,cantonId)});
 `;
@@ -1022,14 +1046,17 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             // ── Recompute legend counts from active cantons ────────────────────────────
             function updateLegendCounts() {
                 const counts = {};
-                Object.values(cantonData)
-                    .flat()
-                    .filter((d) => activeCantons.has(d.canton))
-                    .forEach((p) =>
-                        p.companies.forEach((c) => {
-                            counts[c.label] = (counts[c.label] || 0) + 1;
-                        }),
-                    );
+                // avoid .flat() + .filter() allocation; iterate directly
+                for (const [id, pts] of Object.entries(cantonData)) {
+                    if (!activeCantons.has(id)) continue;
+                    for (let i = 0; i < pts.length; i++) {
+                        const cos = pts[i].companies;
+                        for (let j = 0; j < cos.length; j++) {
+                            const lbl = cos[j].label;
+                            counts[lbl] = (counts[lbl] || 0) + 1;
+                        }
+                    }
+                }
                 document.querySelectorAll(".legend-item").forEach((el) => {
                     const label = el.dataset.label;
                     el.querySelector(".legend-count").textContent =
@@ -1145,12 +1172,15 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
 
             // ── Layer builder ──────────────────────────────────────────────────────
             function buildLayer() {
-                const all = Object.values(cantonData).flat();
-                const visible = all.filter(
-                    (d) =>
-                        activeCantons.has(d.canton) &&
-                        d.companies.some((c) => activeLabels.has(c.label)),
-                );
+                // avoid .flat() allocation; build filtered array directly
+                const visible = [];
+                for (const [id, pts] of Object.entries(cantonData)) {
+                    if (!activeCantons.has(id)) continue;
+                    for (let i = 0; i < pts.length; i++) {
+                        const d = pts[i];
+                        if (d.companies.some((c) => activeLabels.has(c.label))) visible.push(d);
+                    }
+                }
                 return new deck.ScatterplotLayer({
                     id: "companies",
                     data: visible,
@@ -1165,9 +1195,12 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         const matched = d.companies.find((c) =>
                             activeLabels.has(c.label),
                         );
-                        if (matched)
-                            return [...getColor(matched.rechtsform), 230];
-                        return [...d.color, 230];
+                        if (matched) {
+                            // use pre-built Map for O(1) color lookup; fallback to per-point cached color
+                            const rgb = _labelToRgb.get(matched.label) ?? getColor(matched.rechtsform);
+                            return [rgb[0], rgb[1], rgb[2], 230];
+                        }
+                        return [d.color[0], d.color[1], d.color[2], 230];
                     },
                     getRadius: 18,
                     radiusScale: 1,
@@ -1196,10 +1229,12 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             function refreshLayer() {
                 if (!overlay) return;
                 overlay.setProps({ layers: [buildLayer()] });
-                displayTotal = Object.values(cantonData)
-                    .flat()
-                    .filter((d) => activeCantons.has(d.canton))
-                    .reduce((s, p) => s + p.companies.length, 0);
+                // count without allocating a flat array
+                displayTotal = 0;
+                for (const [id, pts] of Object.entries(cantonData)) {
+                    if (!activeCantons.has(id)) continue;
+                    for (let i = 0; i < pts.length; i++) displayTotal += pts[i].companies.length;
+                }
                 document.getElementById("legend-subtitle").textContent =
                     TRANSLATIONS[currentLang].legendSubtitle + " (" + displayTotal.toLocaleString() + ")";
                 updateLegendCounts();
@@ -1341,7 +1376,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         el.classList.add("active");
                         el.classList.remove("inactive");
                     }
-                    await loadCantonData(CANTONS.find((c) => c.id === "BE"));
+                    await loadCantonData(_cantonById.get("BE"));
                     refreshLayer();
 
                     const ls = document.getElementById("loading-screen");
@@ -1470,9 +1505,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 const rows = list
                     .slice(0, MAX)
                     .map((c) => {
-                        const hex =
-                            colorAssignments.find((a) => a.label === c.label)
-                                ?.hex ?? "#888";
+                        const hex = _labelToHex.get(c.label) ?? "#888";
                         return `
         <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:8px;padding-top:8px">
           <div style="display:flex;align-items:center;gap:6px">
@@ -1618,7 +1651,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         } else {
                             ({ name, label, cantonId, point } = searchIndex[idx]);
                         }
-                        const hex = colorAssignments.find(a => a.label === label)?.hex ?? "#888";
+                        const hex = _labelToHex.get(label) ?? "#888";
                         const el = slab.children[vi];
                         el.className = "search-result-item" + (first + vi === activeHitIndex ? " keyboard-active" : "");
 
@@ -1659,7 +1692,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                                     activeCantons.add(cantonId);
                                     const ci = document.querySelector(`.canton-item[data-id="${cantonId}"]`);
                                     if (ci) { ci.classList.add("active"); ci.classList.remove("inactive"); }
-                                    loadCantonData(CANTONS.find(c => c.id === cantonId)).then(() => { refreshLayer(); placeMarker(); });
+                                    loadCantonData(_cantonById.get(cantonId)).then(() => { refreshLayer(); placeMarker(); });
                                 } else {
                                     placeMarker();
                                 }
