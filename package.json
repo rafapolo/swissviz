@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "bunx serve . -l 3000"
+    "dev": "bunx serve . -l 3000",
+    "build": "bun scripts/build.js",
+    "test": "echo 'No test suite — static site' && exit 0"
+  },
+  "devDependencies": {
+    "html-minifier-terser": "^7.2.0"
   }
 }
