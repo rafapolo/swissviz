@@ -22,6 +22,18 @@
         <link href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" rel="stylesheet" />
         <style>
             @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap");
+            :root {
+                --bg: rgb(16, 23, 41);
+                --accent: #6c8eff;
+                --border: rgba(255, 255, 255, 0.07);
+                --border-subtle: rgba(255, 255, 255, 0.06);
+                --border-mid: rgba(255, 255, 255, 0.1);
+                --surface: rgba(255, 255, 255, 0.06);
+                --white-dim: rgba(255, 255, 255, 0.08);
+                --white-muted: rgba(255, 255, 255, 0.25);
+                --white-soft: rgba(255, 255, 255, 0.6);
+                --shadow-dark: rgba(0, 0, 0, 0.6);
+            }
             * {
                 margin: 0;
                 padding: 0;
@@ -33,7 +45,7 @@
                     -apple-system,
                     BlinkMacSystemFont,
                     sans-serif;
-                background: rgb(16, 23, 41);
+                background: var(--bg);
                 color: #fff;
                 overflow: hidden;
             }
@@ -53,24 +65,19 @@
             #map canvas {
                 outline: none;
             }
-            .panel {
-                z-index: 12;
-            }
-            #tooltip {
-                z-index: 13;
-            }
             /* Tooltip */
             #tooltip {
+                z-index: 13;
                 position: absolute;
                 padding: 14px 16px;
-                background: rgb(16, 23, 41);
-                border: 1px solid rgba(255, 255, 255, 0.07);
+                background: var(--bg);
+                border: 1px solid var(--border);
                 border-radius: 6px;
                 font-size: 14px;
                 pointer-events: none;
                 display: none;
                 max-width: 320px;
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+                box-shadow: 0 8px 32px var(--shadow-dark);
             }
             #tooltip h3 {
                 color: #fff;
@@ -90,10 +97,11 @@
 
             /* Shared panel */
             .panel {
+                z-index: 12;
                 opacity: 0.97;
                 position: absolute;
-                background: rgb(16, 23, 41);
-                border: 1px solid rgba(255, 255, 255, 0.07);
+                background: var(--bg);
+                border: 1px solid var(--border);
                 border-radius: 6px;
                 padding: 14px 16px;
                 font-size: 14px;
@@ -107,7 +115,7 @@
                 background: transparent;
             }
             .panel::-webkit-scrollbar-thumb {
-                background: rgba(255, 255, 255, 0.1);
+                background: var(--border-mid);
                 border-radius: 3px;
             }
             .panel-header {
@@ -117,7 +125,7 @@
                 margin-bottom: 4px;
             }
             .panel-dot {
-                color: #6c8eff;
+                color: var(--accent);
                 font-size: 14px;
                 line-height: 1;
                 padding-bottom: 3px;
@@ -134,8 +142,8 @@
                 margin-left: auto;
             }
             .lang-btn {
-                background: rgba(255, 255, 255, 0.06);
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                background: var(--surface);
+                border: 1px solid var(--border-mid);
                 border-radius: 3px;
                 color: rgba(255, 255, 255, 0.38);
                 font-family: inherit;
@@ -151,13 +159,13 @@
                 line-height: 1.4;
             }
             .lang-btn:hover {
-                background: rgba(255, 255, 255, 0.1);
+                background: var(--border-mid);
                 color: rgba(255, 255, 255, 0.7);
             }
             .lang-btn.active {
                 background: rgba(108, 142, 255, 0.15);
                 border-color: rgba(108, 142, 255, 0.4);
-                color: #6c8eff;
+                color: var(--accent);
             }
             .panel-subtitle {
                 color: rgba(255, 255, 255, 0.35);
@@ -165,19 +173,19 @@
                 letter-spacing: 0.05em;
                 text-transform: uppercase;
                 padding-bottom: 10px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+                border-bottom: 1px solid var(--border-subtle);
             }
             .panel-controls {
                 display: flex;
                 gap: 6px;
                 padding: 10px 0;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+                border-bottom: 1px solid var(--border-subtle);
                 margin-bottom: 10px;
             }
             .panel-controls button {
                 flex: 1;
-                background: rgba(255, 255, 255, 0.06);
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                background: var(--surface);
+                border: 1px solid var(--border-mid);
                 border-radius: 4px;
                 color: rgba(255, 255, 255, 0.55);
                 font-family: inherit;
@@ -200,7 +208,7 @@
                 color: rgb(255, 203, 153);
             }
             #night-view-controls {
-                border-top: 1px solid rgba(255, 255, 255, 0.06);
+                border-top: 1px solid var(--border-subtle);
                 border-bottom: none;
                 margin-bottom: 0;
             }
@@ -208,7 +216,7 @@
                 max-height: 0;
                 opacity: 0;
                 overflow: hidden;
-                padding: 0 0;
+                padding: 0;
                 transition:
                     max-height 0.3s ease,
                     opacity 0.25s ease,
@@ -240,7 +248,7 @@
                 cursor: pointer;
                 user-select: none;
                 transition: opacity 0.15s;
-                padding: 4px 4px;
+                padding: 4px;
                 border-radius: 4px;
             }
             .legend-item:hover,
@@ -266,7 +274,7 @@
                 flex: 1;
             }
             .legend-count {
-                color: rgba(255, 255, 255, 0.25);
+                color: var(--white-muted);
                 font-size: 12px;
             }
 
@@ -285,7 +293,7 @@
                 cursor: pointer;
                 user-select: none;
                 transition: opacity 0.15s;
-                padding: 4px 4px;
+                padding: 4px;
                 border-radius: 4px;
             }
             .canton-item:hover,
@@ -299,10 +307,10 @@
                 font-size: 11px;
                 font-weight: 600;
                 letter-spacing: 0.05em;
-                background: rgba(255, 255, 255, 0.08);
+                background: var(--white-dim);
                 border-radius: 3px;
                 padding: 3px 6px;
-                color: rgba(255, 255, 255, 0.6);
+                color: var(--white-soft);
                 min-width: 30px;
                 text-align: center;
                 transition:
@@ -311,10 +319,10 @@
             }
             .canton-item.active .canton-badge {
                 background: rgba(108, 142, 255, 0.2);
-                color: #6c8eff;
+                color: var(--accent);
             }
             .canton-name {
-                color: rgba(255, 255, 255, 0.6);
+                color: var(--white-soft);
                 font-size: 13px;
                 flex: 1;
             }
@@ -329,8 +337,8 @@
                 position: absolute;
                 width: 44px;
                 height: 44px;
-                background: rgb(16, 23, 41);
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                background: var(--bg);
+                border: 1px solid var(--border-mid);
                 border-radius: 8px;
                 cursor: pointer;
                 align-items: center;
@@ -447,40 +455,9 @@
                     right: 16px !important;
                 }
             }
-            .maplibregl-ctrl-group {
-                background: rgb(16, 23, 41) !important;
-                border: 1px solid rgba(255, 255, 255, 0.07) !important;
-                border-radius: 6px !important;
-                overflow: hidden;
-            }
-            .maplibregl-ctrl-group button {
-                background: transparent !important;
-                border: none !important;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
-                width: 36px !important;
-                height: 36px !important;
-            }
-            .maplibregl-ctrl-group button:last-child {
-                border-bottom: none !important;
-            }
-            .maplibregl-ctrl-group button:hover {
-                background: rgba(255, 255, 255, 0.08) !important;
-            }
-            .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
-                filter: invert(1) brightness(0.7);
-            }
-            .maplibregl-ctrl-compass .maplibregl-ctrl-icon {
-                transform: none;
-            }
-            .maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon {
-                filter: invert(1) brightness(0.7);
-            }
-            .maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon {
-                filter: invert(1) brightness(0.7);
-            }
             .maplibregl-ctrl-attrib,
             .maplibregl-ctrl-attrib-inner,
-            .maplibregl-compass,
+            .maplibregl-ctrl-compass,
             .maplibregl-ctrl-group {
                 display: none !important;
             }
@@ -490,7 +467,7 @@
                 position: fixed;
                 inset: 0;
                 z-index: 100;
-                background: rgb(16, 23, 41);
+                background: var(--bg);
                 display: flex;
                 flex-direction: column;
                 align-items: center;
@@ -505,8 +482,8 @@
             .spinner {
                 width: 36px;
                 height: 36px;
-                border: 2px solid rgba(255, 255, 255, 0.08);
-                border-top-color: #6c8eff;
+                border: 2px solid var(--white-dim);
+                border-top-color: var(--accent);
                 border-radius: 50%;
                 animation: spin 0.75s linear infinite;
             }
@@ -533,8 +510,8 @@
             #search-wrapper {
                 display: flex;
                 align-items: center;
-                background: rgb(16, 23, 41);
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                background: var(--bg);
+                border: 1px solid var(--border-mid);
                 border-radius: 6px;
                 padding: 0 12px;
                 gap: 8px;
@@ -546,7 +523,7 @@
                 border-color: rgba(108, 142, 255, 0.4);
             }
             #search-icon {
-                color: rgba(255, 255, 255, 0.25);
+                color: var(--white-muted);
                 font-size: 15px;
                 flex-shrink: 0;
                 line-height: 1;
@@ -556,7 +533,7 @@
                 font-size: 0;
                 width: 13px;
                 height: 13px;
-                border: 1.5px solid rgba(255, 255, 255, 0.1);
+                border: 1.5px solid var(--border-mid);
                 border-top-color: rgba(255, 255, 255, 0.45);
                 border-radius: 50%;
                 animation: spin 0.75s linear infinite;
@@ -582,7 +559,7 @@
             #search-clear {
                 background: none;
                 border: none;
-                color: rgba(255, 255, 255, 0.25);
+                color: var(--white-muted);
                 cursor: pointer;
                 font-size: 12px;
                 padding: 2px;
@@ -591,7 +568,7 @@
                 flex-shrink: 0;
             }
             #search-clear:hover {
-                color: rgba(255, 255, 255, 0.6);
+                color: var(--white-soft);
             }
             #search-count {
                 color: rgba(255, 255, 255, 0.22);
@@ -602,17 +579,17 @@
             }
             #search-results {
                 margin-top: 6px;
-                background: rgb(16, 23, 41);
-                border: 1px solid rgba(255, 255, 255, 0.07);
+                background: var(--bg);
+                border: 1px solid var(--border);
                 border-radius: 6px;
                 display: none;
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+                box-shadow: 0 8px 32px var(--shadow-dark);
                 max-height: 320px;
                 overflow-y: auto;
             }
             #search-results::-webkit-scrollbar { width: 3px; }
             #search-results::-webkit-scrollbar-track { background: transparent; }
-            #search-results::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+            #search-results::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
             .search-result-item {
                 display: flex;
                 align-items: center;
