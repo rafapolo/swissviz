@@ -653,20 +653,11 @@
             .blink-marker {
                 width: 0; height: 0;
                 pointer-events: none;
-                position: relative;
-            }
-            .blink-marker::after {
-                content: '';
-                position: absolute;
-                width: 20px; height: 20px;
-                top: -10px; left: -10px;
-                border-radius: 50%;
-                background: white;
-                animation: blink-pulse 0.4s ease-out infinite alternate;
+                animation: blink-pulse 0.45s ease-out infinite alternate;
             }
             @keyframes blink-pulse {
-                from { transform: scale(1); opacity: 1; }
-                to { transform: scale(2.8); opacity: 0; }
+                from { box-shadow: 0 0 0 3px rgba(255,255,255,0.95); }
+                to   { box-shadow: 0 0 0 16px rgba(255,255,255,0); }
             }
         </style>
     </head>
@@ -1669,17 +1660,37 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                             el.onclick = () => {
                                 const center = lat !== undefined ? [lng, lat] : point.position;
                                 map.flyTo({ center, zoom: 14, duration: 800 });
+
+                                // Find the exact cluster position used by the deck.gl dot
+                                function resolvePos() {
+                                    if (lat === undefined) return point.position;
+                                    const pts = cantonData[cantonId];
+                                    if (!pts) return [lng, lat];
+                                    const k = Math.round(lat * 1e5) * 1000000 + Math.round(lng * 1e5);
+                                    for (const p of pts) {
+                                        const pk = Math.round(p.position[1] * 1e5) * 1000000 + Math.round(p.position[0] * 1e5);
+                                        if (pk === k) return p.position;
+                                    }
+                                    return [lng, lat];
+                                }
+
+                                function placeMarker() {
+                                    if (blinkMarker) blinkMarker.remove();
+                                    const markerEl = document.createElement("div");
+                                    markerEl.className = "blink-marker";
+                                    blinkMarker = new maplibregl.Marker(markerEl).setLngLat(resolvePos()).addTo(map);
+                                    setTimeout(() => { if (blinkMarker) { blinkMarker.remove(); blinkMarker = null; } }, 3000);
+                                }
+
                                 if (!activeCantons.has(cantonId)) {
                                     activeCantons.add(cantonId);
                                     const ci = document.querySelector(`.canton-item[data-id="${cantonId}"]`);
                                     if (ci) { ci.classList.add("active"); ci.classList.remove("inactive"); }
-                                    loadCantonData(CANTONS.find(c => c.id === cantonId)).then(() => refreshLayer());
+                                    loadCantonData(CANTONS.find(c => c.id === cantonId)).then(() => { refreshLayer(); placeMarker(); });
+                                } else {
+                                    placeMarker();
                                 }
-                                if (blinkMarker) blinkMarker.remove();
-                                const markerEl = document.createElement("div");
-                                markerEl.className = "blink-marker";
-                                blinkMarker = new maplibregl.Marker(markerEl).setLngLat(center).addTo(map);
-                                setTimeout(() => { blinkMarker.remove(); blinkMarker = null; }, 3000);
+
                                 document.getElementById("search-input").value = "";
                                 closeResults();
                             };

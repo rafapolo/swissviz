@@ -27,6 +27,13 @@ No account needed. No install. Just open the link.
 - **Click and drag** to move around
 - **Click any dot** to see the company name and legal form
 
+### Searching for a company
+Type any company name in the **search bar** at the top of the map. Results appear instantly and search across all 760,000+ companies — even ones in cantons you haven't loaded yet.
+
+- Use **↑ / ↓ arrow keys** to move through results, **Enter** to select
+- Click any result to fly directly to that company on the map — the dot pulses white for 3 seconds so you can spot it in a dense area
+- If the company's canton wasn't loaded yet, it loads automatically
+
 ### Left panel — Cantons
 Choose which cantons (regions) to show on the map. By default Bern is loaded. Click any canton name to load its companies. You can select all or none with the buttons at the top.
 
@@ -62,7 +69,10 @@ For those curious about how it works under the hood:
 
 - Company data is downloaded from opendata.swiss (one CSV file per canton, 26 total)
 - Addresses are geocoded (converted to map coordinates) using the Mapbox Geocoding API
-- The coordinates are compressed and stored as small files that the browser downloads on demand — no server needed
+- The coordinates are compressed and stored as gzipped JSON files, one per canton, fetched on demand — no server needed
+- Parsing runs in a **web worker** so the UI stays responsive while large cantons load
+- A separate **global search index** (`search_index.json.gz`, ~8 MB compressed) enables instant name search across all 760k companies without loading every canton
+- A **service worker** caches data files after the first visit so the map loads fast on repeat visits
 - The map renders entirely in your browser using [deck.gl](https://deck.gl) and [MapLibre GL](https://maplibre.org/)
 - The whole thing is a single HTML file + data files, hosted for free on GitHub Pages
 
