@@ -31,7 +31,7 @@ No account needed. No install. Just open the link.
 Type any company name in the **search bar** at the top of the map. Results appear instantly and search across all 760,000+ companies — even ones in cantons you haven't loaded yet.
 
 - Use **↑ / ↓ arrow keys** to move through results, **Enter** to select
-- Click any result to fly directly to that company on the map — a green marker appears on the exact dot for 3 seconds so you can spot it in a dense area
+- Click any result to fly directly to that company on the map — a transparent green ring marker appears on the exact dot for 3 seconds so you can spot it without covering it
 - If a company name matches multiple locations (e.g. a chain with branches), all locations are marked simultaneously and the map fits to show them all
 - If the company's canton wasn't loaded yet, it loads automatically
 
@@ -72,9 +72,11 @@ For those curious about how it works under the hood:
 - Addresses are geocoded (converted to map coordinates) using the Mapbox Geocoding API
 - The coordinates are compressed and stored as gzipped JSON files, one per canton, fetched on demand — no server needed
 - Parsing runs in a **web worker** so the UI stays responsive while large cantons load
-- A separate **global search index** (`search_index.json.gz`, ~8 MB compressed) enables instant name search across all 760k companies without loading every canton
-- A **service worker** caches data files after the first visit so the map loads fast on repeat visits
+- A separate **global search index** (`search_index.json.gz`, ~8 MB compressed) enables instant name search across all 760k companies without loading every canton — the index is pre-lowercased at build time for zero-cost case-insensitive matching
+- A **service worker** caches data files after the first visit so the map loads fast on repeat visits; cantonal data is also preloaded in the background after initial render
+- CDN scripts are deferred and canton data is preloaded so the map is interactive as fast as possible
 - The map renders entirely in your browser using [deck.gl](https://deck.gl) and [MapLibre GL](https://maplibre.org/)
+- Keyboard navigation, ARIA labels, and color contrast meet WCAG AA accessibility standards
 - The whole thing is a single HTML file + data files, hosted for free on GitHub Pages
 
 ### Data pipeline
