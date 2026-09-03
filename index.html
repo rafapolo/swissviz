@@ -395,6 +395,33 @@
                 right: 20px;
             }
 
+            /* GitHub repo link (bottom-right) */
+            #github-link {
+                display: flex;
+                position: fixed;
+                bottom: 16px;
+                right: 16px;
+                width: 36px;
+                height: 36px;
+                background: var(--bg);
+                border: 1px solid var(--border-mid);
+                border-radius: 8px;
+                align-items: center;
+                justify-content: center;
+                z-index: 12;
+                color: rgba(255, 255, 255, 0.5);
+                transition: color 0.15s, border-color 0.15s;
+            }
+            #github-link:hover,
+            #github-link:focus-visible {
+                color: #fff;
+                border-color: var(--border-mid);
+            }
+            #github-link svg {
+                width: 18px;
+                height: 18px;
+            }
+
             /* Tooltip close button (mobile) */
             #tooltip-close {
                 display: none;
@@ -710,6 +737,12 @@
         <button class="panel-toggle" id="toggle-canton" aria-label="Toggle Cantons panel" aria-expanded="true" aria-controls="canton-panel"><span aria-hidden="true">⌖</span></button>
         <button class="panel-toggle" id="toggle-legend" aria-label="Toggle Legend panel" aria-expanded="true" aria-controls="legend"><span aria-hidden="true">⊟</span></button>
 
+        <a id="github-link" href="https://github.com/rafapolo/swissviz" target="_blank" rel="noopener noreferrer" aria-label="View source on GitHub">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+            </svg>
+        </a>
+
         <div id="canton-panel" class="panel" aria-label="Cantons filter panel">
             <div class="panel-header">
                 <span class="panel-dot" aria-hidden="true">⌖</span>
@@ -758,7 +791,7 @@
 
 
 
-        <script src="https://unpkg.com/deck.gl@9.3.3/dist.min.js"></script>
+        <script src="https://unpkg.com/deck.gl@9.3.11/dist.min.js"></script>
         <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
         <script>
             // ── URL params ────────────────────────────────────────────────────────
@@ -1393,44 +1426,10 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     });
                 });
 
-                // Map — MapLibre + CartoDB Dark Matter (OSM, no token required)
+                // Map — MapLibre + OpenFreeMap (open-source OSM vector tiles, no API key, no rate limit)
                 map = new maplibregl.Map({
                     container: "map",
-                    style: {
-                        version: 8,
-                        sources: {
-                            "carto-dark": {
-                                type: "raster",
-                                tiles: [
-                                    "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-                                    "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-                                    "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-                                ],
-                                tileSize: 256,
-                                attribution:
-                                    "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> © <a href='https://carto.com/attributions'>CARTO</a>",
-                            },
-                        },
-                        layers: [
-                            {
-                                id: "background",
-                                type: "background",
-                                paint: { "background-color": "#0b0f1a" },
-                            },
-                            {
-                                id: "carto-dark",
-                                type: "raster",
-                                source: "carto-dark",
-                                paint: {
-                                    "raster-brightness-min": 0.07,
-                                    "raster-hue-rotate": 210,
-                                    "raster-saturation": 0.4,
-                                    "raster-contrast": -0.1,
-                                    "raster-fade-duration": 0,
-                                },
-                            },
-                        ],
-                    },
+                    style: "https://tiles.openfreemap.org/styles/dark",
                     center: [7.58, 47.56],
                     zoom: 12,
                     minZoom: 6,
@@ -1439,11 +1438,23 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     bearing: 0,
                     antialias: true,
                     dragRotate: true,
+                    attributionControl: false,
                 });
 
                 overlay = new deck.MapboxOverlay({ layers: [buildLayer()] });
 
                 map.on("load", async () => {
+                    // Tint the OpenFreeMap base layers to match the app's dark-navy palette
+                    map.setPaintProperty("background", "background-color", "#0b0f1a");
+                    map.setPaintProperty("water", "fill-color", "rgba(20, 30, 55, 1)");
+
+                    map.addControl(
+                        new maplibregl.AttributionControl({
+                            compact: true,
+                            customAttribution:
+                                "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors, tiles by <a href='https://openfreemap.org'>OpenFreeMap</a>",
+                        }),
+                    );
                     map.addControl(overlay);
                     map.addControl(
                         new maplibregl.NavigationControl({

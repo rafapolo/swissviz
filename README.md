@@ -57,7 +57,7 @@ On mobile, tap the corner icons to open panels as bottom sheets. Tap anywhere on
 
 All data is sourced from **[opendata.swiss](https://opendata.swiss)** — Switzerland's official open government data portal. The business registry is public information, updated regularly by the Swiss federal authorities.
 
-The map tiles (the street map underneath) come from [CartoDB](https://carto.com/) using [OpenStreetMap](https://www.openstreetmap.org/) data. Both are free and open.
+The map tiles (the street map underneath) come from [OpenFreeMap](https://openfreemap.org/) using [OpenStreetMap](https://www.openstreetmap.org/) data — both fully open-source, with no API key and no rate limits.
 
 **No data is collected from visitors.** There is no tracking, no cookies, no login.
 
@@ -93,9 +93,9 @@ flowchart TD
     G --> H[repack.py]
     H -->|columnar JSON\nsingle-char type codes\n4-decimal coords\ngzip compressed| I[data/\n*.json.gz chunks]
 
-    I -->|fetched on demand\ndecompressed in browser| J([Browser\ndeck.gl · MapLibre GL\nCartoDB tiles])
+    I -->|fetched on demand\ndecompressed in browser| J([Browser\ndeck.gl · MapLibre GL\nOpenFreeMap tiles])
 ```
 
 ---
 
-Built by [ExtraPolo.com](https://extrapolo.com) · Data: [opendata.swiss](https://opendata.swiss) · Map: [CartoDB](https://carto.com/) / [OpenStreetMap](https://www.openstreetmap.org/)
+Built by [ExtraPolo.com](https://extrapolo.com) · Data: [opendata.swiss](https://opendata.swiss) · Map: [OpenFreeMap](https://openfreemap.org/) / [OpenStreetMap](https://www.openstreetmap.org/)
