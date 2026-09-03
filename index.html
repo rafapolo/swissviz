@@ -499,8 +499,6 @@
                     right: 16px !important;
                 }
             }
-            .maplibregl-ctrl-attrib,
-            .maplibregl-ctrl-attrib-inner,
             .maplibregl-ctrl-compass,
             .maplibregl-ctrl-group {
                 display: none !important;
@@ -1454,6 +1452,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                             customAttribution:
                                 "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors, tiles by <a href='https://openfreemap.org'>OpenFreeMap</a>",
                         }),
+                        "bottom-left",
                     );
                     map.addControl(overlay);
                     map.addControl(
