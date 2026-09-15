@@ -1442,9 +1442,16 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 overlay = new deck.MapboxOverlay({ layers: [buildLayer()] });
 
                 map.on("load", async () => {
-                    // Tint the OpenFreeMap base layers to match the app's dark-navy palette
-                    map.setPaintProperty("background", "background-color", "#0b0f1a");
+                    // Tint the OpenFreeMap base layers to match the app's dark-navy palette (--bg)
+                    map.setPaintProperty("background", "background-color", "#101729");
                     map.setPaintProperty("water", "fill-color", "rgba(20, 30, 55, 1)");
+
+                    // Hide all place/street/POI labels so only the data layer reads
+                    for (const layer of map.getStyle().layers) {
+                        if (layer.type === "symbol") {
+                            map.setLayoutProperty(layer.id, "visibility", "none");
+                        }
+                    }
 
                     map.addControl(
                         new maplibregl.AttributionControl({
