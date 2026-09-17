@@ -3,3 +3,4 @@ scripts/geocode_cache.json
 dev-token.js
 node_modules/
 dist/
+tmp/
