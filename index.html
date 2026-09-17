@@ -1352,43 +1352,60 @@ self.onmessage = ({ data: { id, col, cantonId } }) => {
             }
 
             // ── Layer builder ──────────────────────────────────────────────────────
-            function buildLayer() {
-                // avoid .flat() allocation; build filtered array directly
+            // Evaluated once per pointermove by onHover, so resolve it up front.
+            const _hoverless = window.matchMedia("(hover: none)");
+
+            // The visible-point array, cached by identity: deck.gl only regenerates
+            // its GPU attributes when `data` changes reference, so reusing this one
+            // lets a zoom update the opacity uniform alone (see the zoom handler).
+            let _visible = [];
+
+            // Single pass: filter for the layer, resolve each point's color, and count
+            // companies for the legend. Resolving the color here rather than inside
+            // getFillColor means the matching company is looked up once per point per
+            // filter change, instead of once per point on every attribute rebuild.
+            // displayTotal counts every company in an active canton, label filter or not.
+            function computeVisible() {
                 const visible = [];
+                let total = 0;
                 for (const [id, pts] of Object.entries(cantonData)) {
                     if (!activeCantons.has(id)) continue;
                     for (let i = 0; i < pts.length; i++) {
                         const d = pts[i];
-                        if (d.companies.some((c) => activeLabels.has(c.label))) visible.push(d);
+                        total += d.companies.length;
+                        const matched = d.companies.find((c) => activeLabels.has(c.label));
+                        if (!matched) continue;
+                        // pre-built Map for O(1) lookup; fallback to the memoized getColor
+                        d.fillColor = _labelToRgb.get(matched.label) ?? getColor(matched.rechtsform);
+                        visible.push(d);
                     }
                 }
+                displayTotal = total;
+                return visible;
+            }
+
+            function buildLayer() {
                 return new deck.ScatterplotLayer({
                     id: "companies",
-                    data: visible,
+                    data: _visible,
                     getPosition: (d) => d.position,
+                    // Opaque: alpha comes from the `opacity` uniform below, so a zoom
+                    // never has to re-run this callback over every point.
                     getFillColor: (d) => {
-                        if (nightView) {
-                            return [
-                                ...nightColor,
-                                Math.round(255 * (effectiveIntensity() / 100)),
-                            ];
-                        }
-                        const matched = d.companies.find((c) =>
-                            activeLabels.has(c.label),
-                        );
-                        if (matched) {
-                            // use pre-built Map for O(1) color lookup; fallback to per-point cached color
-                            const rgb = _labelToRgb.get(matched.label) ?? getColor(matched.rechtsform);
-                            return [rgb[0], rgb[1], rgb[2], 230];
-                        }
-                        return [d.color[0], d.color[1], d.color[2], 230];
+                        // fillColor is set by computeVisible for every point that got
+                        // through the filter, which is every point in `data`.
+                        return nightView ? nightColor : d.fillColor;
                     },
+                    // Night: intensity tracks zoom. Day: the flat 230/255 the dots had.
+                    opacity: nightView ? effectiveIntensity() / 100 : 230 / 255,
+                    // Colors only change with the night toggle; a filter change already
+                    // replaces `_visible`, which invalidates attributes on its own.
+                    updateTriggers: { getFillColor: nightView },
                     getRadius: 18,
                     radiusScale: 1,
                     radiusMinPixels: nightView ? RADIUS_MIN * 0.9 : RADIUS_MIN,
                     radiusMaxPixels: nightView ? RADIUS_MAX * 0.9 : RADIUS_MAX,
                     pickable: true,
-                    opacity: 1,
                     stroked: false,
                     parameters: {
                         depthTest: false,
@@ -1397,25 +1414,30 @@ self.onmessage = ({ data: { id, col, cantonId } }) => {
                         blendEquation: 32774,
                     },
                     onHover: (info) => {
-                        if (window.matchMedia("(hover: none)").matches) return;
+                        if (_hoverless.matches) return;
                         showTooltip(info);
                     },
                     onClick: (info) => {
-                        if (!window.matchMedia("(hover: none)").matches) return;
+                        if (!_hoverless.matches) return;
                         showTooltip(info);
                     },
                 });
             }
 
+            // Opacity-only update: keeps the `_visible` reference, so deck.gl diffs a
+            // single uniform instead of regenerating every point's attributes. For
+            // anything that changes which points show or what color they are, use
+            // refreshLayer() instead.
+            function refreshIntensity() {
+                if (overlay) overlay.setProps({ layers: [buildLayer()] });
+            }
+
             function refreshLayer() {
                 if (!overlay) return;
+                // New array identity — deck.gl rebuilds attributes, which is what a
+                // data or filter change needs. computeVisible also sets displayTotal.
+                _visible = computeVisible();
                 overlay.setProps({ layers: [buildLayer()] });
-                // count without allocating a flat array
-                displayTotal = 0;
-                for (const [id, pts] of Object.entries(cantonData)) {
-                    if (!activeCantons.has(id)) continue;
-                    for (let i = 0; i < pts.length; i++) displayTotal += pts[i].companies.length;
-                }
                 document.getElementById("legend-subtitle").textContent =
                     TRANSLATIONS[currentLang].legendSubtitle + " (" + displayTotal.toLocaleString() + ")";
                 updateLegendCounts();
@@ -1570,12 +1592,20 @@ self.onmessage = ({ data: { id, col, cantonId } }) => {
                     setTimeout(() => ls.remove(), 450);
                 });
 
+                // `zoom` fires every frame of a wheel/pinch gesture. Only the night
+                // intensity depends on zoom, and that is now the `opacity` uniform —
+                // so reuse `_visible` (same reference, no attribute rebuild) and
+                // coalesce to one update per frame.
+                let _zoomRaf = 0;
                 map.on("zoom", () => {
-                    if (nightView) {
+                    if (!nightView || _zoomRaf) return;
+                    _zoomRaf = requestAnimationFrame(() => {
+                        _zoomRaf = 0;
+                        if (!nightView) return;
                         document.getElementById("night-intensity").value =
                             effectiveIntensity();
-                        refreshLayer();
-                    }
+                        refreshIntensity();
+                    });
                 });
 
                 document
@@ -1644,7 +1674,7 @@ self.onmessage = ({ data: { id, col, cantonId } }) => {
                     .addEventListener("input", (e) => {
                         anchorIntensity = +e.target.value;
                         anchorZoom = map.getZoom();
-                        refreshLayer();
+                        refreshIntensity();
                     });
 
                 // ── Canton all / none ──────────────────────────────────────────────
