@@ -1103,23 +1103,69 @@
                 V: "Verein",
             };
 
+            // Builds one point per lat/lng, grouping co-located companies.
+            // Runs in the parse worker (see below) — and is stringified into it,
+            // so it may only reference other top-level names the worker redeclares.
+            function parseCantonData(col, canton) {
+                const byKey = new Map();
+                const n = col.n.length;
+                for (let i = 0; i < n; i++) {
+                    const tRaw = col.t[i] || "";
+                    const rf = (T_DECODE[tRaw] || tRaw).trim();
+                    if (!rf) continue;
+                    const lat = col.lat[i], lng = col.lng[i];
+                    if (!lat || !lng) continue;
+                    const key = Math.round(lat * 1e5) * 1000000 + Math.round(lng * 1e5);
+                    const label = getLabel(rf);
+                    const company = { name: col.n[i] || "", rechtsform: rf, label, address: "", uid: "" };
+                    if (!byKey.has(key))
+                        byKey.set(key, { position: [lng, lat], canton, companies: [], rechtsform: rf, label, color: getColor(rf) });
+                    byKey.get(key).companies.push(company);
+                }
+                return [...byKey.values()];
+            }
+
             // ── Parse worker — offloads parseCantonData off the main thread ─────────
+            // The functions below are stringified, not re-typed, so the worker and the
+            // main thread can never drift apart. Every name they reference must be
+            // declared here under the *same* name — and must survive minification:
+            // scripts/build.js guards that terser does not rename them.
             const _workerSrc = `
-const T=${JSON.stringify(T_DECODE)};
-const C=${JSON.stringify(colorAssignments)};
-function h2r(h){const r=/^#?([a-f\\d]{2})([a-f\\d]{2})([a-f\\d]{2})$/i.exec(h);return r?[parseInt(r[1],16),parseInt(r[2],16),parseInt(r[3],16)]:[100,100,100];}
-const _cCache=new Map(),_lCache=new Map();
-function gc(rf){if(_cCache.has(rf))return _cCache.get(rf);const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey)){const v=h2r(a.hex);_cCache.set(rf,v);return v;}}const f=h2r('#1a1a30');_cCache.set(rf,f);return f;}
-function gl(rf){if(_lCache.has(rf))return _lCache.get(rf);const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey)){_lCache.set(rf,a.label);return a.label;}}_lCache.set(rf,rf);return rf;}
-function parse(col,canton){const m=new Map(),n=col.n.length;for(let i=0;i<n;i++){const tRaw=col.t[i]||'',rf=(T[tRaw]||tRaw).trim();if(!rf)continue;const lat=col.lat[i],lng=col.lng[i];if(!lat||!lng)continue;const k=Math.round(lat*1e5)*1000000+Math.round(lng*1e5),label=gl(rf),co={name:col.n[i]||'',rechtsform:rf,label,address:'',uid:''};if(!m.has(k))m.set(k,{position:[lng,lat],canton,companies:[],rechtsform:rf,label,color:gc(rf)});m.get(k).companies.push(co);}return[...m.values()];}
-self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col,cantonId)});
+const T_DECODE = ${JSON.stringify(T_DECODE)};
+const colorAssignments = ${JSON.stringify(colorAssignments)};
+const _colorCache = new Map(), _labelCache = new Map();
+${hexToRgb}
+${getColor}
+${getLabel}
+${parseCantonData}
+self.onmessage = ({ data: { id, col, cantonId } }) => {
+    try { self.postMessage({ id, points: parseCantonData(col, cantonId) }); }
+    catch (e) { self.postMessage({ id, error: String((e && e.message) || e) }); }
+};
 `;
             const _parseWorker = new Worker(URL.createObjectURL(new Blob([_workerSrc], { type: "application/javascript" })));
             const _parsePending = new Map();
             let _parseSeq = 0;
-            _parseWorker.onmessage = ({ data: { id, points } }) => { _parsePending.get(id)(points); _parsePending.delete(id); };
+            _parseWorker.onmessage = ({ data: { id, points, error } }) => {
+                const pending = _parsePending.get(id);
+                if (!pending) return;
+                _parsePending.delete(id);
+                if (error) pending.rej(new Error(error));
+                else pending.res(points);
+            };
+            // A worker-level failure settles every in-flight parse, so callers'
+            // try/catch runs instead of their promise hanging forever.
+            _parseWorker.onerror = e => {
+                const err = new Error(`Parse worker failed: ${e.message || "unknown error"}`);
+                for (const pending of _parsePending.values()) pending.rej(err);
+                _parsePending.clear();
+            };
             function parseCantonDataAsync(col, cantonId) {
-                return new Promise(res => { const id = _parseSeq++; _parsePending.set(id, res); _parseWorker.postMessage({ id, col, cantonId }); });
+                return new Promise((res, rej) => {
+                    const id = _parseSeq++;
+                    _parsePending.set(id, { res, rej });
+                    _parseWorker.postMessage({ id, col, cantonId });
+                });
             }
 
             function indexCanton(cantonId, points) {

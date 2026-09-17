@@ -36,6 +36,29 @@ const minified = await minify(src, {
     sortClassName: false,
 });
 
+// ── 1b. Guard the parse worker ───────────────────────────────────────────────
+// index.html builds its parse worker by stringifying real top-level functions,
+// so terser must not rename them or the names they reference — the worker
+// redeclares each one verbatim. This only breaks in the minified build (dev
+// serves the raw file), so assert it here rather than discovering it in prod.
+const WORKER_FNS = ["hexToRgb", "getColor", "getLabel", "parseCantonData"];
+const WORKER_REFS = ["T_DECODE", "colorAssignments", "_colorCache", "_labelCache"];
+
+const renamed = [
+    // A preserved declaration still reads `function getColor(`; a mangled one does not.
+    ...WORKER_FNS.filter(n => !new RegExp(`function\\s+${n}\\s*\\(`).test(minified)),
+    // These appear once as literal text inside the worker template even when
+    // mangled, so a surviving top-level name means 2+ occurrences.
+    ...WORKER_REFS.filter(n => minified.split(n).length - 1 < 2),
+];
+
+if (renamed.length) {
+    throw new Error(
+        `Minification renamed parse-worker names: ${renamed.join(", ")}.\n` +
+        `The worker would throw ReferenceError at runtime. Keep minifyJS.mangle.toplevel falsy.`
+    );
+}
+
 writeFileSync(join(DIST, "index.html"), minified);
 
 // ── 2. Copy service worker (already small; copy verbatim so SW scope is root) ─
