@@ -1272,6 +1272,39 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 }
             }
 
+            // ── 3D buildings ───────────────────────────────────────────────────────
+            // OpenFreeMap serves the OpenMapTiles schema, whose `building` source-layer
+            // carries render_height / render_min_height — enough for a fill-extrusion.
+            function addBuildings3D() {
+                const source = map
+                    .getStyle()
+                    .layers.find((l) => l["source-layer"] === "building")?.source;
+                if (!source) return;
+
+                map.addLayer({
+                    id: "buildings-3d",
+                    type: "fill-extrusion",
+                    source,
+                    "source-layer": "building",
+                    minzoom: 13,
+                    paint: {
+                        "fill-extrusion-color": "#243049",
+                        "fill-extrusion-height": ["get", "render_height"],
+                        "fill-extrusion-base": ["get", "render_min_height"],
+                        // fade in as the extrusions become meaningful, so z13 doesn't pop
+                        "fill-extrusion-opacity": [
+                            "interpolate",
+                            ["linear"],
+                            ["zoom"],
+                            13,
+                            0,
+                            14.5,
+                            0.85,
+                        ],
+                    },
+                });
+            }
+
             // ── Layer builder ──────────────────────────────────────────────────────
             function buildLayer() {
                 // avoid .flat() allocation; build filtered array directly
@@ -1452,6 +1485,8 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                             map.setLayoutProperty(layer.id, "visibility", "none");
                         }
                     }
+
+                    addBuildings3D();
 
                     map.addControl(
                         new maplibregl.AttributionControl({
