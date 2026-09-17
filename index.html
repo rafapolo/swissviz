@@ -1318,39 +1318,6 @@ self.onmessage = ({ data: { id, col, cantonId } }) => {
                 }
             }
 
-            // ── 3D buildings ───────────────────────────────────────────────────────
-            // OpenFreeMap serves the OpenMapTiles schema, whose `building` source-layer
-            // carries render_height / render_min_height — enough for a fill-extrusion.
-            function addBuildings3D() {
-                const source = map
-                    .getStyle()
-                    .layers.find((l) => l["source-layer"] === "building")?.source;
-                if (!source) return;
-
-                map.addLayer({
-                    id: "buildings-3d",
-                    type: "fill-extrusion",
-                    source,
-                    "source-layer": "building",
-                    minzoom: 13,
-                    paint: {
-                        "fill-extrusion-color": "#243049",
-                        "fill-extrusion-height": ["get", "render_height"],
-                        "fill-extrusion-base": ["get", "render_min_height"],
-                        // fade in as the extrusions become meaningful, so z13 doesn't pop
-                        "fill-extrusion-opacity": [
-                            "interpolate",
-                            ["linear"],
-                            ["zoom"],
-                            13,
-                            0,
-                            14.5,
-                            0.85,
-                        ],
-                    },
-                });
-            }
-
             // ── Layer builder ──────────────────────────────────────────────────────
             // Evaluated once per pointermove by onHover, so resolve it up front.
             const _hoverless = window.matchMedia("(hover: none)");
@@ -1533,13 +1500,14 @@ self.onmessage = ({ data: { id, col, cantonId } }) => {
                     zoom: 12,
                     minZoom: 6,
                     maxZoom: 16,
-                    pitch: 0,
+                    pitch: 45,
                     bearing: 0,
                     antialias: true,
                     dragRotate: true,
                     attributionControl: false,
                 });
 
+                _visible = computeVisible();
                 overlay = new deck.MapboxOverlay({ layers: [buildLayer()] });
 
                 map.on("load", async () => {
@@ -1554,16 +1522,31 @@ self.onmessage = ({ data: { id, col, cantonId } }) => {
                         }
                     }
 
-                    addBuildings3D();
+                    // Extrude the OpenMapTiles building footprints. The default light
+                    // (intensity 0.5) blows the roof faces out to a light grey that
+                    // competes with the dots, so dim it — the buildings are context,
+                    // not the data. minzoom 13 keeps the geometry off the GPU at the
+                    // zoom levels where it would just be noise anyway.
+                    map.setLight({
+                        anchor: "viewport",
+                        color: "#ffffff",
+                        intensity: 0.18,
+                        position: [1.15, 210, 30],
+                    });
+                    map.addLayer({
+                        id: "3d-buildings",
+                        source: "openmaptiles",
+                        "source-layer": "building",
+                        type: "fill-extrusion",
+                        minzoom: 13,
+                        paint: {
+                            "fill-extrusion-color": "#1B2431",
+                            "fill-extrusion-height": ["coalesce", ["get", "render_height"], 6],
+                            "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], 0],
+                            "fill-extrusion-opacity": 0.62,
+                        },
+                    });
 
-                    map.addControl(
-                        new maplibregl.AttributionControl({
-                            compact: true,
-                            customAttribution:
-                                "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors, tiles by <a href='https://openfreemap.org'>OpenFreeMap</a>",
-                        }),
-                        "bottom-left",
-                    );
                     map.addControl(overlay);
                     map.addControl(
                         new maplibregl.NavigationControl({
@@ -1575,6 +1558,7 @@ self.onmessage = ({ data: { id, col, cantonId } }) => {
                     map.flyTo({
                         center: [BERN.lng, BERN.lat],
                         zoom: 11,
+                        pitch: 45,
                         duration: 1500,
                     });
 
