@@ -2368,7 +2368,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             // open, lit, or burning out, so a frame only changes one uniform.
             const TL_EPOCH = Date.UTC(2018, 0, 1);
             // the service worker caches data files for good: bump on every rebuild
-            const TL_VERSION = 1;
+            const TL_VERSION = 2;
             const TL_NONE = 65535;
             const TL_FAR = 1e9; // a day that never comes
             const TL_DAYS_PER_SEC = 365 / 7; // 1×: a year in ~7 s
