@@ -18,7 +18,8 @@
             rel="icon"
             href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇨🇭</text></svg>"
         />
-        <link rel="preload" href="data/BS_0.json.gz" as="fetch" crossorigin />
+        <link rel="preload" href="data/BE.json" as="fetch" crossorigin />
+        <link rel="preload" href="data/BE_0.json.gz" as="fetch" crossorigin />
         <link href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css" rel="stylesheet" />
         <style>
             @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap");
@@ -558,31 +559,31 @@
                     display: block;
                 }
             }
-            .maplibregl-ctrl-compass,
-            .maplibregl-ctrl-group {
-                display: none !important;
-            }
 
-            /* Loading spinner */
+            /* Loading pill — the map is usable underneath while the first canton streams in */
             #loading-screen {
                 position: fixed;
-                inset: 0;
+                bottom: 24px;
+                left: 50%;
+                transform: translateX(-50%);
                 z-index: 100;
                 background: var(--bg);
+                border: 1px solid var(--border-mid);
+                border-radius: 999px;
+                padding: 8px 16px 8px 12px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
                 display: flex;
-                flex-direction: column;
                 align-items: center;
-                justify-content: center;
-                gap: 20px;
+                gap: 10px;
+                pointer-events: none;
                 transition: opacity 0.4s ease;
             }
             #loading-screen.hidden {
                 opacity: 0;
-                pointer-events: none;
             }
             .spinner {
-                width: 36px;
-                height: 36px;
+                width: 14px;
+                height: 14px;
                 border: 2px solid var(--white-dim);
                 border-top-color: var(--accent);
                 border-radius: 50%;
@@ -592,9 +593,9 @@
                 to { transform: rotate(360deg); }
             }
             .loading-label {
-                color: rgba(255, 255, 255, 0.6);
-                font-size: 12px;
-                letter-spacing: 0.1em;
+                color: rgba(255, 255, 255, 0.7);
+                font-size: 11px;
+                letter-spacing: 0.08em;
                 text-transform: uppercase;
             }
 
@@ -779,7 +780,7 @@
 
         <div id="loading-screen" role="status" aria-live="polite" aria-label="Loading map data">
             <div class="spinner" aria-hidden="true"></div>
-            <span class="loading-label">Loading</span>
+            <span class="loading-label" id="loading-label">Loading Bern…</span>
         </div>
 
         <div
@@ -1343,18 +1344,8 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 };
             }
 
-            // ── Load BS and build legend counts ───────────────────────────────────
-            async function loadBsData() {
-                const rows = await loadCantonAll("BS");
-                const points = await parseCantonDataAsync(rows, "BS");
-
-                const counts = {};
-                points.forEach((p) =>
-                    p.companies.forEach((c) => {
-                        counts[c.label] = (counts[c.label] || 0) + 1;
-                    }),
-                );
-
+            // ── Legend items (counts are filled in by updateLegendCounts) ──────────
+            function buildLegend() {
                 const legendEl = document.getElementById("legend-items");
                 colorAssignments.forEach((item) => {
                     const div = document.createElement("div");
@@ -1363,11 +1354,11 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     div.setAttribute("role", "checkbox");
                     div.setAttribute("tabindex", "0");
                     div.setAttribute("aria-checked", "true");
-                    div.setAttribute("aria-label", `${item.label}: ${counts[item.label] || 0} companies`);
+                    // accessible name comes from the visible label + count
                     div.innerHTML = `
           <div class="legend-color" style="background:${item.hex}" aria-hidden="true"></div>
           <span class="legend-label">${item.label}</span>
-          <span class="legend-count">(${counts[item.label] || 0})</span>`;
+          <span class="legend-count">(0)</span>`;
                     legendEl.appendChild(div);
 
                     div.addEventListener("keydown", (e) => {
@@ -1377,8 +1368,6 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         }
                     });
                 });
-
-                return points;
             }
 
             // ── Load any canton from its chunks ───────────────────────────────────
@@ -1503,10 +1492,10 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             }
 
             // ── Boot ───────────────────────────────────────────────────────────────
-            loadBsData().then((points) => {
-                cantonData["BS"] = points;
-                indexCanton("BS", points);
-                displayTotal = points.reduce((s, p) => s + p.companies.length, 0);
+            // Nothing here waits on data: the map and panels come up right away and
+            // Bern streams in alongside the map style
+            (function boot() {
+                buildLegend();
                 applyLang(currentLang);
 
                 // Build canton list
@@ -1579,8 +1568,8 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 map = new maplibregl.Map({
                     container: "map",
                     style: "https://tiles.openfreemap.org/styles/dark",
-                    center: [7.58, 47.56],
-                    zoom: 12,
+                    center: [BERN.lng, BERN.lat],
+                    zoom: 11,
                     minZoom: 6,
                     maxZoom: 18,
                     pitch: 0,
@@ -1591,6 +1580,10 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 });
 
                 overlay = new deck.MapLibreOverlay({ layers: [buildLayer()] });
+
+                // start Bern now, in parallel with the style and tiles
+                setCantonActive("BE", true);
+                const firstCanton = loadCantonData(_cantonById.get("BE"));
 
                 map.on("load", async () => {
                     // Tint the OpenFreeMap base layers to match the app's dark-navy palette (--bg)
@@ -1618,26 +1611,8 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         ?.classList.remove("maplibregl-compact-show");
                     map.addControl(overlay);
                     map.on("moveend", updateLegendCounts);
-                    map.addControl(
-                        new maplibregl.NavigationControl({
-                            visualizePitch: true,
-                        }),
-                        "bottom-right",
-                    );
 
-                    map.flyTo({
-                        center: [BERN.lng, BERN.lat],
-                        zoom: 11,
-                        duration: 1500,
-                    });
-
-                    activeCantons.add("BE");
-                    const el = document.querySelector('.canton-item[data-id="BE"]');
-                    if (el) {
-                        el.classList.add("active");
-                        el.classList.remove("inactive");
-                    }
-                    await loadCantonData(_cantonById.get("BE"));
+                    await firstCanton;
                     refreshLayer();
 
                     const ls = document.getElementById("loading-screen");
@@ -1739,7 +1714,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         CANTONS.forEach((c) => setCantonActive(c.id, false));
                         refreshLayer();
                     });
-            });
+            })();
 
             // ── Tooltip helper (shared by hover + tap) ─────────────────────────────
             function showTooltip(info) {

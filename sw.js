@@ -1,10 +1,10 @@
-const V = 'swissviz-v4';
+const V = 'swissviz-v5';
 
 const PRECACHE = [
     './',
     './index.html',
-    './data/BS.json',
-    './data/BS_0.json.gz',
+    './data/BE.json',
+    './data/BE_0.json.gz',
 ];
 
 self.addEventListener('install', e => {
