@@ -195,13 +195,21 @@
                 overflow-y: auto;
                 max-height: calc(100vh - 40px);
             }
-            .panel::-webkit-scrollbar {
+            /* the company card scrolls like the panels: #tooltip itself when pinned on
+               desktop, #tooltip-content in the touch bottom sheet */
+            .panel::-webkit-scrollbar,
+            #tooltip::-webkit-scrollbar,
+            #tooltip-content::-webkit-scrollbar {
                 width: 3px;
             }
-            .panel::-webkit-scrollbar-track {
+            .panel::-webkit-scrollbar-track,
+            #tooltip::-webkit-scrollbar-track,
+            #tooltip-content::-webkit-scrollbar-track {
                 background: transparent;
             }
-            .panel::-webkit-scrollbar-thumb {
+            .panel::-webkit-scrollbar-thumb,
+            #tooltip::-webkit-scrollbar-thumb,
+            #tooltip-content::-webkit-scrollbar-thumb {
                 background: var(--border-mid);
                 border-radius: 3px;
             }
