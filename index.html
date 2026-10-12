@@ -736,6 +736,30 @@
                 box-shadow: 0 0 0 1.5px rgba(0,0,0,0.4);
                 pointer-events: none;
             }
+            .load-error {
+                position: fixed;
+                bottom: 70px;
+                left: 50%;
+                transform: translateX(-50%);
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                background: rgba(200, 60, 60, 0.9);
+                color: #fff;
+                padding: 8px 10px 8px 16px;
+                border-radius: 6px;
+                font-size: 13px;
+                z-index: 20;
+            }
+            .load-error button {
+                background: rgba(255, 255, 255, 0.18);
+                border: 1px solid rgba(255, 255, 255, 0.35);
+                border-radius: 4px;
+                color: #fff;
+                font: inherit;
+                padding: 4px 10px;
+                cursor: pointer;
+            }
             /* Screen-reader-only utility */
             .sr-only {
                 position: absolute;
@@ -1242,13 +1266,41 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 );
             }
 
-            function showLoadError(cantonId) {
+            function escapeHtml(s) {
+                return String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
+            }
+
+            // failed canton: switch it back off so the map stays honest, and offer a retry
+            function showLoadError(canton) {
+                setCantonActive(canton.id, false);
+                refreshLayer();
                 const el = document.createElement("div");
-                el.style.cssText =
-                    "position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:rgba(200,60,60,0.85);color:#fff;padding:8px 16px;border-radius:4px;font-size:13px;z-index:20;pointer-events:none";
-                el.textContent = `Failed to load ${cantonId} data. Try reloading.`;
+                el.className = "load-error";
+                el.setAttribute("role", "alert");
+                const msg = document.createElement("span");
+                msg.textContent = `Failed to load ${canton.name}.`;
+                const retry = document.createElement("button");
+                retry.textContent = "Retry";
+                retry.addEventListener("click", async () => {
+                    el.remove();
+                    setCantonActive(canton.id, true);
+                    await loadCantonData(canton);
+                    refreshLayer();
+                });
+                el.append(msg, retry);
                 document.body.appendChild(el);
-                setTimeout(() => el.remove(), 4000);
+                setTimeout(() => el.remove(), 8000);
+            }
+
+            // keeps activeCantons and the canton list item (class + aria) in sync
+            function setCantonActive(id, on) {
+                if (on) activeCantons.add(id);
+                else activeCantons.delete(id);
+                const el = document.querySelector(`.canton-item[data-id="${id}"]`);
+                if (!el) return;
+                el.classList.toggle("active", on);
+                el.classList.toggle("inactive", !on);
+                el.setAttribute("aria-checked", on ? "true" : "false");
             }
 
             async function gunzipJson(url) {
@@ -1330,9 +1382,12 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             }
 
             // ── Load any canton from its chunks ───────────────────────────────────
-            async function loadCantonData(canton) {
-                if (cantonData[canton.id] !== undefined)
-                    return cantonData[canton.id];
+            // one in-flight promise per canton, so fast re-clicks don't fetch twice;
+            // a failed load is forgotten so the next click retries it
+            const _cantonLoads = new Map();
+            function loadCantonData(canton) {
+                if (cantonData[canton.id]) return Promise.resolve(cantonData[canton.id]);
+                if (_cantonLoads.has(canton.id)) return _cantonLoads.get(canton.id);
 
                 const countEl = document.querySelector(
                     `.canton-item[data-id="${canton.id}"] .canton-count`,
@@ -1341,24 +1396,29 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     countEl.innerHTML =
                         '<span class="canton-spinner" role="status" aria-label="Loading"></span>';
 
-                try {
-                    const rows = await loadCantonAll(canton.id);
-                    const points = await parseCantonDataAsync(rows, canton.id);
-                    cantonData[canton.id] = points;
-                    indexCanton(canton.id, points);
-                    const companyCount = points.reduce(
-                        (s, p) => s + p.companies.length,
-                        0,
-                    );
-                    if (countEl)
-                        countEl.textContent = `(${companyCount.toLocaleString()})`;
-                    return points;
-                } catch (e) {
-                    cantonData[canton.id] = [];
-                    if (countEl) countEl.textContent = "(–)";
-                    showLoadError(canton.id);
-                    return [];
-                }
+                const p = (async () => {
+                    try {
+                        const rows = await loadCantonAll(canton.id);
+                        const points = await parseCantonDataAsync(rows, canton.id);
+                        cantonData[canton.id] = points;
+                        indexCanton(canton.id, points);
+                        const companyCount = points.reduce(
+                            (s, p) => s + p.companies.length,
+                            0,
+                        );
+                        if (countEl)
+                            countEl.textContent = `(${companyCount.toLocaleString()})`;
+                        return points;
+                    } catch (e) {
+                        if (countEl) countEl.textContent = "(–)";
+                        showLoadError(canton);
+                        return [];
+                    } finally {
+                        _cantonLoads.delete(canton.id);
+                    }
+                })();
+                _cantonLoads.set(canton.id, p);
+                return p;
             }
 
             // ── Layer builder ──────────────────────────────────────────────────────
@@ -1434,6 +1494,14 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 if (srStatus) srStatus.textContent = `Map updated: ${displayTotal.toLocaleString()} companies shown`;
             }
 
+            // coalesce bursts of refreshes (many cantons landing together) into one frame
+            let _refreshQueued = false;
+            function refreshLayerSoon() {
+                if (_refreshQueued) return;
+                _refreshQueued = true;
+                requestAnimationFrame(() => { _refreshQueued = false; refreshLayer(); });
+            }
+
             // ── Boot ───────────────────────────────────────────────────────────────
             loadBsData().then((points) => {
                 cantonData["BS"] = points;
@@ -1490,15 +1558,9 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
 
                     async function toggleCanton() {
                         if (activeCantons.has(canton.id)) {
-                            activeCantons.delete(canton.id);
-                            div.classList.remove("active");
-                            div.classList.add("inactive");
-                            div.setAttribute("aria-checked", "false");
+                            setCantonActive(canton.id, false);
                         } else {
-                            activeCantons.add(canton.id);
-                            div.classList.add("active");
-                            div.classList.remove("inactive");
-                            div.setAttribute("aria-checked", "true");
+                            setCantonActive(canton.id, true);
                             await loadCantonData(canton);
                         }
                         refreshLayer();
@@ -1663,30 +1725,18 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 // ── Canton all / none ──────────────────────────────────────────────
                 document
                     .getElementById("btn-canton-all")
-                    .addEventListener("click", async () => {
-                        await Promise.all(
-                            CANTONS.map((c) => loadCantonData(c)),
-                        );
-                        CANTONS.forEach((c) => activeCantons.add(c.id));
-                        document
-                            .querySelectorAll(".canton-item")
-                            .forEach((el) => {
-                                el.classList.add("active");
-                                el.classList.remove("inactive");
-                            });
+                    .addEventListener("click", () => {
+                        // mark everything at once (each item spins while it loads)
+                        // and draw each canton as soon as it arrives
+                        CANTONS.forEach((c) => setCantonActive(c.id, true));
                         refreshLayer();
+                        CANTONS.forEach((c) => loadCantonData(c).then(refreshLayerSoon));
                     });
 
                 document
                     .getElementById("btn-canton-none")
                     .addEventListener("click", () => {
-                        activeCantons.clear();
-                        document
-                            .querySelectorAll(".canton-item")
-                            .forEach((el) => {
-                                el.classList.remove("active");
-                                el.classList.add("inactive");
-                            });
+                        CANTONS.forEach((c) => setCantonActive(c.id, false));
                         refreshLayer();
                     });
             });
@@ -1713,10 +1763,9 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
         <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:8px;padding-top:8px">
           <div style="display:flex;align-items:center;gap:6px">
             <span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:${hex}"></span>
-            <span style="color:#fff;font-weight:500;font-size:13px">${c.name}</span>
+            <span style="color:#fff;font-weight:500;font-size:13px">${escapeHtml(c.name)}</span>
           </div>
-          <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:3px">${c.rechtsform}</div>
-          <div style="color:rgba(255,255,255,0.3);font-size:11px">${c.address}</div>
+          <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:3px">${escapeHtml(c.rechtsform)}</div>
         </div>`;
                     })
                     .join("");
