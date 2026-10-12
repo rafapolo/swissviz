@@ -1696,6 +1696,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 // Announce filter changes to screen readers
                 const srStatus = document.getElementById("sr-status");
                 if (srStatus) srStatus.textContent = tf("mapUpdated", { n: displayTotal.toLocaleString(numLocale()) });
+                updateUrl();
             }
 
             // coalesce bursts of refreshes (many cantons landing together) into one frame
@@ -1706,6 +1707,43 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 requestAnimationFrame(() => { _refreshQueued = false; refreshLayer(); });
             }
 
+            // ── Shareable state in the URL hash ──────────────────────────────────
+            // #z=11.5&ll=46.95,7.44&c=BE,ZH&off=3,7&night=1
+            // (off = indexes into colorAssignments of legal forms switched off)
+            function readUrlState() {
+                const h = new URLSearchParams(location.hash.slice(1));
+                const st = {};
+                const z = parseFloat(h.get("z"));
+                if (z >= 6 && z <= 18) st.zoom = z;
+                const ll = (h.get("ll") || "").split(",").map(Number);
+                if (ll.length === 2 && ll.every(Number.isFinite)) st.center = [ll[1], ll[0]];
+                const c = (h.get("c") || "").split(",").filter((id) => _cantonById.has(id));
+                if (h.has("c")) st.cantons = c;
+                const off = (h.get("off") || "").split(",").filter((i) => /^\d+$/.test(i)).map((i) => colorAssignments[+i]?.label).filter(Boolean);
+                if (off.length) st.labelsOff = off;
+                st.night = h.get("night") === "1";
+                return st;
+            }
+            const urlState = readUrlState();
+
+            let _urlTimer = null;
+            function updateUrl() {
+                if (!map) return;
+                clearTimeout(_urlTimer);
+                _urlTimer = setTimeout(() => {
+                    const c = map.getCenter();
+                    const h = new URLSearchParams();
+                    h.set("z", map.getZoom().toFixed(2));
+                    h.set("ll", `${c.lat.toFixed(4)},${c.lng.toFixed(4)}`);
+                    h.set("c", CANTONS.filter((k) => activeCantons.has(k.id)).map((k) => k.id).join(","));
+                    const off = colorAssignments.flatMap((a, i) => (activeLabels.has(a.label) ? [] : [i]));
+                    if (off.length) h.set("off", off.join(","));
+                    if (nightView) h.set("night", "1");
+                    // URLSearchParams escapes the commas; they are safe in a fragment
+                    history.replaceState(null, "", location.pathname + location.search + "#" + h.toString().replace(/%2C/g, ","));
+                }, 250);
+            }
+
             // ── Boot ───────────────────────────────────────────────────────────────
             // Nothing here waits on data: the map and panels come up right away and
             // Bern streams in alongside the map style. Called at the end of the module,
@@ -1713,7 +1751,15 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             function boot() {
                 buildLegend();
                 applyLang(initialLang());
-                document.getElementById("loading-label").textContent = tf("loadingCanton", { name: "Bern" });
+                const firstName = _cantonById.get((urlState.cantons ?? ["BE"])[0])?.name ?? "";
+                document.getElementById("loading-label").textContent = tf("loadingCanton", { name: firstName });
+                // legal forms switched off in a shared link
+                for (const lbl of urlState.labelsOff ?? []) {
+                    activeLabels.delete(lbl);
+                    const el = document.querySelector(`.legend-item[data-label="${lbl}"]`);
+                    el?.classList.add("inactive");
+                    el?.setAttribute("aria-checked", "false");
+                }
 
                 // Build canton list
                 const cantonEl = document.getElementById("canton-items");
@@ -1789,8 +1835,8 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 map = new maplibregl.Map({
                     container: "map",
                     style: "https://tiles.openfreemap.org/styles/dark",
-                    center: [BERN.lng, BERN.lat],
-                    zoom: 11,
+                    center: urlState.center ?? [BERN.lng, BERN.lat],
+                    zoom: urlState.zoom ?? 11,
                     minZoom: 6,
                     maxZoom: 18,
                     pitch: 0,
@@ -1802,9 +1848,11 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
 
                 overlay = new deck.MapLibreOverlay({ layers: [buildLayer()] });
 
-                // start Bern now, in parallel with the style and tiles
-                setCantonActive("BE", true);
-                const firstCanton = loadCantonData(_cantonById.get("BE"));
+                // start the first cantons (Bern, or the shared link's) now, in parallel
+                // with the style and tiles
+                const startCantons = urlState.cantons ?? ["BE"];
+                startCantons.forEach((id) => setCantonActive(id, true));
+                const firstCanton = Promise.all(startCantons.map((id) => loadCantonData(_cantonById.get(id))));
 
                 map.on("load", async () => {
                     // Tint the OpenFreeMap base layers to match the app's dark-navy palette (--bg)
@@ -1832,9 +1880,11 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         ?.classList.remove("maplibregl-compact-show");
                     map.addControl(overlay);
                     map.on("moveend", updateLegendCounts);
+                    map.on("moveend", updateUrl);
 
                     await firstCanton;
                     refreshLayer();
+                    if (urlState.night && !nightView) document.getElementById("btn-night-view").click();
 
                     const ls = document.getElementById("loading-screen");
                     ls.classList.add("hidden");
