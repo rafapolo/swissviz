@@ -567,7 +567,7 @@
                     display: block;
                 }
                 .maplibregl-ctrl-bottom-right {
-                    bottom: 16px !important;
+                    bottom: calc(16px + var(--tl-h, 0px)) !important;
                     right: 16px !important;
                 }
             }
@@ -934,15 +934,54 @@
                 #timeline {
                     left: 8px;
                     right: 8px;
-                    bottom: 8px;
+                    bottom: calc(8px + env(safe-area-inset-bottom));
                     width: auto;
                     max-width: none;
                     min-width: 0;
                     transform: none;
+                    padding: 8px 12px 10px;
+                }
+                /* play, date and speed on top; the three counters get a line of their own */
+                .tl-row {
+                    flex-wrap: wrap;
+                    row-gap: 4px;
+                }
+                #tl-date {
+                    flex: 1;
+                    min-width: 0;
+                    font-size: 16px;
                 }
                 .tl-stats {
-                    gap: 8px;
+                    order: 3;
+                    flex-basis: 100%;
+                    margin-left: 0;
+                    justify-content: space-between;
                     font-size: 11px;
+                }
+                .tl-track {
+                    height: 52px;
+                    margin-top: 6px;
+                }
+                .tl-source {
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                /* an open sheet covers the timeline, not the reverse: the company card
+                   goes on top, and the panels (slightly translucent) hide it */
+                #tooltip {
+                    z-index: 15;
+                }
+                body:has(.panel.open) #timeline {
+                    visibility: hidden;
+                }
+                /* map controls and the GitHub button sit above the timeline (--tl-h is
+                   its height, 0 while hidden; set by a ResizeObserver) */
+                #github-link {
+                    bottom: calc(16px + var(--tl-h, 0px));
+                }
+                .maplibregl-ctrl-bottom-left {
+                    bottom: var(--tl-h, 0px);
                 }
             }
         </style>
@@ -2670,6 +2709,12 @@ vec3 tl_state() {
                 });
                 range.addEventListener("change", updateUrl);
                 window.addEventListener("resize", () => { if (timelineOn) tlDrawHist(); });
+                // publish the bar's footprint so the bottom controls can clear it on phones
+                new ResizeObserver(([entry]) => {
+                    const r = entry.target.getBoundingClientRect();
+                    const h = r.height ? innerHeight - r.top : 0;
+                    document.documentElement.style.setProperty("--tl-h", `${Math.round(h)}px`);
+                }).observe(document.getElementById("timeline"));
                 // space toggles play while the timeline has focus
                 document.getElementById("timeline").addEventListener("keydown", (e) => {
                     if (e.key === " " && e.target.id !== "tl-play") { e.preventDefault(); tlSetPlaying(!tlPlaying); }
