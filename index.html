@@ -133,6 +133,44 @@
             #tooltip span {
                 color: rgba(255, 255, 255, 0.75);
             }
+            /* pinned card (click / search): selectable, scrollable, links live */
+            #tooltip.pinned {
+                pointer-events: auto;
+                user-select: text;
+                max-height: min(420px, calc(100vh - 40px));
+                overflow-y: auto;
+            }
+            #tooltip.pinned #tooltip-close {
+                display: block;
+            }
+            .tt-link {
+                display: none;
+                margin-left: auto;
+                padding: 0 2px;
+                color: var(--accent);
+                text-decoration: none;
+                font-size: 13px;
+                flex-shrink: 0;
+            }
+            .tt-link:hover {
+                color: #fff;
+            }
+            #tooltip.pinned .tt-link {
+                display: inline;
+            }
+            @media (hover: none) {
+                .tt-link {
+                    display: inline;
+                }
+            }
+            /* spinners keep turning: they are status, not decoration */
+            @media (prefers-reduced-motion: reduce) {
+                *,
+                *::before,
+                *::after {
+                    transition-duration: 0.01ms !important;
+                }
+            }
 
             /* Shared panel */
             .panel {
@@ -613,7 +651,8 @@
                 transform: translateX(-50%);
                 z-index: 14;
                 width: 400px;
-                max-width: calc(100vw - 200px);
+                /* stay clear of both 285px panels (+ their 20px offsets) */
+                max-width: calc(100vw - 660px);
             }
             #search-wrapper {
                 display: flex;
@@ -1672,9 +1711,10 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         if (_touchMQ.matches) return;
                         showTooltip(info);
                     },
+                    // touch: tap opens the bottom sheet; mouse: click pins the card
                     onClick: (info) => {
-                        if (!_touchMQ.matches) return;
-                        showTooltip(info);
+                        showTooltip(info, { pin: !_touchMQ.matches });
+                        return true;
                     },
                 });
             }
@@ -1817,6 +1857,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                             setCantonActive(canton.id, false);
                         } else {
                             setCantonActive(canton.id, true);
+                            revealCanton(canton);
                             await loadCantonData(canton);
                         }
                         refreshLayer();
@@ -1846,7 +1887,11 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     attributionControl: false,
                 });
 
-                overlay = new deck.MapLibreOverlay({ layers: [buildLayer()] });
+                overlay = new deck.MapLibreOverlay({
+                    layers: [buildLayer()],
+                    // a click that hits no company closes a pinned card
+                    onClick: (info) => { if (!info.object && _ttPinned) hideTooltip(); },
+                });
 
                 // start the first cantons (Bern, or the shared link's) now, in parallel
                 // with the style and tiles
@@ -1901,10 +1946,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
 
                 document
                     .getElementById("tooltip-close")
-                    .addEventListener("click", () => {
-                        document.getElementById("tooltip").style.display =
-                            "none";
-                    });
+                    .addEventListener("click", hideTooltip);
 
                 // ── Legend toggles ─────────────────────────────────────────────────
                 document
@@ -1988,17 +2030,28 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             }
 
             // ── Tooltip helper (shared by hover + tap) ─────────────────────────────
-            let _ttObject = null, _ttVersion = -1;
-            function showTooltip(info) {
+            let _ttObject = null, _ttVersion = -1, _ttPinned = false;
+            function hideTooltip() {
+                const tt = document.getElementById("tooltip");
+                tt.style.display = "none";
+                tt.classList.remove("pinned");
+                _ttObject = null;
+                _ttPinned = false;
+            }
+            // opts.pin: keep it open (click / search result) so it can be read,
+            // selected and its links followed; opts.focusName: list that company first
+            function showTooltip(info, opts = {}) {
                 const tt = document.getElementById("tooltip");
                 if (!info.object) {
-                    tt.style.display = "none";
-                    _ttObject = null;
+                    hideTooltip();
                     return;
                 }
                 const touch = _touchMQ.matches;
+                if (_ttPinned && !opts.pin && !touch) return; // hover doesn't steal a pinned card
+                _ttPinned = !!opts.pin;
+                tt.classList.toggle("pinned", _ttPinned);
                 // same point under the cursor and same filters: just follow the mouse
-                if (info.object === _ttObject && _ttVersion === _filterVersion && !touch) {
+                if (info.object === _ttObject && _ttVersion === _filterVersion && !touch && !opts.pin) {
                     tt.style.left = Math.min(info.x + 15, window.innerWidth - 340) + "px";
                     tt.style.top = Math.min(info.y + 15, window.innerHeight - 220) + "px";
                     return;
@@ -2009,6 +2062,11 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 const list = info.object.companies.filter((c) =>
                     activeLabels.has(c.label),
                 );
+                if (opts.focusName) {
+                    const i = list.findIndex((c) => c.name === opts.focusName);
+                    if (i > 0) list.unshift(...list.splice(i, 1));
+                }
+                const zefix = `https://www.zefix.ch/${currentLang}/search/entity/list?mainSearch=`;
                 // the bottom sheet scrolls, so it can list far more than the floating tooltip
                 const MAX = touch ? 500 : 10;
                 const rows = list
@@ -2020,6 +2078,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
           <div style="display:flex;align-items:center;gap:6px">
             <span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:${hex}"></span>
             <span style="color:#fff;font-weight:500;font-size:13px">${escapeHtml(c.name)}</span>
+            <a class="tt-link" href="${zefix + encodeURIComponent(c.name)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t("openInZefix"))}" aria-label="${escapeHtml(t("openInZefix"))}">↗</a>
           </div>
           <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:3px">${escapeHtml(labelText(c.label))}</div>
         </div>`;
@@ -2033,9 +2092,9 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 tt.style.display = touch ? "flex" : "block";
                 if (!touch) {
                     tt.style.left =
-                        Math.min(info.x + 15, window.innerWidth - 340) + "px";
+                        Math.max(10, Math.min(info.x + 15, window.innerWidth - 340)) + "px";
                     tt.style.top =
-                        Math.min(info.y + 15, window.innerHeight - 220) + "px";
+                        Math.max(10, Math.min(info.y + 15, window.innerHeight - 220)) + "px";
                 }
                 const ttContent = document.getElementById("tooltip-content");
                 ttContent.scrollTop = 0;
@@ -2105,7 +2164,31 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             function fitBounds(bounds, opts = {}) {
                 map.fitBounds(bounds, { duration: _reducedMotion.matches ? 0 : 800, ...opts });
             }
-            function onHitShown(pts, name) {}
+            // after flying to a search hit, open its card pinned with that company on top
+            function onHitShown(pts, name) {
+                map.once("moveend", () => {
+                    const p = pts[0];
+                    const xy = map.project(p.position);
+                    showTooltip({ object: p, x: xy.x, y: xy.y }, { pin: true, focusName: name });
+                });
+            }
+
+            // canton switched on from the list: bring it into view if it is off-screen
+            function revealCanton(canton) {
+                if (map && !map.getBounds().contains([canton.lng, canton.lat]))
+                    flyTo({ center: [canton.lng, canton.lat], zoom: Math.max(map.getZoom(), 10) });
+            }
+
+            // Escape: close a pinned card, then the mobile bottom sheets
+            document.addEventListener("keydown", (e) => {
+                if (e.key !== "Escape" || e.target.id === "search-input") return;
+                if (document.getElementById("tooltip").style.display !== "none" && document.getElementById("tooltip").style.display) {
+                    hideTooltip();
+                    return;
+                }
+                document.getElementById("canton-panel").classList.remove("open");
+                document.getElementById("legend").classList.remove("open");
+            });
 
             // ── Search ─────────────────────────────────────────────────────────────
             // The 760k-name index lives in a worker: download, gunzip, parse, accent
