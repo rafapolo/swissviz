@@ -25,23 +25,24 @@ No account needed. No install. Just open the link.
 ### Navigating the map
 - **Scroll** (or pinch on mobile) to zoom in and out
 - **Click and drag** to move around
-- **Click any dot** to see the company name and legal form
+- **Hover any dot** to see the companies at that address; **click** to pin the card so you can select text and open each company in the official register ([Zefix](https://www.zefix.ch)) with the ↗ link. Click empty map or press **Esc** to close it
+- **Share what you see**: the address bar keeps the zoom, position, cantons, legal-form filters and night view, so copying the link shares the exact view
 
 ### Searching for a company
-Type any company name in the **search bar** at the top of the map. Results appear instantly and search across all 760,000+ companies — even ones in cantons you haven't loaded yet.
+Type any company name in the **search bar** at the top of the map (or press **/** from anywhere). Results search across all 760,000+ companies — even ones in cantons you haven't loaded yet — ignore accents (*zurich* finds *Zürich*) and list names that start with your text first.
 
-- Use **↑ / ↓ arrow keys** to move through results, **Enter** to select
-- Click any result to fly directly to that company on the map — a transparent green ring marker appears on the exact dot for 3 seconds so you can spot it without covering it
+- Use **↑ / ↓ arrow keys** to move through results, **Enter** to select, **Esc** to close
+- Click any result to fly directly to that company on the map — a transparent green ring marker appears on the exact dot for 3 seconds, and its card opens with that company on top
 - If a company name matches multiple locations (e.g. a chain with branches), all locations are marked simultaneously and the map fits to show them all
 - If the company's canton wasn't loaded yet, it loads automatically
 
 ### Left panel — Cantons
-Choose which cantons (regions) to show on the map. By default Bern is loaded. Click any canton name to load its companies. You can select all or none with the buttons at the top.
+Choose which cantons (regions) to show on the map. By default Bern is loaded. Click any canton name to load its companies (the map flies there if it's off-screen). You can select all or none with the buttons at the top; with *Select all* each canton appears as soon as it arrives. If a canton fails to load, a message offers to retry.
 
 ### Right panel — Legend
 The legend shows the 12 legal forms and their colours. Click any item to hide or show that company type. The number in brackets shows how many companies of that type are visible.
 
-Switch between **DE** (German labels) and **EN** (English labels) using the buttons in the top-right of the legend.
+Switch the whole interface between **DE**, **FR**, **IT** and **EN** using the buttons in the top-right of the legend. The first visit follows your browser's language, and your choice is remembered.
 
 ### Night view
 At the bottom of the legend panel there's a **Night view** toggle. It turns all dots the same warm amber colour, making the density of business activity stand out against the dark map — great for seeing which areas are most commercially active.
@@ -72,9 +73,12 @@ For those curious about how it works under the hood:
 - Addresses are geocoded (converted to map coordinates) using the Mapbox Geocoding API
 - The coordinates are compressed and stored as gzipped JSON files, one per canton, fetched on demand — no server needed
 - Parsing runs in a **web worker** so the UI stays responsive while large cantons load
-- A separate **global search index** (`search_index.json.gz`, ~8 MB compressed) enables instant name search across all 760k companies without loading every canton — the index is pre-lowercased at build time for zero-cost case-insensitive matching
-- A **service worker** caches data files after the first visit so the map loads fast on repeat visits; cantonal data is also preloaded in the background after initial render
-- CDN scripts are deferred and canton data is preloaded so the map is interactive as fast as possible
+- The map is created immediately and Bern's data streams in alongside the map style, so nothing waits on data before the first paint
+- Canton and legal-form filters run on the GPU (deck.gl `DataFilterExtension`), so toggling them never re-uploads the points
+- A separate **global search index** (`search_index.json.gz`, ~8 MB compressed) is downloaded, parsed, accent-folded and queried inside a second **web worker**, so searching 760k names never blocks the map
+- A **service worker** caches data files after the first visit so the map loads fast on repeat visits
+- CDN scripts are deferred, fonts load without blocking, and Bern's data is preloaded so the map is interactive as fast as possible
+- Canton totals shown before a canton is loaded are generated from the data with `python3 scripts/canton_counts.py`
 - The map renders entirely in your browser using [deck.gl](https://deck.gl) and [MapLibre GL](https://maplibre.org/)
 - Keyboard navigation, ARIA labels, and color contrast meet WCAG AA accessibility standards
 - The whole thing is a single HTML file + data files, hosted for free on GitHub Pages
