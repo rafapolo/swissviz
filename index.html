@@ -2256,6 +2256,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     async function toggleCanton() {
                         if (activeCantons.has(canton.id)) {
                             setCantonActive(canton.id, false);
+                            revealCanton(canton);
                         } else {
                             setCantonActive(canton.id, true);
                             revealCanton(canton);
@@ -2582,10 +2583,9 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 });
             }
 
-            // canton switched on from the list: bring it into view if it is off-screen
+            // canton switched on or off from the list: fly to it, so the change is seen
             function revealCanton(canton) {
-                if (map && !map.getBounds().contains([canton.lng, canton.lat]))
-                    flyTo({ center: [canton.lng, canton.lat], zoom: Math.max(map.getZoom(), 10) });
+                if (map) flyTo({ center: [canton.lng, canton.lat], zoom: Math.max(map.getZoom(), 10) });
             }
 
             // Escape: close a pinned card, then the mobile bottom sheets
