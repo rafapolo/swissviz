@@ -795,7 +795,7 @@
 
         <div id="loading-screen" role="status" aria-live="polite" aria-label="Loading map data">
             <div class="spinner" aria-hidden="true"></div>
-            <span class="loading-label" id="loading-label">Loading Bern…</span>
+            <span class="loading-label" id="loading-label"></span>
         </div>
 
         <div
@@ -829,12 +829,12 @@
         </div>
 
         <div id="tooltip" role="tooltip" aria-live="polite">
-            <button id="tooltip-close" aria-label="Close company details">✕</button>
+            <button id="tooltip-close" aria-label="Close" data-i18n-aria="close">✕</button>
             <div id="tooltip-content"></div>
         </div>
 
-        <button class="panel-toggle" id="toggle-canton" aria-label="Toggle Cantons panel" aria-expanded="true" aria-controls="canton-panel"><span aria-hidden="true">⌖</span></button>
-        <button class="panel-toggle" id="toggle-legend" aria-label="Toggle Legend panel" aria-expanded="true" aria-controls="legend"><span aria-hidden="true">⊟</span></button>
+        <button class="panel-toggle" id="toggle-canton" aria-label="Toggle Cantons panel" data-i18n-aria="toggleCantons" aria-expanded="true" aria-controls="canton-panel"><span aria-hidden="true">⌖</span></button>
+        <button class="panel-toggle" id="toggle-legend" aria-label="Toggle Legend panel" data-i18n-aria="toggleLegend" aria-expanded="true" aria-controls="legend"><span aria-hidden="true">⊟</span></button>
 
         <a id="github-link" href="https://github.com/rafapolo/swissviz" target="_blank" rel="noopener noreferrer" aria-label="View source on GitHub">
             <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -845,13 +845,13 @@
         <div id="canton-panel" class="panel" aria-label="Cantons filter panel">
             <div class="panel-header">
                 <span class="panel-dot" aria-hidden="true">⌖</span>
-                <h2>Cantons</h2>
-                <button class="panel-arrow" id="collapse-canton" aria-label="Collapse Cantons panel"><span aria-hidden="true">‹</span></button>
+                <h2 data-i18n="cantons">Cantons</h2>
+                <button class="panel-arrow" id="collapse-canton" aria-label="Collapse panel" data-i18n-aria="collapse"><span aria-hidden="true">‹</span></button>
             </div>
-            <div class="panel-subtitle" id="canton-subtitle">Select regions</div>
+            <div class="panel-subtitle" id="canton-subtitle" data-i18n="cantonsSubtitle">Select regions</div>
             <div class="panel-controls">
-                <button id="btn-canton-all">Select all</button>
-                <button id="btn-canton-none">Deselect all</button>
+                <button id="btn-canton-all" data-i18n="selectAll">Select all</button>
+                <button id="btn-canton-none" data-i18n="deselectAll">Deselect all</button>
             </div>
             <div id="canton-items" role="group" aria-labelledby="canton-subtitle"></div>
         </div>
@@ -859,21 +859,23 @@
         <div id="legend" class="panel" aria-label="Legend filter panel">
             <div class="panel-header">
                 <span class="panel-dot" aria-hidden="true">⊟</span>
-                <h2 id="legend-title">Legend</h2>
+                <h2 id="legend-title" data-i18n="legendTitle">Legend</h2>
                 <div class="lang-switcher" role="group" aria-label="Language selection">
-                    <button class="lang-btn" data-lang="de" aria-label="Switch to German" aria-pressed="false">DE</button>
-                    <button class="lang-btn active" data-lang="en" aria-label="Switch to English" aria-pressed="true">EN</button>
+                    <button class="lang-btn" data-lang="de" aria-label="Deutsch" aria-pressed="false">DE</button>
+                    <button class="lang-btn" data-lang="fr" aria-label="Français" aria-pressed="false">FR</button>
+                    <button class="lang-btn" data-lang="it" aria-label="Italiano" aria-pressed="false">IT</button>
+                    <button class="lang-btn active" data-lang="en" aria-label="English" aria-pressed="true">EN</button>
                 </div>
-                <button class="panel-arrow" id="collapse-legend" aria-label="Collapse Legend panel"><span aria-hidden="true">›</span></button>
+                <button class="panel-arrow" id="collapse-legend" aria-label="Collapse panel" data-i18n-aria="collapse"><span aria-hidden="true">›</span></button>
             </div>
             <div class="panel-subtitle" id="legend-subtitle" aria-live="polite">Legal Form</div>
             <div class="panel-controls">
-                <button id="btn-select-all">Select all</button>
-                <button id="btn-deselect-all">Deselect all</button>
+                <button id="btn-select-all" data-i18n="selectAll">Select all</button>
+                <button id="btn-deselect-all" data-i18n="deselectAll">Deselect all</button>
             </div>
             <div id="legend-items" role="group" aria-labelledby="legend-subtitle"></div>
             <div class="panel-controls" id="night-view-controls">
-                <button id="btn-night-view" aria-pressed="false">Night view</button>
+                <button id="btn-night-view" aria-pressed="false" data-i18n="nightView">Night view</button>
             </div>
             <div id="night-intensity-row">
                 <label for="night-intensity" class="sr-only">Night view intensity</label>
@@ -909,7 +911,7 @@
                 de: {
                     legendTitle: "Legende",
                     legendSubtitle: "Rechtsform",
-                    selectAll: "Alle",
+                    selectAll: "Alle wählen",
                     deselectAll: "Keine",
                     nightView: "Nachtansicht",
                     searchPlaceholder: "Firmen suchen…",
@@ -919,6 +921,20 @@
                     noResultsLoaded: "Keine Treffer in geladenen Kantonen",
                     result: "Treffer",
                     results: "Treffer",
+                    cantons: "Kantone",
+                    cantonsSubtitle: "Regionen wählen",
+                    company: "Firma",
+                    companies: "Firmen",
+                    more: "weitere",
+                    loadFailed: "{name} konnte nicht geladen werden.",
+                    retry: "Erneut versuchen",
+                    loadingCanton: "{name} wird geladen…",
+                    mapUpdated: "Karte aktualisiert: {n} Firmen angezeigt",
+                    toggleCantons: "Kantone ein-/ausblenden",
+                    toggleLegend: "Legende ein-/ausblenden",
+                    collapse: "Einklappen",
+                    close: "Schliessen",
+                    openInZefix: "Im Handelsregister (Zefix) öffnen",
                     labels: {
                         Aktiengesellschaft: "Aktiengesellschaft",
                         "Ausländische Niederlassung":
@@ -940,8 +956,8 @@
                 en: {
                     legendTitle: "Legend",
                     legendSubtitle: "Legal Form",
-                    selectAll: "All",
-                    deselectAll: "None",
+                    selectAll: "Select all",
+                    deselectAll: "Deselect all",
                     nightView: "Night view",
                     searchPlaceholder: "Search companies…",
                     searchLoading: "Loading search index…",
@@ -950,6 +966,20 @@
                     noResultsLoaded: "No results in loaded cantons",
                     result: "result",
                     results: "results",
+                    cantons: "Cantons",
+                    cantonsSubtitle: "Select regions",
+                    company: "company",
+                    companies: "companies",
+                    more: "more",
+                    loadFailed: "Failed to load {name}.",
+                    retry: "Retry",
+                    loadingCanton: "Loading {name}…",
+                    mapUpdated: "Map updated: {n} companies shown",
+                    toggleCantons: "Toggle Cantons panel",
+                    toggleLegend: "Toggle Legend panel",
+                    collapse: "Collapse panel",
+                    close: "Close",
+                    openInZefix: "Open in the commercial register (Zefix)",
                     labels: {
                         Aktiengesellschaft: "Corporation (AG)",
                         "Ausländische Niederlassung": "Foreign Branch",
@@ -966,6 +996,90 @@
                         Verein: "Association",
                     },
                 },
+                fr: {
+                    legendTitle: "Légende",
+                    legendSubtitle: "Forme juridique",
+                    selectAll: "Tout cocher",
+                    deselectAll: "Tout décocher",
+                    nightView: "Vue de nuit",
+                    searchPlaceholder: "Rechercher des entreprises…",
+                    searchLoading: "Chargement de l’index…",
+                    searchReady: "Rechercher parmi 760 000 entreprises…",
+                    noResults: "Aucun résultat",
+                    noResultsLoaded: "Aucun résultat dans les cantons chargés",
+                    result: "résultat",
+                    results: "résultats",
+                    cantons: "Cantons",
+                    cantonsSubtitle: "Choisir les régions",
+                    company: "entreprise",
+                    companies: "entreprises",
+                    more: "de plus",
+                    loadFailed: "Impossible de charger {name}.",
+                    retry: "Réessayer",
+                    loadingCanton: "Chargement de {name}…",
+                    mapUpdated: "Carte mise à jour : {n} entreprises affichées",
+                    toggleCantons: "Afficher/masquer les cantons",
+                    toggleLegend: "Afficher/masquer la légende",
+                    collapse: "Replier",
+                    close: "Fermer",
+                    openInZefix: "Ouvrir dans le registre du commerce (Zefix)",
+                    labels: {
+                        Aktiengesellschaft: "Société anonyme (SA)",
+                        "Ausländische Niederlassung": "Succursale étrangère",
+                        "Besondere Rechtsform": "Forme juridique spéciale",
+                        Einzelunternehmen: "Entreprise individuelle",
+                        Genossenschaft: "Société coopérative",
+                        "GmbH / SARL": "Sàrl",
+                        "Haupt von Gemeinderschaften": "Chef d’indivision",
+                        "Institut des öffentlichen Rechts": "Institut de droit public",
+                        Kollektivgesellschaft: "Société en nom collectif",
+                        Kommanditgesellschaft: "Société en commandite",
+                        Stiftung: "Fondation",
+                        Verein: "Association",
+                    },
+                },
+                it: {
+                    legendTitle: "Legenda",
+                    legendSubtitle: "Forma giuridica",
+                    selectAll: "Seleziona tutti",
+                    deselectAll: "Nessuno",
+                    nightView: "Vista notturna",
+                    searchPlaceholder: "Cerca aziende…",
+                    searchLoading: "Caricamento dell’indice…",
+                    searchReady: "Cerca tra 760 000 aziende…",
+                    noResults: "Nessun risultato",
+                    noResultsLoaded: "Nessun risultato nei cantoni caricati",
+                    result: "risultato",
+                    results: "risultati",
+                    cantons: "Cantoni",
+                    cantonsSubtitle: "Scegli le regioni",
+                    company: "azienda",
+                    companies: "aziende",
+                    more: "altre",
+                    loadFailed: "Impossibile caricare {name}.",
+                    retry: "Riprova",
+                    loadingCanton: "Caricamento di {name}…",
+                    mapUpdated: "Mappa aggiornata: {n} aziende visualizzate",
+                    toggleCantons: "Mostra/nascondi i cantoni",
+                    toggleLegend: "Mostra/nascondi la legenda",
+                    collapse: "Comprimi",
+                    close: "Chiudi",
+                    openInZefix: "Apri nel registro di commercio (Zefix)",
+                    labels: {
+                        Aktiengesellschaft: "Società anonima (SA)",
+                        "Ausländische Niederlassung": "Succursale estera",
+                        "Besondere Rechtsform": "Forma giuridica speciale",
+                        Einzelunternehmen: "Ditta individuale",
+                        Genossenschaft: "Società cooperativa",
+                        "GmbH / SARL": "Sagl",
+                        "Haupt von Gemeinderschaften": "Capo dell’indivisione",
+                        "Institut des öffentlichen Rechts": "Istituto di diritto pubblico",
+                        Kollektivgesellschaft: "Società in nome collettivo",
+                        Kommanditgesellschaft: "Società in accomandita",
+                        Stiftung: "Fondazione",
+                        Verein: "Associazione",
+                    },
+                },
             };
 
             // UI string in the current language, falling back to English
@@ -977,9 +1091,21 @@
                 return TRANSLATIONS[currentLang].labels[label] ?? label;
             }
 
+            // numbers grouped the Swiss way for each language (de-CH: 68’714)
+            function numLocale() {
+                return { de: "de-CH", fr: "fr-CH", it: "it-CH", en: "en-CH" }[currentLang];
+            }
+            // t() with {placeholders}
+            function tf(key, vars) {
+                return t(key).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+            }
+
             function applyLang(lang) {
+                if (!TRANSLATIONS[lang]) lang = "en";
                 currentLang = lang;
-                const t = TRANSLATIONS[lang];
+                document.documentElement.lang = lang;
+                try { localStorage.setItem("swissviz-lang", lang); } catch {}
+                const tr = TRANSLATIONS[lang];
                 document
                     .querySelectorAll(".lang-btn")
                     .forEach((b) => {
@@ -987,15 +1113,41 @@
                         b.classList.toggle("active", isActive);
                         b.setAttribute("aria-pressed", isActive ? "true" : "false");
                     });
-                document.getElementById("legend-title").textContent =
-                    t.legendTitle;
+                // static UI: data-i18n → text, data-i18n-aria → aria-label
+                document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+                document.querySelectorAll("[data-i18n-aria]").forEach((el) => el.setAttribute("aria-label", t(el.dataset.i18nAria)));
+                const input = document.getElementById("search-input");
+                input.placeholder = t(searchReady ? "searchReady" : _searchWorker ? "searchLoading" : "searchPlaceholder");
                 document.getElementById("legend-subtitle").textContent =
-                    t.legendSubtitle + " (" + displayTotal.toLocaleString() + ")";
+                    tr.legendSubtitle + " (" + displayTotal.toLocaleString(numLocale()) + ")";
                 document.querySelectorAll(".legend-item").forEach((el) => {
-                    const lbl = el.dataset.label;
                     const span = el.querySelector(".legend-label");
-                    if (span && t.labels[lbl]) span.textContent = t.labels[lbl];
+                    if (span) span.textContent = labelText(el.dataset.label);
                 });
+                // re-render open search rows and the tooltip in the new language
+                document.querySelectorAll(".search-result-item").forEach((el) => delete el.dataset.hi);
+                currentRenderFn?.();
+                _ttObject = null;
+                // counts: unloaded cantons show their static total, the rest are live
+                document.querySelectorAll(".canton-item").forEach((el) => {
+                    const c = el.querySelector(".canton-count");
+                    if (!cantonData[el.dataset.id] && !_cantonLoads.has(el.dataset.id) && +el.dataset.total)
+                        c.textContent = `(${(+el.dataset.total).toLocaleString(numLocale())})`;
+                });
+                if (map) updateLegendCounts();
+            }
+
+            // saved choice, else the browser's first Swiss language, else English
+            function initialLang() {
+                try {
+                    const saved = localStorage.getItem("swissviz-lang");
+                    if (saved && TRANSLATIONS[saved]) return saved;
+                } catch {}
+                for (const l of navigator.languages || [navigator.language || ""]) {
+                    const code = l.slice(0, 2).toLowerCase();
+                    if (TRANSLATIONS[code]) return code;
+                }
+                return "en";
             }
 
             document
@@ -1296,12 +1448,12 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     if (!_cantonCountEls.has(id))
                         _cantonCountEls.set(id, document.querySelector(`.canton-item[data-id="${id}"] .canton-count`));
                     const el = _cantonCountEls.get(id);
-                    if (el) el.textContent = `(${cnt.toLocaleString()})`;
+                    if (el) el.textContent = `(${cnt.toLocaleString(numLocale())})`;
                 }
                 document.querySelectorAll(".legend-item").forEach((el) => {
                     const label = el.dataset.label;
                     el.querySelector(".legend-count").textContent =
-                        `(${(counts[label] || 0).toLocaleString()})`;
+                        `(${(counts[label] || 0).toLocaleString(numLocale())})`;
                 });
                 document.body.style.setProperty(
                     "--frame-color",
@@ -1321,9 +1473,9 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 el.className = "load-error";
                 el.setAttribute("role", "alert");
                 const msg = document.createElement("span");
-                msg.textContent = `Failed to load ${canton.name}.`;
+                msg.textContent = tf("loadFailed", { name: canton.name });
                 const retry = document.createElement("button");
-                retry.textContent = "Retry";
+                retry.textContent = t("retry");
                 retry.addEventListener("click", async () => {
                     el.remove();
                     setCantonActive(canton.id, true);
@@ -1439,7 +1591,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         );
                         cantonTotals[canton.id] = companyCount;
                         if (countEl)
-                            countEl.textContent = `(${companyCount.toLocaleString()})`;
+                            countEl.textContent = `(${companyCount.toLocaleString(numLocale())})`;
                         return points;
                     } catch (e) {
                         if (countEl) countEl.textContent = "(–)";
@@ -1539,11 +1691,11 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 displayTotal = 0;
                 for (const id of activeCantons) displayTotal += cantonTotals[id] || 0;
                 document.getElementById("legend-subtitle").textContent =
-                    TRANSLATIONS[currentLang].legendSubtitle + " (" + displayTotal.toLocaleString() + ")";
+                    TRANSLATIONS[currentLang].legendSubtitle + " (" + displayTotal.toLocaleString(numLocale()) + ")";
                 updateLegendCounts();
                 // Announce filter changes to screen readers
                 const srStatus = document.getElementById("sr-status");
-                if (srStatus) srStatus.textContent = `Map updated: ${displayTotal.toLocaleString()} companies shown`;
+                if (srStatus) srStatus.textContent = tf("mapUpdated", { n: displayTotal.toLocaleString(numLocale()) });
             }
 
             // coalesce bursts of refreshes (many cantons landing together) into one frame
@@ -1556,10 +1708,12 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
 
             // ── Boot ───────────────────────────────────────────────────────────────
             // Nothing here waits on data: the map and panels come up right away and
-            // Bern streams in alongside the map style
-            (function boot() {
+            // Bern streams in alongside the map style. Called at the end of the module,
+            // once every declaration below exists.
+            function boot() {
                 buildLegend();
-                applyLang(currentLang);
+                applyLang(initialLang());
+                document.getElementById("loading-label").textContent = tf("loadingCanton", { name: "Bern" });
 
                 // Build canton list
                 const cantonEl = document.getElementById("canton-items");
@@ -1601,6 +1755,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     div.className =
                         "canton-item " + (isActive ? "active" : "inactive");
                     div.dataset.id = canton.id;
+                    div.dataset.total = cnt;
                     div.setAttribute("role", "checkbox");
                     div.setAttribute("tabindex", "0");
                     div.setAttribute("aria-checked", isActive ? "true" : "false");
@@ -1608,7 +1763,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     div.innerHTML = `
           <span class="canton-badge" aria-hidden="true">${canton.id}</span>
           <span class="canton-name">${canton.name}</span>
-          <span class="canton-count">${cnt > 0 ? "(" + cnt.toLocaleString() + ")" : ""}</span>`;
+          <span class="canton-count">${cnt > 0 ? "(" + cnt.toLocaleString(numLocale()) + ")" : ""}</span>`;
                     cantonEl.appendChild(div);
 
                     async function toggleCanton() {
@@ -1780,7 +1935,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         CANTONS.forEach((c) => setCantonActive(c.id, false));
                         refreshLayer();
                     });
-            })();
+            }
 
             // ── Tooltip helper (shared by hover + tap) ─────────────────────────────
             let _ttObject = null, _ttVersion = -1;
@@ -1816,13 +1971,13 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             <span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:${hex}"></span>
             <span style="color:#fff;font-weight:500;font-size:13px">${escapeHtml(c.name)}</span>
           </div>
-          <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:3px">${escapeHtml(c.rechtsform)}</div>
+          <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:3px">${escapeHtml(labelText(c.label))}</div>
         </div>`;
                     })
                     .join("");
                 const more =
                     list.length > MAX
-                        ? `<div style="color:rgba(255,255,255,0.3);font-size:11px;margin-top:8px">+${list.length - MAX} more</div>`
+                        ? `<div style="color:rgba(255,255,255,0.3);font-size:11px;margin-top:8px">+${(list.length - MAX).toLocaleString(numLocale())} ${t("more")}</div>`
                         : "";
 
                 tt.style.display = touch ? "flex" : "block";
@@ -1836,7 +1991,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 ttContent.scrollTop = 0;
                 ttContent.innerHTML = `
         <div style="color:rgba(255,255,255,0.4);font-size:11px;letter-spacing:.05em;text-transform:uppercase">
-          ${list.length} ${list.length === 1 ? "company" : "companies"} · ${info.object.canton}
+          ${list.length.toLocaleString(numLocale())} ${t(list.length === 1 ? "company" : "companies")} · ${info.object.canton}
         </div>
         ${rows}${more}`;
             }
@@ -2025,7 +2180,7 @@ self.onmessage=async({data})=>{
                     return;
                 }
 
-                countEl.textContent = total.toLocaleString() + " " + t(total === 1 ? "result" : "results");
+                countEl.textContent = total.toLocaleString(numLocale()) + " " + t(total === 1 ? "result" : "results");
                 countEl.style.display = "block";
 
                 // virtual scroll container
@@ -2169,6 +2324,8 @@ self.onmessage=async({data})=>{
             document.addEventListener("click", (e) => {
                 if (!document.getElementById("search-bar").contains(e.target)) closeResults();
             });
+
+            boot();
 
             if ("serviceWorker" in navigator) {
                 navigator.serviceWorker.register("./sw.js").catch(() => {});
