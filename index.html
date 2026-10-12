@@ -1172,6 +1172,7 @@
                 }
             }
             const cantonData = {}; // id → point array
+            const cantonTotals = {}; // id → company count of a loaded canton
             const searchIndex = []; // flat local index: { name, label, cantonId, point }
             const pointByName = {}; // cantonId → Map<name, point[]>
             let globalSearchIndex = null;
@@ -1202,9 +1203,10 @@ const T=${JSON.stringify(T_DECODE)};
 const C=${JSON.stringify(colorAssignments)};
 function h2r(h){const r=/^#?([a-f\\d]{2})([a-f\\d]{2})([a-f\\d]{2})$/i.exec(h);return r?[parseInt(r[1],16),parseInt(r[2],16),parseInt(r[3],16)]:[100,100,100];}
 const _cCache=new Map(),_lCache=new Map();
+const LB=new Map(C.map((a,i)=>[a.label,1<<i]));
 function gc(rf){if(_cCache.has(rf))return _cCache.get(rf);const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey)){const v=h2r(a.hex);_cCache.set(rf,v);return v;}}const f=h2r('#1a1a30');_cCache.set(rf,f);return f;}
 function gl(rf){if(_lCache.has(rf))return _lCache.get(rf);const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey)){_lCache.set(rf,a.label);return a.label;}}_lCache.set(rf,rf);return rf;}
-function parse(col,canton){const m=new Map(),n=col.n.length;for(let i=0;i<n;i++){const tRaw=col.t[i]||'',rf=(T[tRaw]||tRaw).trim();if(!rf)continue;const lat=col.lat[i],lng=col.lng[i];if(!lat||!lng)continue;const k=Math.round(lat*1e5)*1000000+Math.round(lng*1e5),label=gl(rf),co={name:col.n[i]||'',rechtsform:rf,label,address:'',uid:''};if(!m.has(k))m.set(k,{position:[lng,lat],canton,companies:[],rechtsform:rf,label,color:gc(rf)});m.get(k).companies.push(co);}return[...m.values()];}
+function parse(col,canton){const m=new Map(),n=col.n.length;for(let i=0;i<n;i++){const tRaw=col.t[i]||'',rf=(T[tRaw]||tRaw).trim();if(!rf)continue;const lat=col.lat[i],lng=col.lng[i];if(!lat||!lng)continue;const k=Math.round(lat*1e5)*1000000+Math.round(lng*1e5),label=gl(rf),co={name:col.n[i]||'',rechtsform:rf,label};if(!m.has(k))m.set(k,{position:[lng,lat],canton,companies:[],rechtsform:rf,label,color:gc(rf),mask:0});const p=m.get(k);p.companies.push(co);p.mask|=LB.get(label)||0;}return[...m.values()];}
 self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col,cantonId)});
 `;
             const _parseWorker = new Worker(URL.createObjectURL(new Blob([_workerSrc], { type: "application/javascript" })));
@@ -1228,46 +1230,46 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             }
 
             // ── Recompute legend/canton counts and frame color from the viewport ──────
+            const _cantonCountEls = new Map(); // id → .canton-count element
             function updateLegendCounts() {
                 const counts = {};
-                const cantonCounts = {};
                 const bounds = map ? map.getBounds() : null;
                 const w = bounds?.getWest() ?? -Infinity, e = bounds?.getEast() ?? Infinity;
                 const s = bounds?.getSouth() ?? -Infinity, n = bounds?.getNorth() ?? Infinity;
+                const labelMask = activeLabelMask();
                 let r = 0, g = 0, bl = 0, shown = 0;
                 for (const [id, pts] of Object.entries(cantonData)) {
-                    const active = activeCantons.has(id);
-                    let inView = 0, total = 0;
-                    for (let i = 0; i < pts.length; i++) {
-                        const d = pts[i];
-                        const cos = d.companies;
-                        total += cos.length;
-                        const [lng, lat] = d.position;
-                        if (lng < w || lng > e || lat < s || lat > n) continue;
-                        inView += cos.length;
-                        if (!active) continue;
-                        for (let j = 0; j < cos.length; j++) {
-                            const lbl = cos[j].label;
-                            counts[lbl] = (counts[lbl] || 0) + 1;
-                        }
-                        if (!cos.some((c) => activeLabels.has(c.label))) continue;
-                        const rgb = nightView ? nightColor : pointRgb(d);
-                        r += rgb[0]; g += rgb[1]; bl += rgb[2]; shown++;
-                    }
                     // inactive cantons aren't drawn, so show their full total instead of a viewport count
-                    cantonCounts[id] = active ? inView : total;
+                    let cnt = cantonTotals[id] || 0;
+                    if (activeCantons.has(id)) {
+                        cnt = 0;
+                        for (let i = 0; i < pts.length; i++) {
+                            const d = pts[i];
+                            const [lng, lat] = d.position;
+                            if (lng < w || lng > e || lat < s || lat > n) continue;
+                            const cos = d.companies;
+                            cnt += cos.length;
+                            for (let j = 0; j < cos.length; j++) {
+                                const lbl = cos[j].label;
+                                counts[lbl] = (counts[lbl] || 0) + 1;
+                            }
+                            if (!(d.mask & labelMask)) continue;
+                            const rgb = nightView ? nightColor : pointRgb(d);
+                            r += rgb[0]; g += rgb[1]; bl += rgb[2]; shown++;
+                        }
+                    }
+                    // only loaded cantons; unloaded ones keep their static total
+                    if (!pts.length) continue;
+                    if (!_cantonCountEls.has(id))
+                        _cantonCountEls.set(id, document.querySelector(`.canton-item[data-id="${id}"] .canton-count`));
+                    const el = _cantonCountEls.get(id);
+                    if (el) el.textContent = `(${cnt.toLocaleString()})`;
                 }
                 document.querySelectorAll(".legend-item").forEach((el) => {
                     const label = el.dataset.label;
                     el.querySelector(".legend-count").textContent =
                         `(${(counts[label] || 0).toLocaleString()})`;
                 });
-                // only loaded cantons; unloaded ones keep their static total
-                for (const [id, cnt] of Object.entries(cantonCounts)) {
-                    if (!cantonData[id].length) continue;
-                    const el = document.querySelector(`.canton-item[data-id="${id}"] .canton-count`);
-                    if (el) el.textContent = `(${cnt.toLocaleString()})`;
-                }
                 document.body.style.setProperty(
                     "--frame-color",
                     shown ? `rgb(${Math.round(r / shown)}, ${Math.round(g / shown)}, ${Math.round(bl / shown)})` : "transparent",
@@ -1402,6 +1404,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                             (s, p) => s + p.companies.length,
                             0,
                         );
+                        cantonTotals[canton.id] = companyCount;
                         if (countEl)
                             countEl.textContent = `(${companyCount.toLocaleString()})`;
                         return points;
@@ -1425,36 +1428,54 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 return d.color;
             }
 
+            // All loaded points live in one array that only changes when a canton
+            // finishes loading; canton and legal-form filters run on the GPU
+            // (DataFilterExtension) so toggling them never re-uploads positions
+            let allPoints = [];
+            let _allPointsKey = "";
+            function syncAllPoints() {
+                const key = Object.keys(cantonData).join();
+                if (key === _allPointsKey) return;
+                _allPointsKey = key;
+                allPoints = [].concat(...Object.values(cantonData));
+            }
+            // bit i set ⇔ colorAssignments[i] is active (points carry the same mask)
+            function activeLabelMask() {
+                let m = 0;
+                colorAssignments.forEach((a, i) => { if (activeLabels.has(a.label)) m |= 1 << i; });
+                return m;
+            }
+            const _dataFilter = new deck.DataFilterExtension({ filterSize: 1 });
+            const _touchMQ = window.matchMedia("(hover: none)");
+            let _filterVersion = 0; // bumped on every canton/legend change
+
             function buildLayer() {
-                // avoid .flat() allocation; build filtered array directly
-                const visible = [];
-                for (const [id, pts] of Object.entries(cantonData)) {
-                    if (!activeCantons.has(id)) continue;
-                    for (let i = 0; i < pts.length; i++) {
-                        const d = pts[i];
-                        if (d.companies.some((c) => activeLabels.has(c.label))) visible.push(d);
-                    }
-                }
+                syncAllPoints();
+                const labelMask = activeLabelMask();
                 return new deck.ScatterplotLayer({
                     id: "companies",
-                    data: visible,
+                    data: allPoints,
                     getPosition: (d) => d.position,
+                    // alpha is constant per mode; night intensity rides on the layer
+                    // opacity so zooming never recomputes per-point colors
                     getFillColor: (d) => {
-                        if (nightView) {
-                            return [
-                                ...nightColor,
-                                Math.round(255 * (effectiveIntensity() / 100)),
-                            ];
-                        }
+                        if (nightView) return [...nightColor, 255];
                         const rgb = pointRgb(d);
                         return [rgb[0], rgb[1], rgb[2], 230];
+                    },
+                    getFilterValue: (d) => (activeCantons.has(d.canton) && d.mask & labelMask ? 1 : 0),
+                    filterRange: [1, 1],
+                    extensions: [_dataFilter],
+                    updateTriggers: {
+                        getFillColor: [nightView, labelMask],
+                        getFilterValue: [_filterVersion],
                     },
                     getRadius: 18,
                     radiusScale: 1,
                     radiusMinPixels: nightView ? RADIUS_MIN * 0.9 : RADIUS_MIN,
                     radiusMaxPixels: nightView ? RADIUS_MAX * 0.9 : RADIUS_MAX,
                     pickable: true,
-                    opacity: 1,
+                    opacity: nightView ? effectiveIntensity() / 100 : 1,
                     stroked: false,
                     parameters: {
                         depthTest: false,
@@ -1463,25 +1484,27 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         blendEquation: 32774,
                     },
                     onHover: (info) => {
-                        if (window.matchMedia("(hover: none)").matches) return;
+                        if (_touchMQ.matches) return;
                         showTooltip(info);
                     },
                     onClick: (info) => {
-                        if (!window.matchMedia("(hover: none)").matches) return;
+                        if (!_touchMQ.matches) return;
                         showTooltip(info);
                     },
                 });
             }
 
+            // cheap redraw for props that don't change what is shown (night opacity on zoom)
+            function redrawLayer() {
+                if (overlay) overlay.setProps({ layers: [buildLayer()] });
+            }
+
             function refreshLayer() {
                 if (!overlay) return;
+                _filterVersion++;
                 overlay.setProps({ layers: [buildLayer()] });
-                // count without allocating a flat array
                 displayTotal = 0;
-                for (const [id, pts] of Object.entries(cantonData)) {
-                    if (!activeCantons.has(id)) continue;
-                    for (let i = 0; i < pts.length; i++) displayTotal += pts[i].companies.length;
-                }
+                for (const id of activeCantons) displayTotal += cantonTotals[id] || 0;
                 document.getElementById("legend-subtitle").textContent =
                     TRANSLATIONS[currentLang].legendSubtitle + " (" + displayTotal.toLocaleString() + ")";
                 updateLegendCounts();
@@ -1634,7 +1657,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     if (nightView) {
                         document.getElementById("night-intensity").value =
                             effectiveIntensity();
-                        refreshLayer();
+                        redrawLayer();
                     }
                 });
 
@@ -1704,7 +1727,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     .addEventListener("input", (e) => {
                         anchorIntensity = +e.target.value;
                         anchorZoom = map.getZoom();
-                        refreshLayer();
+                        redrawLayer();
                     });
 
                 // ── Canton all / none ──────────────────────────────────────────────
@@ -1727,17 +1750,27 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             })();
 
             // ── Tooltip helper (shared by hover + tap) ─────────────────────────────
+            let _ttObject = null, _ttVersion = -1;
             function showTooltip(info) {
                 const tt = document.getElementById("tooltip");
                 if (!info.object) {
                     tt.style.display = "none";
+                    _ttObject = null;
                     return;
                 }
+                const touch = _touchMQ.matches;
+                // same point under the cursor and same filters: just follow the mouse
+                if (info.object === _ttObject && _ttVersion === _filterVersion && !touch) {
+                    tt.style.left = Math.min(info.x + 15, window.innerWidth - 340) + "px";
+                    tt.style.top = Math.min(info.y + 15, window.innerHeight - 220) + "px";
+                    return;
+                }
+                _ttObject = info.object;
+                _ttVersion = _filterVersion;
 
                 const list = info.object.companies.filter((c) =>
                     activeLabels.has(c.label),
                 );
-                const touch = window.matchMedia("(hover: none)").matches;
                 // the bottom sheet scrolls, so it can list far more than the floating tooltip
                 const MAX = touch ? 500 : 10;
                 const rows = list
