@@ -590,17 +590,25 @@
                     max-width: none;
                     max-height: 45vh;
                     padding: 14px 16px 0;
-                    border-radius: 12px 12px 0 0;
+                    border-radius: 16px 16px 0 0;
                     border-bottom: none;
                     pointer-events: auto;
                     flex-direction: column;
                 }
                 #tooltip-content {
                     overflow-y: auto;
-                    overscroll-behavior: contain;
-                    -webkit-overflow-scrolling: touch;
                     padding-bottom: calc(14px + env(safe-area-inset-bottom));
                     min-height: 0;
+                }
+                /* the card sheet and the panel sheets scroll alike: the list stays put
+                   at its ends instead of dragging the map or page, momentum on iOS, and
+                   the same thin bar where ::-webkit-scrollbar is ignored */
+                .panel,
+                #tooltip-content {
+                    overscroll-behavior: contain;
+                    -webkit-overflow-scrolling: touch;
+                    scrollbar-width: thin;
+                    scrollbar-color: var(--border-mid) transparent;
                 }
                 #tooltip-close {
                     display: block;
