@@ -134,14 +134,16 @@
                 color: rgba(255, 255, 255, 0.75);
             }
             /* pinned card (click / search): selectable, scrollable, links live */
-            #tooltip.pinned {
-                pointer-events: auto;
-                user-select: text;
-                max-height: min(420px, calc(100vh - 40px));
-                overflow-y: auto;
-            }
-            #tooltip.pinned #tooltip-close {
-                display: block;
+            @media (hover: hover) {
+                #tooltip.pinned {
+                    pointer-events: auto;
+                    user-select: text;
+                    max-height: min(420px, calc(100vh - 40px));
+                    overflow-y: auto;
+                }
+                #tooltip.pinned #tooltip-close {
+                    display: block;
+                }
             }
             .tt-link {
                 display: none;
@@ -2042,18 +2044,21 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             // selected and its links followed; opts.focusName: list that company first
             function showTooltip(info, opts = {}) {
                 const tt = document.getElementById("tooltip");
+                const touch = _touchMQ.matches;
+                // hover (on a dot or off it) never touches a pinned card; only the close
+                // button, Escape or a click on empty map unpin it
+                if (_ttPinned && !opts.pin && !touch) return;
                 if (!info.object) {
                     hideTooltip();
                     return;
                 }
-                const touch = _touchMQ.matches;
-                if (_ttPinned && !opts.pin && !touch) return; // hover doesn't steal a pinned card
-                _ttPinned = !!opts.pin;
+                // touch already shows a closable bottom sheet, so it never pins
+                _ttPinned = !!opts.pin && !touch;
                 tt.classList.toggle("pinned", _ttPinned);
                 // same point under the cursor and same filters: just follow the mouse
                 if (info.object === _ttObject && _ttVersion === _filterVersion && !touch && !opts.pin) {
-                    tt.style.left = Math.min(info.x + 15, window.innerWidth - 340) + "px";
-                    tt.style.top = Math.min(info.y + 15, window.innerHeight - 220) + "px";
+                    tt.style.left = Math.max(10, Math.min(info.x + 15, window.innerWidth - tt.offsetWidth - 10)) + "px";
+                    tt.style.top = Math.max(10, Math.min(info.y + 15, window.innerHeight - tt.offsetHeight - 10)) + "px";
                     return;
                 }
                 _ttObject = info.object;
@@ -2090,12 +2095,6 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         : "";
 
                 tt.style.display = touch ? "flex" : "block";
-                if (!touch) {
-                    tt.style.left =
-                        Math.max(10, Math.min(info.x + 15, window.innerWidth - 340)) + "px";
-                    tt.style.top =
-                        Math.max(10, Math.min(info.y + 15, window.innerHeight - 220)) + "px";
-                }
                 const ttContent = document.getElementById("tooltip-content");
                 ttContent.scrollTop = 0;
                 ttContent.innerHTML = `
@@ -2103,6 +2102,13 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
           ${list.length.toLocaleString(numLocale())} ${t(list.length === 1 ? "company" : "companies")} · ${info.object.canton}
         </div>
         ${rows}${more}`;
+                // clamp with the real size now that the content is in
+                if (!touch) {
+                    tt.style.left =
+                        Math.max(10, Math.min(info.x + 15, window.innerWidth - tt.offsetWidth - 10)) + "px";
+                    tt.style.top =
+                        Math.max(10, Math.min(info.y + 15, window.innerHeight - tt.offsetHeight - 10)) + "px";
+                }
             }
 
             // ── Panel toggles ──────────────────────────────────────────────────────
@@ -2165,6 +2171,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 map.fitBounds(bounds, { duration: _reducedMotion.matches ? 0 : 800, ...opts });
             }
             // after flying to a search hit, open its card pinned with that company on top
+            // (registered before the camera moves: jumpTo fires moveend synchronously)
             function onHitShown(pts, name) {
                 map.once("moveend", () => {
                     const p = pts[0];
@@ -2215,18 +2222,30 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             const _searchWorkerSrc = `
 const fold=${foldText.toString()};
 const rank=${matchRank.toString()};
-let idx=null,folded=null;
+let idx=null,folded=null,dup=null;
 async function load(url){
   const res=await fetch(url);if(!res.ok)throw new Error('HTTP '+res.status);
   const text=await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).text();
   idx=JSON.parse(text);folded=idx.n.map(fold);
+  // flag repeats of a name in the same canton once, so queries skip them without allocating
+  dup=new Uint8Array(idx.n.length);const seen=new Set();
+  for(let i=0;i<idx.n.length;i++){const key=idx.n[i]+'\0'+idx.c[i];if(seen.has(key))dup[i]=1;else seen.add(key);}
+}
+const byName=(a,b)=>idx.n[a]<idx.n[b]?-1:idx.n[a]>idx.n[b]?1:0;
+// append the best 'need' hits of one rank bucket: shorter names first, then A-Z;
+// a huge bucket is grouped by length so only the groups that fit get sorted
+function take(b,need,out){
+  if(b.length<=need){b.sort((x,y)=>idx.n[x].length-idx.n[y].length||byName(x,y));for(const i of b)out.push(i);return;}
+  const byLen=[];for(const i of b){const L=idx.n[i].length;(byLen[L]||(byLen[L]=[])).push(i);}
+  for(const g of byLen){if(!g)continue;g.sort(byName);for(const i of g){out.push(i);if(--need===0)return;}}
 }
 function search(q,max){
-  q=fold(q);const hits=[],seen=new Set();
-  for(let i=0;i<folded.length;i++){const r=rank(folded[i],q);if(r<0)continue;const key=idx.n[i]+'\\0'+idx.c[i];if(seen.has(key))continue;seen.add(key);hits.push([r,i]);}
-  hits.sort((a,b)=>a[0]-b[0]||idx.n[a[1]].length-idx.n[b[1]].length||(idx.n[a[1]]<idx.n[b[1]]?-1:1));
-  const rows=hits.slice(0,max).map(([,i])=>[idx.n[i],idx.t[i],idx.c[i],idx.lat[i],idx.lng[i]]);
-  return {total:hits.length,rows};
+  q=fold(q);const buckets=[[],[],[]];
+  for(let i=0;i<folded.length;i++){if(dup[i])continue;const r=rank(folded[i],q);if(r>=0)buckets[r].push(i);}
+  const out=[];
+  for(const b of buckets){if(out.length>=max)break;take(b,max-out.length,out);}
+  const rows=out.map(i=>[idx.n[i],idx.t[i],idx.c[i],idx.lat[i],idx.lng[i]]);
+  return {total:buckets[0].length+buckets[1].length+buckets[2].length,rows};
 }
 self.onmessage=async({data})=>{
   if(data.type==='load'){try{await load(data.url);self.postMessage({type:'ready'});}catch(e){self.postMessage({type:'error'});}}
@@ -2382,6 +2401,7 @@ self.onmessage=async({data})=>{
                         const el = Object.assign(document.createElement("div"), { className: "search-marker" });
                         searchMarkers.push(new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat(p.position).addTo(map));
                     }
+                    onHitShown(pts, name);
                     if (pts.length === 1) {
                         flyTo({ center: pts[0].position, zoom: 14 });
                     } else {
@@ -2389,7 +2409,6 @@ self.onmessage=async({data})=>{
                         fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 80 });
                     }
                     searchMarkersTimer = setTimeout(() => { searchMarkers.forEach(m => m.remove()); searchMarkers = []; }, 3000);
-                    onHitShown(pts, name);
                 }
 
                 if (!activeCantons.has(cantonId) || !cantonData[cantonId]) {
