@@ -19,11 +19,11 @@
             href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇨🇭</text></svg>"
         />
         <link rel="preload" href="data/BS_0.json.gz" as="fetch" crossorigin />
-        <link href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" rel="stylesheet" />
+        <link href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css" rel="stylesheet" />
         <style>
             @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap");
             :root {
-                --bg: rgb(16, 23, 41);
+                --bg: #1e2a3e;
                 --accent: #6c8eff;
                 --border: rgba(255, 255, 255, 0.07);
                 --border-subtle: rgba(255, 255, 255, 0.06);
@@ -48,6 +48,21 @@
                 background: var(--bg);
                 color: #fff;
                 overflow: hidden;
+            }
+            /* Frame tinted with the average color of the companies in view */
+            body::after {
+                content: "";
+                position: fixed;
+                inset: 0;
+                border: 3px solid var(--frame-color, transparent);
+                /* bottom corners sit in the browser window's own rounded corners
+                   (~26pt on macOS 26), so they need a larger radius or they get clipped */
+                border-radius: 14px 14px 28px 28px;
+                /* fill the corners outside the curve so the viewport itself reads as rounded */
+                box-shadow: 0 0 0 28px #151b24;
+                pointer-events: none;
+                z-index: 9999;
+                transition: border-color 0.4s;
             }
             .maplibregl-ctrl-logo,
             .maplibregl-ctrl-attrib {
@@ -347,6 +362,21 @@
                 color: rgba(255, 255, 255, 0.5);
                 font-size: 12px;
             }
+            .canton-spinner {
+                display: inline-block;
+                width: 10px;
+                height: 10px;
+                border: 2px solid rgba(255, 255, 255, 0.2);
+                border-top-color: var(--accent);
+                border-radius: 50%;
+                vertical-align: middle;
+                animation: canton-spin 0.7s linear infinite;
+            }
+            @keyframes canton-spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
 
             /* Panel collapse toggle (corner — expand trigger, hidden under open panel) */
             .panel-toggle {
@@ -461,7 +491,9 @@
                     right: 0 !important;
                     bottom: 0 !important;
                     width: 100% !important;
-                    max-height: 75vh;
+                    /* Stop below the top bar (search + toggles end at ~64px) */
+                    max-height: min(75vh, calc(100vh - 84px)) !important;
+                    max-height: min(75dvh, calc(100dvh - 84px)) !important;
                     min-width: unset;
                     border-radius: 16px 16px 0 0;
                     border-left: none;
@@ -497,6 +529,33 @@
                 .maplibregl-ctrl-bottom-right {
                     bottom: 16px !important;
                     right: 16px !important;
+                }
+            }
+            /* Touch: tooltip becomes a bottom sheet with a scrollable stacked list */
+            @media (hover: none) {
+                #tooltip {
+                    position: fixed;
+                    left: 0 !important;
+                    right: 0;
+                    top: auto !important;
+                    bottom: 0;
+                    max-width: none;
+                    max-height: 45vh;
+                    padding: 14px 16px 0;
+                    border-radius: 12px 12px 0 0;
+                    border-bottom: none;
+                    pointer-events: auto;
+                    flex-direction: column;
+                }
+                #tooltip-content {
+                    overflow-y: auto;
+                    overscroll-behavior: contain;
+                    -webkit-overflow-scrolling: touch;
+                    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+                    min-height: 0;
+                }
+                #tooltip-close {
+                    display: block;
                 }
             }
             .maplibregl-ctrl-compass,
@@ -554,10 +613,10 @@
                 align-items: center;
                 background: var(--bg);
                 border: 1px solid var(--border-mid);
-                border-radius: 6px;
+                border-radius: 8px;
                 padding: 0 12px;
                 gap: 8px;
-                height: 40px;
+                height: 44px; /* match the 44px panel toggles */
                 box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
                 transition: border-color 0.15s;
             }
@@ -789,9 +848,11 @@
 
 
 
-        <script src="https://unpkg.com/deck.gl@9.3.11/dist.min.js"></script>
-        <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
-        <script>
+        <script src="https://unpkg.com/deck.gl@9.4.0/dist.min.js"></script>
+        <script type="module">
+            // MapLibre v6 ships ESM only
+            import * as maplibregl from "https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.mjs";
+
             // ── URL params ────────────────────────────────────────────────────────
             // ?r=min,max  e.g. ?r=0.5,2  controls radiusMinPixels,radiusMaxPixels
             const _rParam = new URLSearchParams(location.search).get("r");
@@ -1134,25 +1195,51 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 pointByName[cantonId] = nameMap;
             }
 
-            // ── Recompute legend counts from active cantons ────────────────────────────
+            // ── Recompute legend/canton counts and frame color from the viewport ──────
             function updateLegendCounts() {
                 const counts = {};
-                // avoid .flat() + .filter() allocation; iterate directly
+                const cantonCounts = {};
+                const bounds = map ? map.getBounds() : null;
+                const w = bounds?.getWest() ?? -Infinity, e = bounds?.getEast() ?? Infinity;
+                const s = bounds?.getSouth() ?? -Infinity, n = bounds?.getNorth() ?? Infinity;
+                let r = 0, g = 0, bl = 0, shown = 0;
                 for (const [id, pts] of Object.entries(cantonData)) {
-                    if (!activeCantons.has(id)) continue;
+                    const active = activeCantons.has(id);
+                    let inView = 0, total = 0;
                     for (let i = 0; i < pts.length; i++) {
-                        const cos = pts[i].companies;
+                        const d = pts[i];
+                        const cos = d.companies;
+                        total += cos.length;
+                        const [lng, lat] = d.position;
+                        if (lng < w || lng > e || lat < s || lat > n) continue;
+                        inView += cos.length;
+                        if (!active) continue;
                         for (let j = 0; j < cos.length; j++) {
                             const lbl = cos[j].label;
                             counts[lbl] = (counts[lbl] || 0) + 1;
                         }
+                        if (!cos.some((c) => activeLabels.has(c.label))) continue;
+                        const rgb = nightView ? nightColor : pointRgb(d);
+                        r += rgb[0]; g += rgb[1]; bl += rgb[2]; shown++;
                     }
+                    // inactive cantons aren't drawn, so show their full total instead of a viewport count
+                    cantonCounts[id] = active ? inView : total;
                 }
                 document.querySelectorAll(".legend-item").forEach((el) => {
                     const label = el.dataset.label;
                     el.querySelector(".legend-count").textContent =
-                        `(${counts[label] || 0})`;
+                        `(${(counts[label] || 0).toLocaleString()})`;
                 });
+                // only loaded cantons; unloaded ones keep their static total
+                for (const [id, cnt] of Object.entries(cantonCounts)) {
+                    if (!cantonData[id].length) continue;
+                    const el = document.querySelector(`.canton-item[data-id="${id}"] .canton-count`);
+                    if (el) el.textContent = `(${cnt.toLocaleString()})`;
+                }
+                document.body.style.setProperty(
+                    "--frame-color",
+                    shown ? `rgb(${Math.round(r / shown)}, ${Math.round(g / shown)}, ${Math.round(bl / shown)})` : "transparent",
+                );
             }
 
             function showLoadError(cantonId) {
@@ -1250,7 +1337,9 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 const countEl = document.querySelector(
                     `.canton-item[data-id="${canton.id}"] .canton-count`,
                 );
-                if (countEl) countEl.textContent = "…";
+                if (countEl)
+                    countEl.innerHTML =
+                        '<span class="canton-spinner" role="status" aria-label="Loading"></span>';
 
                 try {
                     const rows = await loadCantonAll(canton.id);
@@ -1272,40 +1361,14 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 }
             }
 
-            // ── 3D buildings ───────────────────────────────────────────────────────
-            // OpenFreeMap serves the OpenMapTiles schema, whose `building` source-layer
-            // carries render_height / render_min_height — enough for a fill-extrusion.
-            function addBuildings3D() {
-                const source = map
-                    .getStyle()
-                    .layers.find((l) => l["source-layer"] === "building")?.source;
-                if (!source) return;
-
-                map.addLayer({
-                    id: "buildings-3d",
-                    type: "fill-extrusion",
-                    source,
-                    "source-layer": "building",
-                    minzoom: 13,
-                    paint: {
-                        "fill-extrusion-color": "#243049",
-                        "fill-extrusion-height": ["get", "render_height"],
-                        "fill-extrusion-base": ["get", "render_min_height"],
-                        // fade in as the extrusions become meaningful, so z13 doesn't pop
-                        "fill-extrusion-opacity": [
-                            "interpolate",
-                            ["linear"],
-                            ["zoom"],
-                            13,
-                            0,
-                            14.5,
-                            0.85,
-                        ],
-                    },
-                });
+            // ── Layer builder ──────────────────────────────────────────────────────
+            function pointRgb(d) {
+                const matched = d.companies.find((c) => activeLabels.has(c.label));
+                // use pre-built Map for O(1) color lookup; fallback to per-point cached color
+                if (matched) return _labelToRgb.get(matched.label) ?? getColor(matched.rechtsform);
+                return d.color;
             }
 
-            // ── Layer builder ──────────────────────────────────────────────────────
             function buildLayer() {
                 // avoid .flat() allocation; build filtered array directly
                 const visible = [];
@@ -1327,15 +1390,8 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                                 Math.round(255 * (effectiveIntensity() / 100)),
                             ];
                         }
-                        const matched = d.companies.find((c) =>
-                            activeLabels.has(c.label),
-                        );
-                        if (matched) {
-                            // use pre-built Map for O(1) color lookup; fallback to per-point cached color
-                            const rgb = _labelToRgb.get(matched.label) ?? getColor(matched.rechtsform);
-                            return [rgb[0], rgb[1], rgb[2], 230];
-                        }
-                        return [d.color[0], d.color[1], d.color[2], 230];
+                        const rgb = pointRgb(d);
+                        return [rgb[0], rgb[1], rgb[2], 230];
                     },
                     getRadius: 18,
                     radiusScale: 1,
@@ -1464,7 +1520,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     center: [7.58, 47.56],
                     zoom: 12,
                     minZoom: 6,
-                    maxZoom: 16,
+                    maxZoom: 18,
                     pitch: 0,
                     bearing: 0,
                     antialias: true,
@@ -1472,7 +1528,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     attributionControl: false,
                 });
 
-                overlay = new deck.MapboxOverlay({ layers: [buildLayer()] });
+                overlay = new deck.MapLibreOverlay({ layers: [buildLayer()] });
 
                 map.on("load", async () => {
                     // Tint the OpenFreeMap base layers to match the app's dark-navy palette (--bg)
@@ -1486,8 +1542,6 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         }
                     }
 
-                    addBuildings3D();
-
                     map.addControl(
                         new maplibregl.AttributionControl({
                             compact: true,
@@ -1496,7 +1550,12 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         }),
                         "bottom-left",
                     );
+                    // Start collapsed: only the "i" button shows, credits open on click
+                    document
+                        .querySelector(".maplibregl-ctrl-attrib")
+                        ?.classList.remove("maplibregl-compact-show");
                     map.addControl(overlay);
+                    map.on("moveend", updateLegendCounts);
                     map.addControl(
                         new maplibregl.NavigationControl({
                             visualizePitch: true,
@@ -1643,7 +1702,9 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 const list = info.object.companies.filter((c) =>
                     activeLabels.has(c.label),
                 );
-                const MAX = 10;
+                const touch = window.matchMedia("(hover: none)").matches;
+                // the bottom sheet scrolls, so it can list far more than the floating tooltip
+                const MAX = touch ? 500 : 10;
                 const rows = list
                     .slice(0, MAX)
                     .map((c) => {
@@ -1664,12 +1725,16 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         ? `<div style="color:rgba(255,255,255,0.3);font-size:11px;margin-top:8px">+${list.length - MAX} more</div>`
                         : "";
 
-                tt.style.display = "block";
-                tt.style.left =
-                    Math.min(info.x + 15, window.innerWidth - 340) + "px";
-                tt.style.top =
-                    Math.min(info.y + 15, window.innerHeight - 220) + "px";
-                document.getElementById("tooltip-content").innerHTML = `
+                tt.style.display = touch ? "flex" : "block";
+                if (!touch) {
+                    tt.style.left =
+                        Math.min(info.x + 15, window.innerWidth - 340) + "px";
+                    tt.style.top =
+                        Math.min(info.y + 15, window.innerHeight - 220) + "px";
+                }
+                const ttContent = document.getElementById("tooltip-content");
+                ttContent.scrollTop = 0;
+                ttContent.innerHTML = `
         <div style="color:rgba(255,255,255,0.4);font-size:11px;letter-spacing:.05em;text-transform:uppercase">
           ${list.length} ${list.length === 1 ? "company" : "companies"} · ${info.object.canton}
         </div>

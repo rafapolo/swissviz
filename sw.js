@@ -1,4 +1,4 @@
-const V = 'swissviz-v2';
+const V = 'swissviz-v4';
 
 const PRECACHE = [
     './',
@@ -25,6 +25,19 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
     if (e.request.method !== 'GET') return;
+    // Page: network-first so deploys show up immediately; cache is the offline fallback
+    if (e.request.mode === 'navigate') {
+        e.respondWith(
+            fetch(e.request).then(res => {
+                if (res.ok) {
+                    const clone = res.clone();
+                    caches.open(V).then(c => c.put(e.request, clone));
+                }
+                return res;
+            }).catch(() => caches.match(e.request).then(hit => hit || caches.match('./index.html')))
+        );
+        return;
+    }
     e.respondWith(
         caches.match(e.request).then(hit => {
             if (hit) return hit;
