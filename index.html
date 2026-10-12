@@ -20,9 +20,15 @@
         />
         <link rel="preload" href="data/BE.json" as="fetch" crossorigin />
         <link rel="preload" href="data/BE_0.json.gz" as="fetch" crossorigin />
+        <link rel="preconnect" href="https://unpkg.com" crossorigin />
+        <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="modulepreload" href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.mjs" crossorigin />
         <link href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css" rel="stylesheet" />
+        <!-- non-blocking: the system font shows until Inter arrives -->
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
         <style>
-            @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap");
             :root {
                 --bg: #1e2a3e;
                 --accent: #6c8eff;
@@ -873,7 +879,8 @@
 
 
 
-        <script src="https://unpkg.com/deck.gl@9.4.0/dist.min.js"></script>
+        <!-- defer keeps it ahead of the module below (both run in document order) without blocking parsing -->
+        <script defer src="https://unpkg.com/deck.gl@9.4.0/dist.min.js"></script>
         <script type="module">
             // MapLibre v6 ships ESM only
             import * as maplibregl from "https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.mjs";
