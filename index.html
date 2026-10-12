@@ -720,6 +720,15 @@
                 overflow: hidden;
                 text-overflow: ellipsis;
             }
+            .search-result-form {
+                color: rgba(255, 255, 255, 0.45);
+                font-size: 11px;
+                flex-shrink: 0;
+                max-width: 40%;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
             .search-no-results {
                 padding: 12px;
                 color: rgba(255, 255, 255, 0.55);
@@ -810,6 +819,8 @@
                     aria-autocomplete="list"
                     aria-controls="search-results"
                     aria-haspopup="listbox"
+                    aria-expanded="false"
+                    role="combobox"
                 />
                 <span id="search-count" aria-live="polite" aria-atomic="true"></span>
                 <button id="search-clear" aria-label="Clear search">✕</button>
@@ -901,6 +912,13 @@
                     selectAll: "Alle",
                     deselectAll: "Keine",
                     nightView: "Nachtansicht",
+                    searchPlaceholder: "Firmen suchen…",
+                    searchLoading: "Suchindex wird geladen…",
+                    searchReady: "760'000 Firmen durchsuchen…",
+                    noResults: "Keine Treffer",
+                    noResultsLoaded: "Keine Treffer in geladenen Kantonen",
+                    result: "Treffer",
+                    results: "Treffer",
                     labels: {
                         Aktiengesellschaft: "Aktiengesellschaft",
                         "Ausländische Niederlassung":
@@ -925,6 +943,13 @@
                     selectAll: "All",
                     deselectAll: "None",
                     nightView: "Night view",
+                    searchPlaceholder: "Search companies…",
+                    searchLoading: "Loading search index…",
+                    searchReady: "Search 760k companies…",
+                    noResults: "No results",
+                    noResultsLoaded: "No results in loaded cantons",
+                    result: "result",
+                    results: "results",
                     labels: {
                         Aktiengesellschaft: "Corporation (AG)",
                         "Ausländische Niederlassung": "Foreign Branch",
@@ -942,6 +967,15 @@
                     },
                 },
             };
+
+            // UI string in the current language, falling back to English
+            function t(key) {
+                return TRANSLATIONS[currentLang][key] ?? TRANSLATIONS.en[key] ?? key;
+            }
+            // legal-form label (internal German key) in the current language
+            function labelText(label) {
+                return TRANSLATIONS[currentLang].labels[label] ?? label;
+            }
 
             function applyLang(lang) {
                 currentLang = lang;
@@ -1175,8 +1209,7 @@
             const cantonTotals = {}; // id → company count of a loaded canton
             const searchIndex = []; // flat local index: { name, label, cantonId, point }
             const pointByName = {}; // cantonId → Map<name, point[]>
-            let globalSearchIndex = null;
-            let overlay = null;
+                        let overlay = null;
             let map = null;
             let searchMarkers = [];
             let searchMarkersTimer = null;
@@ -1221,7 +1254,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 const nameMap = new Map();
                 for (const point of points) {
                     for (const co of point.companies) {
-                        searchIndex.push({ name: co.name, label: co.label, cantonId, point });
+                        searchIndex.push({ name: co.name, fold: foldText(co.name), label: co.label, cantonId, point });
                         if (!nameMap.has(co.name)) nameMap.set(co.name, []);
                         nameMap.get(co.name).push(point);
                     }
@@ -1858,67 +1891,147 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 }
             });
 
+            // camera moves honour prefers-reduced-motion
+            const _reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+            function flyTo(opts) {
+                if (_reducedMotion.matches) map.jumpTo(opts);
+                else map.flyTo({ duration: 800, ...opts });
+            }
+            function fitBounds(bounds, opts = {}) {
+                map.fitBounds(bounds, { duration: _reducedMotion.matches ? 0 : 800, ...opts });
+            }
+            function onHitShown(pts, name) {}
+
             // ── Search ─────────────────────────────────────────────────────────────
+            // The 760k-name index lives in a worker: download, gunzip, parse, accent
+            // folding and every query run off the main thread. Until it is ready,
+            // search falls back to the cantons already loaded.
             const ROW_H = 36;
+            const MAX_ROWS = 2000; // ranked results kept for the list; the count shows the full total
             let searchTimer = null;
             let _detachScroll = null;
             let activeHitIndex = -1, currentHits = [], currentRenderFn = null, currentResultsEl = null;
 
+            // lowercase and strip diacritics: "zurich" finds "Zürich", "geneve" finds "Genève"
+            function foldText(s) {
+                return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+            }
+            // 0 = name starts with q, 1 = a word starts with q, 2 = q anywhere
+            function matchRank(name, q) {
+                const i = name.indexOf(q);
+                if (i < 0) return -1;
+                if (i === 0) return 0;
+                return /[\s"'(\-/&.,]/.test(name[i - 1]) || name.indexOf(" " + q) >= 0 ? 1 : 2;
+            }
+
+            const _searchWorkerSrc = `
+const fold=${foldText.toString()};
+const rank=${matchRank.toString()};
+let idx=null,folded=null;
+async function load(url){
+  const res=await fetch(url);if(!res.ok)throw new Error('HTTP '+res.status);
+  const text=await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).text();
+  idx=JSON.parse(text);folded=idx.n.map(fold);
+}
+function search(q,max){
+  q=fold(q);const hits=[],seen=new Set();
+  for(let i=0;i<folded.length;i++){const r=rank(folded[i],q);if(r<0)continue;const key=idx.n[i]+'\\0'+idx.c[i];if(seen.has(key))continue;seen.add(key);hits.push([r,i]);}
+  hits.sort((a,b)=>a[0]-b[0]||idx.n[a[1]].length-idx.n[b[1]].length||(idx.n[a[1]]<idx.n[b[1]]?-1:1));
+  const rows=hits.slice(0,max).map(([,i])=>[idx.n[i],idx.t[i],idx.c[i],idx.lat[i],idx.lng[i]]);
+  return {total:hits.length,rows};
+}
+self.onmessage=async({data})=>{
+  if(data.type==='load'){try{await load(data.url);self.postMessage({type:'ready'});}catch(e){self.postMessage({type:'error'});}}
+  else if(data.type==='search'){self.postMessage({type:'result',id:data.id,...search(data.q,data.max)});}
+};`;
+            let _searchWorker = null;
+            let searchReady = false; // global index loaded in the worker
+            let _searchSeq = 0;
+
+            function startSearchIndex() {
+                if (_searchWorker) return;
+                const icon = document.getElementById("search-icon");
+                const input = document.getElementById("search-input");
+                icon.classList.add("loading");
+                input.placeholder = t("searchLoading");
+                _searchWorker = new Worker(URL.createObjectURL(new Blob([_searchWorkerSrc], { type: "application/javascript" })));
+                _searchWorker.onmessage = ({ data }) => {
+                    if (data.type === "ready") {
+                        searchReady = true;
+                        icon.classList.remove("loading");
+                        input.placeholder = t("searchReady");
+                        if (input.value.trim()) runSearch(input.value);
+                    } else if (data.type === "error") {
+                        _searchWorker.terminate();
+                        _searchWorker = null; // next focus retries
+                        icon.classList.remove("loading");
+                        input.placeholder = t("searchPlaceholder");
+                    } else if (data.type === "result" && data.id === _searchSeq) {
+                        const hits = data.rows.map(([name, tc, cantonId, lat, lng]) => ({
+                            name, cantonId, lat, lng, label: getLabel(T_DECODE[tc] || tc),
+                        }));
+                        showHits(hits, data.total, true);
+                    }
+                };
+                // blob workers resolve relative URLs against blob:, so pass an absolute one
+                _searchWorker.postMessage({ type: "load", url: new URL("data/search_index.json.gz", location.href).href });
+            }
+
             function closeResults() {
                 if (_detachScroll) { _detachScroll(); _detachScroll = null; }
+                activeHitIndex = -1; currentHits = [];
                 document.getElementById("search-results").style.display = "none";
-                document.getElementById("search-clear").style.display = "none";
                 document.getElementById("search-count").style.display = "none";
+                document.getElementById("search-input").setAttribute("aria-expanded", "false");
             }
 
             function runSearch(query) {
-                activeHitIndex = -1; currentHits = []; currentRenderFn = null; currentResultsEl = null;
-                const q = query.trim().toLowerCase();
-                const resultsEl = document.getElementById("search-results");
-                const clearBtn = document.getElementById("search-clear");
-                const countEl = document.getElementById("search-count");
+                const q = foldText(query.trim());
+                document.getElementById("search-clear").style.display = query ? "block" : "none";
+                if (!q) { _searchSeq++; closeResults(); return; }
 
-                if (_detachScroll) { _detachScroll(); _detachScroll = null; }
-                clearBtn.style.display = q ? "block" : "none";
-
-                if (!q) {
-                    resultsEl.style.display = "none";
-                    countEl.style.display = "none";
+                if (searchReady) {
+                    _searchWorker.postMessage({ type: "search", id: ++_searchSeq, q, max: MAX_ROWS });
                     return;
                 }
-
-                // collect matching indices, deduplicated by name+canton
-                const hits = [];
+                // fallback: loaded cantons only, ranked the same way
+                _searchSeq++;
+                const ranked = [];
                 const seen = new Set();
-                if (globalSearchIndex) {
-                    const { _nLower, n, c } = globalSearchIndex;
-                    for (let i = 0; i < _nLower.length; i++) {
-                        if (!_nLower[i].includes(q)) continue;
-                        const key = n[i] + "\0" + c[i];
-                        if (!seen.has(key)) { seen.add(key); hits.push(i); }
-                    }
-                } else {
-                    for (let i = 0; i < searchIndex.length; i++) {
-                        const e = searchIndex[i];
-                        if (!e.name.toLowerCase().includes(q)) continue;
-                        const key = e.name + "\0" + e.cantonId;
-                        if (!seen.has(key)) { seen.add(key); hits.push(i); }
-                    }
+                for (const e of searchIndex) {
+                    const r = matchRank(e.fold, q);
+                    if (r < 0) continue;
+                    const key = e.name + "\0" + e.cantonId;
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    ranked.push([r, e]);
                 }
+                ranked.sort((a, b) => a[0] - b[0] || a[1].name.length - b[1].name.length);
+                showHits(ranked.slice(0, MAX_ROWS).map(([, e]) => e), ranked.length, false);
+            }
+
+            function showHits(hits, total, global) {
+                const resultsEl = document.getElementById("search-results");
+                const countEl = document.getElementById("search-count");
+                if (_detachScroll) { _detachScroll(); _detachScroll = null; }
+                activeHitIndex = -1;
+                document.getElementById("search-input").setAttribute("aria-expanded", "true");
 
                 if (hits.length === 0) {
-                    resultsEl.innerHTML = `<div class="search-no-results">${globalSearchIndex ? "No results" : "No results in loaded cantons"}</div>`;
+                    currentHits = [];
+                    resultsEl.innerHTML = `<div class="search-no-results">${t(global ? "noResults" : "noResultsLoaded")}</div>`;
                     resultsEl.style.display = "block";
                     countEl.style.display = "none";
                     return;
                 }
 
-                countEl.textContent = hits.length.toLocaleString() + " result" + (hits.length === 1 ? "" : "s");
+                countEl.textContent = total.toLocaleString() + " " + t(total === 1 ? "result" : "results");
                 countEl.style.display = "block";
 
                 // virtual scroll container
                 resultsEl.innerHTML = `<div style="position:relative;height:${hits.length * ROW_H}px"><div class="vs-slab" style="position:absolute;width:100%;top:0;will-change:transform"></div></div>`;
                 resultsEl.style.display = "block";
+                resultsEl.scrollTop = 0;
                 const slab = resultsEl.querySelector(".vs-slab");
 
                 function renderRows() {
@@ -1934,67 +2047,23 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     while (slab.children.length < needed) slab.appendChild(document.createElement("div"));
 
                     for (let vi = 0; vi < needed; vi++) {
-                        const idx = hits[first + vi];
-                        let name, label, cantonId, lat, lng, point;
-                        if (globalSearchIndex) {
-                            const { n, t, c, lat: la, lng: lo } = globalSearchIndex;
-                            const rf = T_DECODE[t[idx]] || t[idx];
-                            name = n[idx]; label = getLabel(rf); cantonId = c[idx]; lat = la[idx]; lng = lo[idx];
-                        } else {
-                            ({ name, label, cantonId, point } = searchIndex[idx]);
-                        }
-                        const hex = _labelToHex.get(label) ?? "#888";
+                        const hi = first + vi;
+                        const hit = hits[hi];
                         const el = slab.children[vi];
-                        el.className = "search-result-item" + (first + vi === activeHitIndex ? " keyboard-active" : "");
+                        el.className = "search-result-item" + (hi === activeHitIndex ? " keyboard-active" : "");
+                        el.setAttribute("role", "option");
+                        el.setAttribute("aria-selected", hi === activeHitIndex ? "true" : "false");
 
-                        // only rebuild innerHTML if row changed (keyed by index)
-                        if (el.dataset.idx !== String(idx)) {
-                            el.dataset.idx = idx;
+                        // only rebuild the row if it now shows a different hit
+                        if (el.dataset.hi !== String(hi)) {
+                            el.dataset.hi = hi;
                             const dot = Object.assign(document.createElement("div"), { className: "legend-color" });
-                            dot.style.background = hex;
-                            const badge = Object.assign(document.createElement("span"), { className: "canton-badge", textContent: cantonId });
-                            const nameEl = Object.assign(document.createElement("span"), { className: "search-result-name", textContent: name });
-                            el.replaceChildren(dot, badge, nameEl);
-                            el.onclick = () => {
-                                const approx = lat !== undefined ? [lng, lat] : point.position;
-
-                                function resolvePts() {
-                                    if (lat === undefined) return [point];
-                                    return pointByName[cantonId]?.get(name) ?? [];
-                                }
-
-                                function placeMarkers() {
-                                    searchMarkers.forEach(m => m.remove());
-                                    searchMarkers = [];
-                                    clearTimeout(searchMarkersTimer);
-                                    const pts = resolvePts();
-                                    if (pts.length === 0) { map.flyTo({ center: approx, zoom: 14, duration: 800 }); return; }
-                                    for (const p of pts) {
-                                        const el = Object.assign(document.createElement("div"), { className: "search-marker" });
-                                        searchMarkers.push(new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat(p.position).addTo(map));
-                                    }
-                                    if (pts.length === 1) {
-                                        map.flyTo({ center: pts[0].position, zoom: 14, duration: 800 });
-                                    } else {
-                                        const lngs = pts.map(p => p.position[0]), lats = pts.map(p => p.position[1]);
-                                        map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 80, duration: 800 });
-                                    }
-                                    searchMarkersTimer = setTimeout(() => { searchMarkers.forEach(m => m.remove()); searchMarkers = []; }, 3000);
-                                }
-
-                                if (!activeCantons.has(cantonId)) {
-                                    map.flyTo({ center: approx, zoom: 14, duration: 800 });
-                                    activeCantons.add(cantonId);
-                                    const ci = document.querySelector(`.canton-item[data-id="${cantonId}"]`);
-                                    if (ci) { ci.classList.add("active"); ci.classList.remove("inactive"); }
-                                    loadCantonData(_cantonById.get(cantonId)).then(() => { refreshLayer(); placeMarkers(); });
-                                } else {
-                                    placeMarkers();
-                                }
-
-                                document.getElementById("search-input").value = "";
-                                closeResults();
-                            };
+                            dot.style.background = _labelToHex.get(hit.label) ?? "#888";
+                            const badge = Object.assign(document.createElement("span"), { className: "canton-badge", textContent: hit.cantonId });
+                            const nameEl = Object.assign(document.createElement("span"), { className: "search-result-name", textContent: hit.name });
+                            const formEl = Object.assign(document.createElement("span"), { className: "search-result-form", textContent: labelText(hit.label) });
+                            el.replaceChildren(dot, badge, nameEl, formEl);
+                            el.onclick = () => selectHit(hit);
                         }
                     }
                 }
@@ -2005,12 +2074,61 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 renderRows();
             }
 
-            document.getElementById("search-input").addEventListener("input", (e) => {
+            // fly to a hit, loading its canton first if needed, and ring every location
+            function selectHit(hit) {
+                const { name, cantonId } = hit;
+                const approx = hit.lat !== undefined ? [hit.lng, hit.lat] : hit.point.position;
+
+                function resolvePts() {
+                    if (hit.point) return [hit.point];
+                    return pointByName[cantonId]?.get(name) ?? [];
+                }
+
+                function placeMarkers() {
+                    searchMarkers.forEach(m => m.remove());
+                    searchMarkers = [];
+                    clearTimeout(searchMarkersTimer);
+                    const pts = resolvePts();
+                    if (pts.length === 0) { flyTo({ center: approx, zoom: 14 }); return; }
+                    for (const p of pts) {
+                        const el = Object.assign(document.createElement("div"), { className: "search-marker" });
+                        searchMarkers.push(new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat(p.position).addTo(map));
+                    }
+                    if (pts.length === 1) {
+                        flyTo({ center: pts[0].position, zoom: 14 });
+                    } else {
+                        const lngs = pts.map(p => p.position[0]), lats = pts.map(p => p.position[1]);
+                        fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 80 });
+                    }
+                    searchMarkersTimer = setTimeout(() => { searchMarkers.forEach(m => m.remove()); searchMarkers = []; }, 3000);
+                    onHitShown(pts, name);
+                }
+
+                if (!activeCantons.has(cantonId) || !cantonData[cantonId]) {
+                    flyTo({ center: approx, zoom: 14 });
+                    setCantonActive(cantonId, true);
+                    loadCantonData(_cantonById.get(cantonId)).then(() => { refreshLayer(); placeMarkers(); });
+                } else {
+                    placeMarkers();
+                }
+
+                // keep the query so the list can be reopened and refined
+                closeResults();
+                document.getElementById("search-input").blur();
+            }
+
+            const searchInput = document.getElementById("search-input");
+            searchInput.addEventListener("input", (e) => {
                 clearTimeout(searchTimer);
-                searchTimer = setTimeout(() => runSearch(e.target.value), 300);
+                searchTimer = setTimeout(() => runSearch(e.target.value), 120);
             });
 
-            document.getElementById("search-input").addEventListener("keydown", (e) => {
+            searchInput.addEventListener("keydown", (e) => {
+                if (e.key === "Escape") {
+                    if (currentHits.length || document.getElementById("search-results").style.display === "block") closeResults();
+                    else searchInput.blur();
+                    return;
+                }
                 if (!currentHits.length) return;
                 if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                     e.preventDefault();
@@ -2022,37 +2140,30 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     if (top < currentResultsEl.scrollTop) currentResultsEl.scrollTop = top;
                     else if (bot > currentResultsEl.scrollTop + currentResultsEl.clientHeight) currentResultsEl.scrollTop = bot - currentResultsEl.clientHeight;
                     currentRenderFn?.();
-                } else if (e.key === "Enter" && activeHitIndex >= 0) {
-                    currentResultsEl?.querySelector(".keyboard-active")?.click();
-                } else if (e.key === "Escape") {
-                    closeResults();
+                } else if (e.key === "Enter") {
+                    selectHit(currentHits[Math.max(activeHitIndex, 0)]);
                 }
             });
 
-            document.getElementById("search-input").addEventListener("focus", () => {
-                if (globalSearchIndex || globalSearchIndex === false) return;
-                globalSearchIndex = false; // loading sentinel
-                const icon = document.getElementById("search-icon");
-                const input = document.getElementById("search-input");
-                icon.classList.add("loading");
-                input.placeholder = "Loading search index…";
-                gunzipJson("data/search_index.json.gz").then(data => {
-                    data._nLower = data.n.map(s => s.toLowerCase());
-                    globalSearchIndex = data;
-                    icon.classList.remove("loading");
-                    input.placeholder = "Search 760k companies…";
-                    const q = input.value;
-                    if (q.trim()) runSearch(q);
-                }).catch(() => {
-                    globalSearchIndex = null;
-                    icon.classList.remove("loading");
-                    input.placeholder = "Search companies…";
-                });
-            }, { once: true });
+            searchInput.addEventListener("focus", () => {
+                startSearchIndex();
+                if (searchInput.value.trim()) runSearch(searchInput.value);
+            });
+
+            // "/" jumps to the search box from anywhere that isn't a text field
+            document.addEventListener("keydown", (e) => {
+                if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+                if (e.target.closest?.("input, textarea, [contenteditable]")) return;
+                e.preventDefault();
+                searchInput.focus();
+                searchInput.select();
+            });
 
             document.getElementById("search-clear").addEventListener("click", () => {
-                document.getElementById("search-input").value = "";
+                searchInput.value = "";
+                document.getElementById("search-clear").style.display = "none";
                 closeResults();
+                searchInput.focus();
             });
 
             document.addEventListener("click", (e) => {
