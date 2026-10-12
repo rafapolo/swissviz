@@ -11,7 +11,7 @@ Usage:
     python3 scripts/fetch_shab.py --list-only
     python3 scripts/fetch_shab.py --threads 8 --start 2018-01 --end 2026-10
 """
-import argparse, datetime as dt, json, os, random, threading, time
+import argparse, datetime as dt, gzip, json, os, random, threading, time
 import urllib.error, urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -26,7 +26,7 @@ KIND = {"HR01": "open", "HR03": "close"}
 p = argparse.ArgumentParser()
 p.add_argument("--start", default="2018-01")
 p.add_argument("--end", default=dt.date.today().strftime("%Y-%m"))
-p.add_argument("--threads", type=int, default=8)
+p.add_argument("--threads", type=int, default=16)
 p.add_argument("--list-only", action="store_true")
 p.add_argument("--refresh-list", action="store_true", help="re-page the list even if the parquet exists")
 args = p.parse_args()
@@ -37,7 +37,9 @@ def get(url, accept="application/json", tries=6):
         try:
             req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": "cantography/1.0"})
             with urllib.request.urlopen(req, timeout=30) as r:
-                return r.read()
+                body = r.read()
+            # the API's cache sometimes sends gzip without saying so
+            return gzip.decompress(body) if body[:2] == b"\x1f\x8b" else body
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 return None
@@ -88,11 +90,12 @@ def list_window(first, last):
 
 def build_list():
     rows = []
-    for first, last in months(args.start, args.end):
-        r = list_window(first, last)
-        n1 = sum(x["sub"] == "HR01" for x in r)
-        print(f"[LIST] {first:%Y-%m}  HR01 {n1:6,}  HR03 {len(r) - n1:6,}", flush=True)
-        rows += r
+    spans = list(months(args.start, args.end))
+    with ThreadPoolExecutor(args.threads) as ex:
+        for (first, _), r in zip(spans, ex.map(lambda m: list_window(*m), spans)):
+            n1 = sum(x["sub"] == "HR01" for x in r)
+            print(f"[LIST] {first:%Y-%m}  HR01 {n1:6,}  HR03 {len(r) - n1:6,}", flush=True)
+            rows += r
     df = pl.DataFrame(rows)
     dups = df.height - df["id"].n_unique()
     if dups:
