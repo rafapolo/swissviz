@@ -458,7 +458,7 @@ def to_parquet():
         rows.append({
             "uid": r["uid"], "host": r["host"], "status": r["status"], "name": r.get("name"),
             "legal_form": r.get("legal_form"), "registered": r.get("registered"), "deleted": r.get("deleted"),
-            "migrated": r.get("migrated"), "n_names": len(r.get("names") or []),
+            "migrated": r.get("migrated"), "has_report": r.get("has_report"), "n_names": len(r.get("names") or []),
             "n_seats": len(r.get("seats") or []), "n_addresses": len(r.get("addresses") or []),
             "n_journal": len(r.get("journal") or []), "n_persons": r.get("n_persons"),
             "first_journal": min((j["tr_date"] for j in r.get("journal") or [] if j.get("tr_date")), default=None),

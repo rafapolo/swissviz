@@ -104,6 +104,13 @@ O link do extrato de cada empresa vem do Zefix, no campo `cantonalExcerptWeb` de
 - [ ] Log de progresso por host, com contagem de erros. Parar sozinho se um host passar de 5% de erros.
 
 ### C3 — Validar
+**Parcial em 13/10/2026, com 18.537 extratos da P1 (só o cache do Mac):**
+- `deleted` = data do TR do HR03 em 18.337 de 18.342 (99,97%); os 5 restantes diferem em 3 a 5 dias. 195 extratos vêm sem `deleted`.
+- Contra `archive_opens` (10.645 em comum): casamento `name+seat` fica a 0–10 dias em 99,0% (mediana +5 dias, a publicação); casamento só por `name` em 87,6%, e **10,5% erram por mais de 1 ano**. O casamento só por nome não serve para datar.
+- Distribuição por ano de 1985 a 2018 é lisa, sem pico em 1995 nem em outro ano de migração. Os dias mais frequentes têm no máximo 16 empresas. Mais antiga: 02.02.1883.
+- `registered` nulo em 113 (106 em FR, 7 em GE): o `dateInscription` vem vazio, mas o diário existe. Reserva: `first_journal`, quando `has_report` é falso (coluna nova no parquet).
+- `migrated` nunca é preenchido no chregister (o "Übertrag" não está na resposta parcial). Não atrapalha: `registered` já é a data real.
+- 163 empresas da P1 têm `registered` de 2019 em diante: abriram depois de 09/2018, mas o HR01 falta em `shab_events`. É uma lacuna de ~0,9% na coleta da linha do tempo, que este parquet preenche.
 - [ ] Para as empresas inscritas desde 09/2018, `registered` deve bater com o `journalDate` do HR01. Medir a concordância, que deve ficar ≥ 99%.
 - [ ] Para 2002–2018, comparar com o casamento do arquivo (`build/archive_opens.parquet`) e medir o erro do casamento por nome.
 - [ ] Distribuição de `registered` por ano (1883 → hoje): procurar picos falsos, como datas de migração tomadas como data de abertura.
