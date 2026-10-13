@@ -9,7 +9,7 @@
 ---
 
 <!-- HANDOFF:INICIO (seção reescrita a cada relatório de 30 min) -->
-## Estado atual e handoff — atualizado em 13/10/2026 às 13:50, revisto às 13:55
+## Estado atual e handoff — atualizado em 13/10/2026 às 13:58
 
 **Quem toca:** sessão Claude `swissviz-e5`, no worktree `~/Projetos/swissviz-cantonal` (branch `feat/cantonal-register`). A cópia em `~/Projetos/swissviz/tasks/` é antiga; vale esta.
 
@@ -17,16 +17,17 @@
 
 **O que está rodando:**
 
-| Máquina | Processo | Arquivo → log | Faixas | Falta (13:50) | Previsão |
+| Máquina | Processo | Arquivo → log | Faixas | Falta (13:54) | Previsão |
 |---|---|---|---|---|---|
-| Mac | P2 chregister | `build/p2_chreg0.json` → `build/cantonal_p2_chreg0.log` | 4 | 119.377 | 14/10 ~10:00 |
-| Mac | P2 romands | `build/p2_romand0.json` → `build/cantonal_p2_romand0.log` | 1 por host | 25.453 | ~20:15 (VD) |
-| finland | P2 chregister | `p1_p2_chreg1.json` → `cantonal_p2_chreg1.log` | 4 | 119.557 | 14/10 ~10:00 |
-| finland | P2 romands | `p1_p2_romand1.json` → `cantonal_p2_romand1.log` | 1 por host | 25.530 | ~20:15 (VD) |
-| livre | P2 chregister | `p1_p2_chreg2.json` → `cantonal_p2_chreg2.log` | 4 | 118.904 | 14/10 ~10:00 |
-| livre | P2 romands | `p1_p2_romand2.json` → `cantonal_p2_romand2.log` | 1 por host | 25.864 | ~20:15 (VD) |
+| Mac | P2 chregister | `build/p2_chreg0.json` → `build/cantonal_p2_chreg0.log` | 4 | 118.399 | 14/10 ~10:00 |
+| Mac | P2 romands | `build/p2_romand0.json` → `build/cantonal_p2_romand0.log` | 1 por host | 24.835 | ~20:15 (VD) |
+| finland | P2 chregister | `p1_p2_chreg1.json` → `cantonal_p2_chreg1.log` | 4 | 118.533 | 14/10 ~10:00 |
+| finland | P2 romands | `p1_p2_romand1.json` → `cantonal_p2_romand1.log` | 1 por host | 24.295 | ~20:15 (VD) |
+| livre | P2 chregister | `p1_p2_chreg2.json` → `cantonal_p2_chreg2.log` | 4 | 117.925 | 14/10 ~10:00 |
+| livre | P2 romands | `p1_p2_romand2.json` → `cantonal_p2_romand2.log` | 1 por host | 24.579 | ~20:15 (VD) |
 
 - **Previsões:** P2 chregister ~10:00 de 14/10; P2 romands ~20:15 de hoje (VD é o mais longo); P1 chregister (~94 mil) depois da P2, ~5h30 → ~15:30 de 14/10.
+- **403 isolado na finland (13:36):** um POST do painel em `ag.chregister.ch` deu 403 três vezes logo no reinício da P2, e o processo parou só esse cantão nela (`ag … STOPPED` no log). Não parece bloqueio: no mesmo servidor e IP, a finland segue com ~100 extratos/min dos outros cantões, sem outro 403 em 20 min, e `ag.chregister.ch/cr-portal/` responde 302 a ela; Mac e livre seguem com AG normal. Os jobs de AG da parte 1 ficam pendentes e entram na próxima rodada (o cache pula o resto). Se aparecer outro 403 em qualquer cantão, parar o chregister em todas as máquinas.
 - **FR PARADO:** a finland levou **429 na primeira requisição** de FR às 13:36 (0 extratos). O `run.sh` da finland era o antigo e ignorou o `--pause 3`, e a finland já tinha feito FR às 11:06. Pela regra, FR fica para outro dia: `build/p12_fr.json` (1.246 da P1 + 14.620 da P2), 1 faixa, `--pause 3`, uma máquina só. O `run.sh` das remotas foi atualizado às 13:50.
 - **P1 pausada no chregister** desde 13:35 (Mac, finland e livre). Faltam ~94 mil, em `build/p1_chreg{0,1,2}.json` (o cache evita refazer). Retomar depois da P2, com os mesmos arquivos.
 - **P1 romands terminaram** nas três máquinas (~13:45; ~130 de VD com erro ou pendentes entram numa próxima rodada). **P2 romands iniciados às 13:50.**
