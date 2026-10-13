@@ -8,7 +8,7 @@ REMOTES=("$@")
 touch build/.rebalancing   # scripts/do_reaper.sh waits while this exists
 trap 'rm -f build/.rebalancing' EXIT
 # 1. stop every chregister worker
-for p in $(pgrep -f "fetch_cantonal.py --jobs-file build/(p1_chreg|p2_chreg|chreg)"); do kill $p; done
+for p in $(pgrep -f "fetch_cantonal.py --jobs-file build/(p1_chreg|p2_chreg|chreg|ch_part)"); do kill $p; done
 for h in "${REMOTES[@]}"; do
   ssh -o BatchMode=yes "$h" 'cd ~/cantonal && for p in $(pgrep -f "fetch_cantonal.py --jobs-file build/p1_(chreg|p2_chreg|do|ch)"); do kill $p; done; true'
 done

@@ -9,28 +9,29 @@
 ---
 
 <!-- HANDOFF:INICIO (seção reescrita a cada relatório de 30 min) -->
-## Estado atual e handoff — atualizado em 13/10/2026 às 18:18
+## Estado atual e handoff — atualizado em 13/10/2026 às 18:58
 
 **Quem toca:** sessão Claude `swissviz-e5`, no worktree `~/Projetos/swissviz-cantonal` (branch `feat/cantonal-register`). A cópia em `~/Projetos/swissviz/tasks/` é antiga; vale esta.
 
 **Prioridade (decisão do usuário, 13/10 ~13:00): P2 antes da P1.** P2 = 452.518 ativas sem abertura no SHAB (inscritas antes de 09/2018), de `jobs_p2` sobre `build/lindas_firms.parquet`. Roteamento pelo cantão atual (VS pelo distrito, `VS_DISTRICTS`), com o registro do CHID como segundo host.
 
-**Orçamento (usuário, 13/10 14:40): até US$ 5 em droplets DigitalOcean para terminar o mais rápido possível, com o gasto conferido pela API.** `python3 scripts/do_budget.py --hours-left H` mostra o gasto de cada droplet (created_at × preço por hora), o total, a projeção e o uso do mês no faturamento (que só atualiza uma vez por dia); guarda o custo das droplets apagadas em `build/do_spent.json`; sai com código 2 acima de US$ 4,50 → **apagar as droplets na hora**. Às 18:18: 5 droplets, US$ 0,030/h, gasto US$ 0,112, projeção até o fim ~US$ 0,29; o faturamento da DO já mostra US$ 0,07 de uso no mês.
+**Orçamento (usuário, 13/10 14:40): até US$ 5 em droplets DigitalOcean para terminar o mais rápido possível, com o gasto conferido pela API.** `python3 scripts/do_budget.py --hours-left H` mostra o gasto de cada droplet (created_at × preço por hora), o total, a projeção e o uso do mês no faturamento (que só atualiza uma vez por dia); guarda o custo das droplets apagadas em `build/do_spent.json`; sai com código 2 acima de US$ 4,50 → **apagar as droplets na hora**. Às 18:58: 4 droplets, US$ 0,024/h, gasto US$ 0,130, projeção até o fim ~US$ 0,27; o faturamento da DO já mostra US$ 0,07 de uso no mês.
 
-**O que está rodando (redividido às 14:38):** todo o chregister que falta (P2 primeiro, depois P1: 432.275 empresas) redividido em 8 partes iguais por `scripts/cantonal_rebalance.sh`, uma por IP, 4 faixas cada.
+**O que está rodando (redividido às 18:52):** todo o chregister que falta (P2 primeiro, depois P1: 242.579 empresas) redividido em 7 partes iguais (34.654 cada) por `scripts/cantonal_rebalance.sh`, uma por IP, 4 faixas cada.
 
 | Máquina | IP | chregister | Romands P2 (1 faixa por host) |
 |---|---|---|---|
 | Mac | 178.197.206.34 | `build/ch_part0.json` → `build/cantonal_ch.log` | `build/p2_romand0.json` → `build/cantonal_p2_romand0.log` |
 | finland | 89.167.95.136 | `p1_ch.json` → `cantonal_ch.log` | `p1_p2_romand1.json` → `cantonal_p2_romand1.log` |
 | livre | 83.228.221.143 | `p1_ch.json` → `cantonal_ch.log` | `p1_p2_romand2.json` → `cantonal_p2_romand2.log` |
-| cantonal-1 (DO) | 165.232.117.125 | `p1_ch.json` → `cantonal_ch.log` | — |
-| cantonal-2 (DO) | 167.172.190.36 | idem | — |
+| cantonal-2 (DO) | 167.172.190.36 | `p1_ch.json` → `cantonal_ch.log` | — |
 | cantonal-3 (DO) | 167.172.175.17 | idem | — |
 | cantonal-4 (DO) | 164.92.245.40 | idem | — |
 | cantonal-5 (DO) | 167.71.62.96 | idem | — |
 
-- **Previsão (18:18):** ~33.200 por máquina, 2,45–2,50 s por empresa (~98/min), sem 403. O Mac segue mais lento (2,61 s, ~92/min, 34.241 restantes; carga do Mac em ~20 por outras sessões). Cada parte faz a P2 primeiro: **P2 do chregister ~22:00**, P1 do chregister ~23:55 (Mac ~00:30). **GE da P2 terminou** nas três máquinas (~18:15). VD ~20:25 (~11.900 restantes). NE terminou. O apagador ainda não removeu nenhuma droplet.
+- **cantonal-1 tirada (18:52):** desde ~18:14 ela caiu para ~60 empresas/min (~4 s por empresa), sem erro nem 403, enquanto as outras seguiam em ~98/min. Pela regra de saturação, foi parada, o cache veio para o Mac (log em `build/cantonal_ch_cantonal-1.log`), o resto foi redividido entre as 7 máquinas e o apagador a removeu às 18:54 (HTTP 204). Parece limitação só daquele IP; se outra máquina cair assim, fazer o mesmo.
+- **Erro na redivisão das 18:52:** o `cantonal_rebalance.sh` não parava o worker antigo do Mac (`ch_part0.json` fora do padrão do `pgrep`), e o Mac ficou com 8 faixas por ~1 min até ele ser morto à mão. Padrão corrigido.
+- **Previsão (18:58):** 34.654 por máquina a ~98/min (Mac ~92/min) → chregister ~00:50 de 14/10; P2 do chregister por volta das 22:30. VD da P2 ~20:30 (~8.800 restantes). GE e NE da P2 terminaram.
 - **Apagador de droplets (16:25):** `scripts/do_reaper.sh` roda em segundo plano no Mac (log `build/do_reaper.log`). A cada 2 min, para cada droplet `cantonal`: se não tem worker em duas checagens seguidas e não há redivisão em curso (`build/.rebalancing`, criado por `cantonal_rebalance.sh`), copia o cache dela para o Mac, apaga a droplet pela API e tira o bloco dela do `~/.ssh/config`. Sai quando não sobra droplet, imprimindo o gasto final. Se esta sessão fechar, ele para: rodar de novo com `nohup bash scripts/do_reaper.sh >> build/do_reaper.log 2>&1 &`.
 - **Droplets:** `s-1vcpu-512mb-10gb`, `fra1`, Ubuntu 24.04, tag `cantonal`, US$ 0,00595/h cada, chave `~/.ssh/extrapolo.pvt`, hosts `cantonal-1..5` no `~/.ssh/config`. Token em `~/Projetos/swissviz/.env` (variável `digitalocean`, ignorado pelo git). As duas primeiras (14:28) mediram ~98/min cada sem deixar as outras mais lentas. **No fim: trazer os caches, apagar as droplets (`DELETE /v2/droplets?tag_name=cantonal`) e tirar os blocos `cantonal-*` do `~/.ssh/config`.**
 - **FR:** sem droplets nem outros IPs (cada IP novo seria uma cota fresca para contornar o 429; mover FR para a colmeia às 12:32 foi o mesmo erro). **Agendado (aprovado pelo usuário às ~16:20): amanhã 14/10 às 8:07, só no Mac**, 1 faixa, `--pause 3`, a partir de `build/p12_fr.json`, log `build/cantonal_fr.log`; se der 429, tentar de novo no dia seguinte às 8:07.
