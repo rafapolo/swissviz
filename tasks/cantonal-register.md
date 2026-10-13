@@ -9,7 +9,7 @@
 ---
 
 <!-- HANDOFF:INICIO (seção reescrita a cada relatório de 30 min) -->
-## Estado atual e handoff — atualizado em 13/10/2026 às 13:50
+## Estado atual e handoff — atualizado em 13/10/2026 às 13:50, revisto às 13:55
 
 **Quem toca:** sessão Claude `swissviz-e5`, no worktree `~/Projetos/swissviz-cantonal` (branch `feat/cantonal-register`). A cópia em `~/Projetos/swissviz/tasks/` é antiga; vale esta.
 
@@ -17,19 +17,19 @@
 
 **O que está rodando:**
 
-| Máquina | Processo | Arquivo → log | Faixas | Falta (13:35) |
-|---|---|---|---|---|
-| Mac | P2 chregister | `build/p2_chreg0.json` → `build/cantonal_p2_chreg0.log` | 4 | 120.371 |
-| Mac | P1 romands (VD) | `build/p1_part0_romand.json` → `build/cantonal_p1.log` | 1 por host | ~160 VD |
-| finland | P2 chregister | `p1_p2_chreg1.json` → `cantonal_p2_chreg1.log` | 4 | 120.606 |
-| finland | P1 romands (VD) | `p1_part1_romand.json` → `cantonal_p1.log` | 1 por host | ~390 VD |
-| finland | FR (resto da P1, depois P2) | `p1_p12_fr.json` → `cantonal_p12_fr.log` | 1, `--pause 3` | 1.246 P1 + 14.620 P2 |
-| livre | P2 chregister | `p1_p2_chreg2.json` → `cantonal_p2_chreg2.log` | 4 | 119.886 |
-| livre | P1 romands (VD) | `p1_part2_romand.json` → `cantonal_p1.log` | 1 por host | ~40 VD |
+| Máquina | Processo | Arquivo → log | Faixas | Falta (13:50) | Previsão |
+|---|---|---|---|---|---|
+| Mac | P2 chregister | `build/p2_chreg0.json` → `build/cantonal_p2_chreg0.log` | 4 | 119.377 | 14/10 ~10:00 |
+| Mac | P2 romands | `build/p2_romand0.json` → `build/cantonal_p2_romand0.log` | 1 por host | 25.453 | ~20:15 (VD) |
+| finland | P2 chregister | `p1_p2_chreg1.json` → `cantonal_p2_chreg1.log` | 4 | 119.557 | 14/10 ~10:00 |
+| finland | P2 romands | `p1_p2_romand1.json` → `cantonal_p2_romand1.log` | 1 por host | 25.530 | ~20:15 (VD) |
+| livre | P2 chregister | `p1_p2_chreg2.json` → `cantonal_p2_chreg2.log` | 4 | 118.904 | 14/10 ~10:00 |
+| livre | P2 romands | `p1_p2_romand2.json` → `cantonal_p2_romand2.log` | 1 por host | 25.864 | ~20:15 (VD) |
 
-- **Previsões:** P2 chregister ~120 mil por máquina a ~98/min → ~20 h, fim ~14/10 09:30. FR ~15,9 mil a ~17/min → ~15 h, se a cota por IP deixar.
+- **Previsões:** P2 chregister ~10:00 de 14/10; P2 romands ~20:15 de hoje (VD é o mais longo); P1 chregister (~94 mil) depois da P2, ~5h30 → ~15:30 de 14/10.
+- **FR PARADO:** a finland levou **429 na primeira requisição** de FR às 13:36 (0 extratos). O `run.sh` da finland era o antigo e ignorou o `--pause 3`, e a finland já tinha feito FR às 11:06. Pela regra, FR fica para outro dia: `build/p12_fr.json` (1.246 da P1 + 14.620 da P2), 1 faixa, `--pause 3`, uma máquina só. O `run.sh` das remotas foi atualizado às 13:50.
 - **P1 pausada no chregister** desde 13:35 (Mac, finland e livre). Faltam ~94 mil, em `build/p1_chreg{0,1,2}.json` (o cache evita refazer). Retomar depois da P2, com os mesmos arquivos.
-- **P2 romands por iniciar:** `build/p2_romand{0,1,2}.json` (GE ~31 mil, VD ~38 mil, NE ~7,8 mil, divididos em 3), já copiados para as remotas como `p1_p2_romand{1,2}.json`. **Iniciar em cada máquina só quando o processo de P1 romands dela terminar** (para não ter 2 faixas no mesmo host romand por máquina): remotas `bash ~/cantonal/run.sh p2_romand<i> 1 "(P2 romands)"`; Mac `nohup python3 -u scripts/fetch_cantonal.py --jobs-file build/p2_romand0.json --lanes 1 >> build/cantonal_p2_romand0.log 2>&1 &`.
+- **P1 romands terminaram** nas três máquinas (~13:45; ~130 de VD com erro ou pendentes entram numa próxima rodada). **P2 romands iniciados às 13:50.**
 - **Colmeia fora de vez** (13:40, pedido do usuário: mover tudo dela e limpar). Os extratos de FR que ela baixou foram copiados para o Mac e conferidos (0 faltando); logs em `build/cantonal_fr_colmeia.log` e `build/cantonal_errors_colmeia.jsonl`; `~/cantonal` apagado lá, sem processo, sem cron e sem nada em `/tmp`.
 - GE e NE da P1 terminaram. Primeiros extratos da P2 (ativas) vêm com `registered` antigo (1985, 1987, 1999) e sem `deleted`, como esperado.
 - Cache no Mac: 70.863 extratos, 280 MB, às 13:45.
@@ -52,12 +52,12 @@
 - **Colmeia: não usar.** Não usar proxies (os endereços que o usuário passou estão na lista pública proxifly). Não acrescentar IPs por conta própria.
 
 **Próximos passos:**
-1. Iniciar os P2 romands em cada máquina quando a P1 romands dela acabar (ver acima).
+1. FR: tentar outro dia, devagar, numa máquina só.
 2. Acompanhar a P2; ao fim, retomar a P1 do chregister com `p1_chreg{0,1,2}.json`.
 3. Quando tudo terminar: rsync dos caches da finland e da livre para o Mac, `python3 scripts/fetch_cantonal.py --parquet`, refazer a C3 com o conjunto completo e commitar.
 4. C4 — repassar `uid → registered` à sessão night-light (substitui as precisões 1, 2 e 3 de `data/opening_dates.json.gz`; ver `tasks/cobertura-dados.md`) e estender a linha do tempo.
 
-**Pendências com o usuário:** nenhuma.
+**Pendências com o usuário:** droplets temporárias na DigitalOcean (perguntado às 13:50) — se criadas, entram só no chregister, 4 faixas cada, mesmas regras.
 
 **Agendamentos que só existem na sessão `swissviz-e5`** (somem se ela fechar; outra sessão precisa recriá-los): relatório aos minutos 13 e 43, que também reescreve esta seção.
 <!-- HANDOFF:FIM -->
