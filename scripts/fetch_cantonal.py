@@ -14,7 +14,7 @@ Two systems cover every canton:
 Collection is slow and identifiable: one request at a time per lane, >=1 s
 between requests, exponential backoff on 403/429/5xx, User-Agent
 "cantography-research" and no contact. chregister runs CHREG_LANES lanes on
-its shared server (user decision 2026-10-13: 4), each romand host one lane.
+its shared server (user decision 2026-10-13: 4, raised to 8 the same day), each romand host one lane.
 A host stops itself above 5% errors.
 
 Only extracted fields are cached, one JSON per company and register:
@@ -476,10 +476,12 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--jobs", choices=["p1", "sample"])
     p.add_argument("--limit", type=int)
+    p.add_argument("--lanes", type=int, default=CHREG_LANES, help="parallel lanes on the chregister server")
     p.add_argument("--parquet", action="store_true")
     p.add_argument("--shab", default=os.path.expanduser("~/Projetos/swissviz-timeline/build/shab_events.jsonl"))
     p.add_argument("--geo", default=os.path.expanduser("~/Projetos/swissviz-timeline/build/timeline_geo.parquet"))
     a = p.parse_args()
+    CHREG_LANES = a.lanes
     os.makedirs(CACHE, exist_ok=True)
     if a.jobs:
         jobs = jobs_p1(a.shab, a.geo) if a.jobs == "p1" else jobs_sample(a.shab, a.geo)
