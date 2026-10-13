@@ -425,6 +425,76 @@ def jobs_p1(shab, geo):
             for r in cl.iter_rows(named=True)]
 
 
+# Valais districts by BFS municipality number -> register
+VS_DISTRICTS = [(6002, 6010, "vo"), (6021, 6025, "vc"), (6031, 6037, "vb"), (6052, 6077, "vo"), (6081, 6090, "vc"),
+                (6101, 6119, "vo"), (6131, 6142, "vb"), (6151, 6159, "vb"), (6171, 6204, "vo"), (6211, 6220, "vb"),
+                (6232, 6254, "vc"), (6261, 6267, "vc"), (6281, 6300, "vo")]
+
+
+def lindas_firms():
+    """uid, CHID, canton of the address and BFS municipality of every existing company (LINDAS, Zefix graph)."""
+    path = os.path.join(BUILD, "lindas_firms.parquet")
+    if os.path.exists(path):
+        return pl.read_parquet(path)
+    q = """SELECT ?c ?uid ?chid ?reg ?m WHERE { GRAPH <https://lindas.admin.ch/foj/zefix> {
+ ?c a <https://schema.ld.admin.ch/ZefixOrganisation> ; <http://schema.org/identifier> ?i .
+ ?i <http://schema.org/name> "CompanyUID" ; <http://schema.org/value> ?uid .
+ OPTIONAL { ?c <http://schema.org/identifier> ?j . ?j <http://schema.org/name> "CompanyCHID" ; <http://schema.org/value> ?chid }
+ OPTIONAL { ?c <http://schema.org/address> ?a . ?a <http://schema.org/addressRegion> ?reg }
+ OPTIONAL { ?c <https://schema.ld.admin.ch/municipality> ?m } } }
+ORDER BY ?c LIMIT %d OFFSET %d"""
+    page, off, parts = 50_000, 0, []
+    while True:
+        for attempt in range(5):
+            try:
+                r = requests.post("https://ld.admin.ch/query", data={"query": q % (page, off)}, timeout=600,
+                                  headers={"Accept": "text/csv", "User-Agent": UA})
+                r.raise_for_status()
+                break
+            except requests.RequestException as e:
+                print(f"  retry {attempt + 1}: {e}", flush=True)
+                time.sleep(10 * (attempt + 1))
+        else:
+            raise RuntimeError("LINDAS failed")
+        import io
+        df = pl.read_csv(io.BytesIO(r.content), infer_schema_length=0)
+        print(f"  LINDAS offset {off}: {df.height}", flush=True)
+        if df.height:
+            parts.append(df)
+        if df.height < page:
+            break
+        off += page
+    df = (pl.concat(parts)
+          .select(pl.col("uid").map_elements(fmt_uid, return_dtype=pl.String), "chid", pl.col("reg").alias("canton"),
+                  pl.col("m").str.extract(r"/(\d+)$").cast(pl.Int64).alias("bfs"))
+          .unique("uid"))
+    df.write_parquet(path)
+    return df
+
+
+def jobs_p2(shab, geo):
+    """Existing companies with no SHAB opening (entered before 09/2018), routed by
+    the current register: the canton of the address (Valais: the district of the
+    municipality), then the register of the CHID, which differs after a move."""
+    e = shab_frames(shab, geo)
+    opened = e.filter(pl.col("kind") == "open").select("uid").unique()
+    jobs = []
+    for r in lindas_firms().join(opened, on="uid", how="anti").sort("uid").iter_rows(named=True):
+        hosts = []
+        if r["canton"] == "VS":
+            first = next((x for lo, hi, x in VS_DISTRICTS if r["bfs"] and lo <= r["bfs"] <= hi), "vc")
+            hosts = [f"{first}.chregister.ch"] + [f"{x}.chregister.ch" for x in ("vc", "vb", "vo") if x != first]
+        elif r["canton"] in CANTON_HOST:
+            hosts = [CANTON_HOST[r["canton"]]]
+        m = re.match(r"CH(\d{3})", r["chid"] or "")
+        office = OFFICE_HOST.get(int(m.group(1))) if m else None
+        if office and office not in hosts:
+            hosts.append(office)
+        if hosts:
+            jobs.append({"uid": r["uid"], "hosts": hosts})
+    return jobs
+
+
 def jobs_sample(shab, geo, seed=7):
     """C0: 10 chregister active (opened 2018+, never closed: the HR01 journalDate
     checks the result), 10 chregister closed with no known opening, and for each of
@@ -481,7 +551,9 @@ def to_parquet():
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--jobs", choices=["p1", "sample"])
+    p.add_argument("--jobs", choices=["p1", "p2", "sample"])
+    p.add_argument("--prefix", default="p1", help="--split writes build/{prefix}_part{i}.json")
+    p.add_argument("--set", choices=["p1", "p2"], default="p1", help="job set that --split divides")
     p.add_argument("--jobs-file", help="run a job list written by --split")
     p.add_argument("--split", type=int, help="write the remaining p1 jobs as N files build/p1_part{i}.json: "
                    "chregister split by uid over all parts, romand jobs over the first ROMAND_PARTS "
@@ -496,19 +568,19 @@ if __name__ == "__main__":
     CHREG_LANES, PAUSE = a.lanes, a.pause
     os.makedirs(CACHE, exist_ok=True)
     if a.split:
-        jobs = [j for j in jobs_p1(a.shab, a.geo) if not done(j)]
+        jobs = [j for j in (jobs_p2 if a.set == "p2" else jobs_p1)(a.shab, a.geo) if not done(j)]
         parts = [[] for _ in range(a.split)]
         for j in jobs:
             n = min(a.split, ROMAND_PARTS) if j["hosts"][0] in HRC_BASE else a.split
             k = int(re.sub(r"\D", "", j["uid"])) % n
             parts[k].append(j)
         for k, part in enumerate(parts):
-            json.dump(part, open(os.path.join(BUILD, f"p1_part{k}.json"), "w"))
+            json.dump(part, open(os.path.join(BUILD, f"{a.prefix}_part{k}.json"), "w"))
             print(f"part {k}: {len(part)} jobs")
     elif a.jobs_file:
         run(json.load(open(a.jobs_file)))
     elif a.jobs:
-        jobs = jobs_p1(a.shab, a.geo) if a.jobs == "p1" else jobs_sample(a.shab, a.geo)
+        jobs = {"p1": jobs_p1, "p2": jobs_p2, "sample": jobs_sample}[a.jobs](a.shab, a.geo)
         if a.jobs == "sample":
             json.dump(jobs, open(os.path.join(BUILD, "cantonal_sample.json"), "w"), indent=0)
         if a.limit:

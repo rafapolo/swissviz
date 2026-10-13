@@ -13,6 +13,13 @@
 
 **Quem toca:** sessão Claude `swissviz-e5`, no worktree `~/Projetos/swissviz-cantonal` (branch `feat/cantonal-register`). A cópia em `~/Projetos/swissviz/tasks/` é antiga; vale esta.
 
+**⏸ Sessão interrompida às 13:14 por limite de uso, no meio da troca P1 → P2.** Decisão do usuário (13/10, ~13:00): **a P2 é mais relevante que a P1 e passa na frente.** O que falta para a troca:
+1. Conferir que `build/lindas_firms.parquet` existe (download do LINDAS estava em 700 mil de ~795 mil às 13:13; se não existir, rodar `jobs_p2` de novo, ele refaz o download).
+2. Testar `jobs_p2` (em `scripts/fetch_cantonal.py`, **ainda não testado**): contar jobs por sistema e conferir alguns roteamentos (VS por distrito, segundo host pelo CHID).
+3. Dividir só o chregister da P2 em 3 arquivos (`build/p2_chreg{0,1,2}.json`), enviar às remotas, parar os processos `p1_chreg*` (`run.sh stop chreg1` etc.; no Mac, kill do processo de `p1_chreg0.json`) e iniciar a P2 com 4 faixas por IP. A P1 do chregister retoma depois, pelo cache.
+4. Romands da P2: só depois que VD e FR da P1 terminarem, 1 faixa por host e por máquina; FR só pela colmeia, devagar.
+Até lá, **a P1 segue rodando normalmente** (estado das 13:13 abaixo: chregister ~98,7 mil por fazer, fim ~18:50; VD ~2.500, fim ~13:35; FR na colmeia 1.540, fim ~14:40, um HTTP 500 isolado). Os agendamentos da sessão continuam valendo enquanto ela estiver aberta.
+
 **O que está rodando (P1), dois processos por máquina:**
 
 | Máquina | chregister (4 faixas) | Falta | s/empresa | Romands (1 faixa por host) | Falta GE / VD / FR |
