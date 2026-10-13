@@ -9,8 +9,10 @@ api() { curl -s -m 30 -H "Authorization: Bearer $T" "$@"; }
 mkdir -p build/.idle
 while true; do
   [ -e build/.rebalancing ] && { sleep 120; continue; }
+  # an API or network error must not read as "no droplet left": python exits 1 and we retry
   rows=$(api "https://api.digitalocean.com/v2/droplets?tag_name=cantonal&per_page=200" |
-         python3 -c "import json,sys; [print(d['id'], d['name']) for d in json.load(sys.stdin)['droplets']]")
+         python3 -c "import json,sys; [print(d['id'], d['name']) for d in json.load(sys.stdin)['droplets']]" 2>/dev/null) ||
+    { echo "$(date +%H:%M) API unreachable, retrying"; sleep 120; continue; }
   [ -z "$rows" ] && { echo "$(date +%H:%M) no droplet left"; python3 scripts/do_budget.py; exit 0; }
   while read -r id name; do
     n=$(ssh -n -o ConnectTimeout=10 -o BatchMode=yes "$name" 'ps -eo args | grep -c "[f]etch_cantonal.py --jobs"; true' 2>/dev/null)
