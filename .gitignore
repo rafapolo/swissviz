@@ -5,3 +5,4 @@ node_modules/
 dist/
 build/
 scripts/__pycache__/
+.env
