@@ -8,6 +8,49 @@
 
 ---
 
+<!-- HANDOFF:INICIO (seção reescrita a cada relatório de 30 min) -->
+## Estado atual e handoff — atualizado em 13/10/2026 às 11:31
+
+**Quem toca:** sessão Claude `swissviz-e5`, no worktree `~/Projetos/swissviz-cantonal` (branch `feat/cantonal-register`). A cópia em `~/Projetos/swissviz/tasks/` é antiga; vale esta.
+
+**O que está rodando (P1: canceladas em 2018–2026 sem abertura conhecida):**
+
+| Máquina | Parte | Faixas | Falta chregister | s/empresa | Falta GE | Falta VD | Erros |
+|---|---|---|---|---|---|---|---|
+| Mac | `p1_part0.json` | 4 | 31.901 | 2,47 | 3.025 | 4.130 | 0 |
+| finland | `p1_part1.json` | 4 | 31.748 | 2,49 | 2.862 | 4.308 | 0 |
+| livre | `p1_part2.json` | 4 | 31.672 | 2,43 | 2.876 | 4.163 | 0 |
+| colmeia | `p1_part3.json` | 4 | 31.329 | 2,43 | — | — | 0 |
+
+- Ritmo: ~98 empresas/min por IP no chregister (limite por IP), ~390/min no total. Previsão de fim: ~17:00.
+- NE terminou. **FR está parado** (429 no Mac às 11:07); ~3.400 empresas de FR por fazer.
+- No cache do Mac: 21.200 extratos às 11:05 (mais o que o Mac baixou desde então). O cache das remotas fica em `~/cantonal/build/cantonal/` de cada uma até o rsync final.
+
+**Como operar:**
+- Estado das 4 máquinas: `bash scripts/cantonal_status.sh` (no Mac).
+- Reiniciar ou parar uma remota: `ssh <host> 'bash ~/cantonal/run.sh <parte> <faixas> "(nota)"'` ou `run.sh stop` (cópia em `scripts/cantonal_run.sh`). **Não** usar `pkill -f fetch_cantonal.py` por ssh: mata o próprio shell.
+- Mac: `nohup python3 -u scripts/fetch_cantonal.py --jobs-file build/p1_part0.json --lanes 4 >> build/cantonal_p1.log 2>&1 &`. Nunca dois processos do Mac sobre os mesmos hosts.
+- No zsh, rsync com aspas: `rsync -a "finland:cantonal/build/cantonal/" build/cantonal/` (sem aspas, `$h:c` vira modificador).
+- Tudo se retoma pelo cache: o script pula o que já tem arquivo em `build/cantonal/{host}/{uid}.json`.
+
+**Regras em vigor:**
+- 4 faixas por máquina no chregister (8 não rendem: limite por IP). Não acrescentar IPs além dos 4 sem aval do usuário.
+- Se o chregister passar de ~4 s por empresa: voltar as remotas para menos faixas ou pará-las.
+- Se um host devolver 403/429: tirar esse host de **todas** as máquinas, não insistir por outro IP, avisar o usuário.
+
+**Próximos passos:**
+1. **15:20** — retomar FR com 1 faixa, só no Mac: trazer o cache de FR das remotas, gerar `build/p1_fr.json` com os jobs de FR não feitos, rodar com `--lanes 1` e log em `build/cantonal_fr.log`. Se der 429 de novo, parar e avisar.
+2. **Quando as 4 terminarem** — rsync dos caches das três remotas para o Mac, `python3 scripts/fetch_cantonal.py --parquet`, refazer a C3 com o conjunto completo e commitar.
+3. **P2** (ativas anteriores a 09/2018, ~425 mil no chregister) — **não iniciar sem aval do usuário**. Falta escrever `jobs_p2`, roteando pelo registro atual (CHID do LINDAS → `OFFICE_HOST`).
+4. C4 — repassar `uid → registered` à sessão night-light e estender a linha do tempo.
+
+**Pendências com o usuário:** aval para a P2; o que fazer com FR se o 429 persistir.
+
+**Agendamentos que só existem na sessão `swissviz-e5`** (somem se ela fechar; outra sessão precisa recriá-los): relatório aos minutos 13 e 43, que também reescreve esta seção; retomada de FR às 15:20.
+<!-- HANDOFF:FIM -->
+
+---
+
 ## Por que o registro cantonal (verificado em 13/10/2026)
 
 | Fonte | Tem data de abertura? |
