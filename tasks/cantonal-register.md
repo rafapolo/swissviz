@@ -9,7 +9,7 @@
 ---
 
 <!-- HANDOFF:INICIO (seção reescrita a cada relatório de 30 min) -->
-## Estado atual e handoff — atualizado em 13/10/2026 às 13:58
+## Estado atual e handoff — atualizado em 13/10/2026 às 14:35
 
 **Quem toca:** sessão Claude `swissviz-e5`, no worktree `~/Projetos/swissviz-cantonal` (branch `feat/cantonal-register`). A cópia em `~/Projetos/swissviz/tasks/` é antiga; vale esta.
 
@@ -17,19 +17,21 @@
 
 **O que está rodando:**
 
-| Máquina | Processo | Arquivo → log | Faixas | Falta (13:54) | Previsão |
+| Máquina | Processo | Arquivo → log | Faixas | Falta (14:24) | Previsão |
 |---|---|---|---|---|---|
-| Mac | P2 chregister | `build/p2_chreg0.json` → `build/cantonal_p2_chreg0.log` | 4 | 118.399 | 14/10 ~10:00 |
-| Mac | P2 romands | `build/p2_romand0.json` → `build/cantonal_p2_romand0.log` | 1 por host | 24.835 | ~20:15 (VD) |
-| finland | P2 chregister | `p1_p2_chreg1.json` → `cantonal_p2_chreg1.log` | 4 | 118.533 | 14/10 ~10:00 |
-| finland | P2 romands | `p1_p2_romand1.json` → `cantonal_p2_romand1.log` | 1 por host | 24.295 | ~20:15 (VD) |
-| livre | P2 chregister | `p1_p2_chreg2.json` → `cantonal_p2_chreg2.log` | 4 | 117.925 | 14/10 ~10:00 |
-| livre | P2 romands | `p1_p2_romand2.json` → `cantonal_p2_romand2.log` | 1 por host | 24.579 | ~20:15 (VD) |
+| Mac | P2 chregister | `build/p2_chreg0.json` → `build/cantonal_p2_chreg0.log` | 4 | 115.455 | 14/10 ~10:00 |
+| Mac | P2 romands | `build/p2_romand0.json` → `build/cantonal_p2_romand0.log` | 1 por host | 20.519 | ~20:45 (VD) |
+| finland | P2 chregister | `p1_p2_chreg1.json` → `cantonal_p2_chreg1.log` | 4 | 115.416 | 14/10 ~10:00 |
+| finland | P2 romands | `p1_p2_romand1.json` → `cantonal_p2_romand1.log` | 1 por host | 20.591 | ~20:45 (VD) |
+| livre | P2 chregister | `p1_p2_chreg2.json` → `cantonal_p2_chreg2.log` | 4 | 114.967 | 14/10 ~10:00 |
+| livre | P2 romands | `p1_p2_romand2.json` → `cantonal_p2_romand2.log` | 1 por host | 20.743 | ~20:45 (VD) |
+| cantonal-1 (DO) | P1 chregister | `p1_do1.json` → `cantonal_do1.log` | 4 | 46.210 | ~22:25 |
+| cantonal-2 (DO) | P1 chregister | `p1_do2.json` → `cantonal_do2.log` | 4 | 46.160 | ~22:25 |
 
-- **Previsões:** P2 chregister ~10:00 de 14/10; P2 romands ~20:15 de hoje (VD é o mais longo); P1 chregister (~94 mil) depois da P2, ~5h30 → ~15:30 de 14/10.
+- **Droplets DigitalOcean (14:28, pedido do usuário):** `cantonal-1` (165.232.117.125) e `cantonal-2` (167.172.190.36), `s-1vcpu-512mb-10gb` em `fra1`, Ubuntu 24.04, tag `cantonal`, US$ 0,00595/h cada. Entram no ssh como `cantonal-1`/`cantonal-2` (chave `~/.ssh/extrapolo.pvt`). Token da API em `~/Projetos/swissviz/.env` (variável `digitalocean`, ignorado pelo git). Rodam a **P1 do chregister** (o resto de `p1_chreg{0,1,2}.json`, dividido em 2). Primeiro bloco: ~98 empresas/min cada, 2,4 s por empresa, sem 403, e as outras máquinas não ficaram mais lentas (20 requisições simultâneas no servidor da DV Bern, de 5 IPs). **Apagar as droplets ao fim da coleta** (`DELETE /v2/droplets?tag_name=cantonal`) e tirar os dois blocos do `~/.ssh/config`. Quando a P1 delas acabar (~22:25), redividir o resto da P2 do chregister incluindo-as.
+- **Previsões:** P2 chregister ~10:00 de 14/10; P2 romands: NE ~14:40, GE ~17:50, VD ~20:45 de hoje; P1 chregister nas droplets, ~22:25 de hoje.
 - **403 isolado na finland (13:36):** um POST do painel em `ag.chregister.ch` deu 403 três vezes logo no reinício da P2, e o processo parou só esse cantão nela (`ag … STOPPED` no log). Não parece bloqueio: no mesmo servidor e IP, a finland segue com ~100 extratos/min dos outros cantões, sem outro 403 em 20 min, e `ag.chregister.ch/cr-portal/` responde 302 a ela; Mac e livre seguem com AG normal. Os jobs de AG da parte 1 ficam pendentes e entram na próxima rodada (o cache pula o resto). Se aparecer outro 403 em qualquer cantão, parar o chregister em todas as máquinas.
 - **FR PARADO:** a finland levou **429 na primeira requisição** de FR às 13:36 (0 extratos). O `run.sh` da finland era o antigo e ignorou o `--pause 3`, e a finland já tinha feito FR às 11:06. Pela regra, FR fica para outro dia: `build/p12_fr.json` (1.246 da P1 + 14.620 da P2), 1 faixa, `--pause 3`, uma máquina só. O `run.sh` das remotas foi atualizado às 13:50.
-- **P1 pausada no chregister** desde 13:35 (Mac, finland e livre). Faltam ~94 mil, em `build/p1_chreg{0,1,2}.json` (o cache evita refazer). Retomar depois da P2, com os mesmos arquivos.
 - **P1 romands terminaram** nas três máquinas (~13:45; ~130 de VD com erro ou pendentes entram numa próxima rodada). **P2 romands iniciados às 13:50.**
 - **Colmeia fora de vez** (13:40, pedido do usuário: mover tudo dela e limpar). Os extratos de FR que ela baixou foram copiados para o Mac e conferidos (0 faltando); logs em `build/cantonal_fr_colmeia.log` e `build/cantonal_errors_colmeia.jsonl`; `~/cantonal` apagado lá, sem processo, sem cron e sem nada em `/tmp`.
 - GE e NE da P1 terminaram. Primeiros extratos da P2 (ativas) vêm com `registered` antigo (1985, 1987, 1999) e sem `deleted`, como esperado.
@@ -50,7 +52,7 @@
 **Regras em vigor:**
 - No máximo 4 faixas por IP no chregister. Sem testes de mais faixas.
 - 403/429 num host: parar esse host em **todas** as máquinas, não insistir por outro IP, avisar o usuário. Se FR der 429 na finland, parar FR e deixar para outro dia.
-- **Colmeia: não usar.** Não usar proxies (os endereços que o usuário passou estão na lista pública proxifly). Não acrescentar IPs por conta própria.
+- **Colmeia: não usar.** Não usar proxies (os endereços que o usuário passou estão na lista pública proxifly). Não acrescentar IPs por conta própria; droplets novas só com pedido do usuário.
 
 **Próximos passos:**
 1. FR: tentar outro dia, devagar, numa máquina só.
@@ -58,7 +60,7 @@
 3. Quando tudo terminar: rsync dos caches da finland e da livre para o Mac, `python3 scripts/fetch_cantonal.py --parquet`, refazer a C3 com o conjunto completo e commitar.
 4. C4 — repassar `uid → registered` à sessão night-light (substitui as precisões 1, 2 e 3 de `data/opening_dates.json.gz`; ver `tasks/cobertura-dados.md`) e estender a linha do tempo.
 
-**Pendências com o usuário:** droplets temporárias na DigitalOcean (perguntado às 13:50) — se criadas, entram só no chregister, 4 faixas cada, mesmas regras.
+**Pendências com o usuário:** quantas droplets a mais (estimativa de escala passada às 14:35).
 
 **Agendamentos que só existem na sessão `swissviz-e5`** (somem se ela fechar; outra sessão precisa recriá-los): relatório aos minutos 13 e 43, que também reescreve esta seção.
 <!-- HANDOFF:FIM -->
