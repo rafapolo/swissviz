@@ -5,6 +5,8 @@
 set -e
 cd "$(dirname "$0")/.."
 REMOTES=("$@")
+touch build/.rebalancing   # scripts/do_reaper.sh waits while this exists
+trap 'rm -f build/.rebalancing' EXIT
 # 1. stop every chregister worker
 for p in $(pgrep -f "fetch_cantonal.py --jobs-file build/(p1_chreg|p2_chreg|chreg)"); do kill $p; done
 for h in "${REMOTES[@]}"; do
