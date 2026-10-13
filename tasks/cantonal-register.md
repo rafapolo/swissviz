@@ -72,7 +72,7 @@ O link do extrato de cada empresa vem do Zefix, no campo `cantonalExcerptWeb` de
   - Tabela registro (`registerOfficeId` = dígitos 3–5 do CHID) → host em `OFFICE_HOST` do script.
   - VS tem três registros (vo/vc/vb, por distrito). Sem o número BFS, a região é escolhida pela longitude, com recuo para as outras quando dá "não encontrada".
 - [x] **Servidores:** os 24 `*.chregister.ch` resolvem para **um só IP** (185.125.167.99). GE, VD, FR e NE são servidores separados.
-  - **Decisão do usuário (13/10/2026):** 4 requisições simultâneas no servidor da DV Bern, cada uma com pausa ≥1 s, e 1 por host romand. No mesmo dia, subiu para **8 (`--lanes 8`), a partir de uma máquina só**. Dividir com as máquinas SSH (finland, livre) foi descartado: a latência quase não muda nada, porque as pausas dominam, e espalhar a carga por vários IPs se aproximaria de contornar o limite.
+  - **Decisão do usuário (13/10/2026):** 4 requisições simultâneas no servidor da DV Bern, cada uma com pausa ≥1 s, e 1 por host romand. No mesmo dia, foi testado com **8 (`--lanes 8`)**: deu ~90 empresas/min contra ~98/min com 4, e o tempo por empresa dobrou (2,5 → ~5 s). O servidor é o limite, então a coleta **voltou para 4**. Dividir com as máquinas SSH (finland, livre) foi descartado: a latência quase não muda nada, porque as pausas dominam, e espalhar a carga por vários IPs se aproximaria de contornar o limite.
 - [x] **Duração:**
   - P1 (198.639 canceladas em 2018–2026 sem HR01, ~150 mil no chregister): ~150 mil × 2,5 s ÷ 4 ≈ **26 h**. O maior romand é VD, com 18 mil.
   - P2 (ativas anteriores a 09/2018, ~425 mil no chregister): mais ~3 dias.
