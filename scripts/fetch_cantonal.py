@@ -488,11 +488,12 @@ if __name__ == "__main__":
                    "(each part runs one lane per romand host)")
     p.add_argument("--limit", type=int)
     p.add_argument("--lanes", type=int, default=CHREG_LANES, help="parallel lanes on the chregister server")
+    p.add_argument("--pause", type=float, default=PAUSE, help="seconds between two requests of a lane")
     p.add_argument("--parquet", action="store_true")
     p.add_argument("--shab", default=os.path.expanduser("~/Projetos/swissviz-timeline/build/shab_events.jsonl"))
     p.add_argument("--geo", default=os.path.expanduser("~/Projetos/swissviz-timeline/build/timeline_geo.parquet"))
     a = p.parse_args()
-    CHREG_LANES = a.lanes
+    CHREG_LANES, PAUSE = a.lanes, a.pause
     os.makedirs(CACHE, exist_ok=True)
     if a.split:
         jobs = [j for j in jobs_p1(a.shab, a.geo) if not done(j)]

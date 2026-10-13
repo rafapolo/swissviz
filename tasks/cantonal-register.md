@@ -9,7 +9,7 @@
 ---
 
 <!-- HANDOFF:INICIO (seção reescrita a cada relatório de 30 min) -->
-## Estado atual e handoff — atualizado em 13/10/2026 às 12:20
+## Estado atual e handoff — atualizado em 13/10/2026 às 12:36
 
 **Quem toca:** sessão Claude `swissviz-e5`, no worktree `~/Projetos/swissviz-cantonal` (branch `feat/cantonal-register`). A cópia em `~/Projetos/swissviz/tasks/` é antiga; vale esta.
 
@@ -20,11 +20,12 @@
 | Mac | `p1_chreg0.json` → `build/cantonal_chreg0.log` | 38.477 | `p1_part0_romand.json` → `build/cantonal_p1.log` | 1.004 / 2.610 / 589 |
 | finland | `p1_chreg1.json` → `cantonal_chreg1.log` | 38.241 | `p1_part1_romand.json` → `cantonal_p1.log` | 930 / 2.875 / — |
 | livre | `p1_chreg2.json` → `cantonal_chreg2.log` | 38.066 | `p1_part2_romand.json` → `cantonal_p1.log` | 1.069 / 2.654 / — |
+| colmeia | — | — | `p1_fr.json` → `cantonal_fr.log`, `--lanes 1 --pause 3` | — / — / 2.223 |
 
 - **chregister retomado às 12:17** com 4 faixas por IP nas três máquinas (12 simultâneas), o ritmo que o servidor aceitou por horas. Previsão: ~98/min por IP → ~6h30, fim por volta das 18:45.
 - **Histórico do dia:** 16 faixas na livre (11:58) deram 403 em segundos e o IP dela ficou sem conectar por alguns minutos; o chregister foi pausado em todas as máquinas das 11:59 às 12:17. Às 12:15 a livre voltou a conectar (HTTP 302).
-- **FR** voltou no Mac com 1 faixa às 11:59 e responde sem 429. Os jobs de FR que estavam nas partes da finland e da livre (~2.200) entram na retomada das 15:20, com 1 faixa e só no Mac.
-- **Colmeia fora** (12:08, decisão do usuário: não usar essa máquina para scraping). Os 5.161 extratos dela estão no cache do Mac; log em `build/cantonal_p1_colmeia.log`.
+- **FR:** voltou no Mac com 1 faixa às 11:59 e levou **um segundo 429** às ~12:24, depois de 990 empresas. Parece cota por IP num intervalo, não só simultaneidade. **Às 12:32, a pedido do usuário, o resto de FR (2.223 empresas; 4.930 de 7.153 já feitas) passou para a `colmeia`**, com 1 faixa e pausa de 3 s (~15/min, ~2h30, fim ~15:00). Primeiro minuto: 20 extratos, sem 429. Se der 429 lá, parar e deixar para outro dia.
+- **Colmeia:** saiu do chregister às 12:08 (decisão do usuário: não usar essa máquina para scraping; os 5.161 extratos dela estão no cache do Mac, log em `build/cantonal_p1_colmeia.log`). Voltou às 12:32 **só para FR**, por pedido explícito. O sshd dela recusa conexões por ~1 min depois de várias chamadas seguidas: juntar os comandos numa só chamada ssh.
 - NE terminou. Erros isolados: um HTTP 500 em GE (livre) e um em FR (Mac); ficam fora do cache e entram numa próxima rodada.
 - No cache do Mac: 58.408 extratos às 12:15 (com o rsync das remotas). O que as remotas baixam depois fica em `~/cantonal/build/cantonal/` até o rsync final.
 
@@ -37,23 +38,23 @@
 
 **O que se aprendeu sobre os limites:**
 - chregister, 4 faixas por IP: ~98 empresas/min, estável por horas. 8 faixas: mesmo total, tempo por requisição dobra. 16 faixas: **403 e bloqueio temporário do IP** em segundos.
-- FR: 1 faixa passa; 3 simultâneas deram 429.
+- FR: 429 com 3 simultâneas (após ~3.300 empresas no Mac) e de novo com 1 faixa (após 990). Cota por IP, tamanho desconhecido.
 - GE e VD: 3 simultâneas (uma por máquina) sem problema.
 
 **Regras em vigor:**
 - No máximo 4 faixas por IP no chregister. Sem testes de mais faixas.
 - 403/429 num host: tirar esse host de **todas** as máquinas, não insistir por outro IP, avisar o usuário.
-- **Nunca usar a `colmeia`.** Não usar proxies públicos (o usuário pediu duas vezes em 13/10; recusado, porque serviriam para contornar o limite por IP e o bloqueio). Não acrescentar IPs.
+- **Colmeia só para FR**, nada mais nela sem pedido explícito do usuário. Não usar proxies públicos (pedido várias vezes em 13/10 e recusado: são máquinas de terceiros e serviriam para contornar o limite por IP e o bloqueio). Não acrescentar IPs por conta própria.
 
 **Próximos passos:**
-1. **15:20** — FR: trazer o cache de FR das remotas, gerar `build/p1_fr.json` com os jobs de FR não feitos e rodar com `--lanes 1` no Mac (se o processo de romands do Mac ainda estiver em FR, esperar ele acabar).
-2. **Quando tudo terminar** — rsync dos caches da finland e da livre para o Mac, `python3 scripts/fetch_cantonal.py --parquet`, refazer a C3 com o conjunto completo e commitar.
+1. **FR na colmeia** — acompanhar; ao terminar, `rsync -a "colmeia:cantonal/build/cantonal/" build/cantonal/`, conferir e apagar `~/cantonal` lá.
+2. **Quando tudo terminar** — rsync dos caches da finland, da livre e da colmeia para o Mac, `python3 scripts/fetch_cantonal.py --parquet`, refazer a C3 com o conjunto completo e commitar.
 3. **P2** (ativas anteriores a 09/2018, ~425 mil no chregister) — **não iniciar sem aval do usuário**. Falta escrever `jobs_p2`, roteando pelo registro atual (CHID do LINDAS → `OFFICE_HOST`).
 4. C4 — repassar `uid → registered` à sessão night-light e estender a linha do tempo.
 
 **Pendências com o usuário:** aval para a P2.
 
-**Agendamentos que só existem na sessão `swissviz-e5`** (somem se ela fechar; outra sessão precisa recriá-los): relatório aos minutos 13 e 43, que também reescreve esta seção; retomada de FR às 15:20.
+**Agendamentos que só existem na sessão `swissviz-e5`** (somem se ela fechar; outra sessão precisa recriá-los): relatório aos minutos 13 e 43, que também reescreve esta seção.
 <!-- HANDOFF:FIM -->
 
 ---
