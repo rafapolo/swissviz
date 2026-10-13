@@ -9,15 +9,15 @@
 ---
 
 <!-- HANDOFF:INICIO (seção reescrita a cada relatório de 30 min) -->
-## Estado atual e handoff — atualizado em 13/10/2026 às 14:55
+## Estado atual e handoff — atualizado em 13/10/2026 às 16:18
 
 **Quem toca:** sessão Claude `swissviz-e5`, no worktree `~/Projetos/swissviz-cantonal` (branch `feat/cantonal-register`). A cópia em `~/Projetos/swissviz/tasks/` é antiga; vale esta.
 
 **Prioridade (decisão do usuário, 13/10 ~13:00): P2 antes da P1.** P2 = 452.518 ativas sem abertura no SHAB (inscritas antes de 09/2018), de `jobs_p2` sobre `build/lindas_firms.parquet`. Roteamento pelo cantão atual (VS pelo distrito, `VS_DISTRICTS`), com o registro do CHID como segundo host.
 
-**Orçamento (usuário, 13/10 14:40): até US$ 5 em droplets DigitalOcean para terminar o mais rápido possível, com o gasto conferido pela API.** `python3 scripts/do_budget.py --hours-left H` mostra o gasto de cada droplet (created_at × preço por hora), o total, a projeção e o uso do mês no faturamento (que só atualiza uma vez por dia); guarda o custo das droplets apagadas em `build/do_spent.json`; sai com código 2 acima de US$ 4,50 → **apagar as droplets na hora**. Às 14:55: 5 droplets, US$ 0,030/h; projeção até o fim ~US$ 0,30.
+**Orçamento (usuário, 13/10 14:40): até US$ 5 em droplets DigitalOcean para terminar o mais rápido possível, com o gasto conferido pela API.** `python3 scripts/do_budget.py --hours-left H` mostra o gasto de cada droplet (created_at × preço por hora), o total, a projeção e o uso do mês no faturamento (que só atualiza uma vez por dia); guarda o custo das droplets apagadas em `build/do_spent.json`; sai com código 2 acima de US$ 4,50 → **apagar as droplets na hora**. Às 16:18: 5 droplets, US$ 0,030/h, gasto US$ 0,053, projeção até o fim ~US$ 0,29; o faturamento da DO já mostra US$ 0,07 de uso no mês.
 
-**O que está rodando (14:55):** todo o chregister que falta (P2 primeiro, depois P1: 432.275 empresas) redividido em 8 partes iguais por `scripts/cantonal_rebalance.sh`, uma por IP, 4 faixas cada.
+**O que está rodando (redividido às 14:38):** todo o chregister que falta (P2 primeiro, depois P1: 432.275 empresas) redividido em 8 partes iguais por `scripts/cantonal_rebalance.sh`, uma por IP, 4 faixas cada.
 
 | Máquina | IP | chregister | Romands P2 (1 faixa por host) |
 |---|---|---|---|
@@ -30,8 +30,9 @@
 | cantonal-4 (DO) | 164.92.245.40 | idem | — |
 | cantonal-5 (DO) | 167.71.62.96 | idem | — |
 
-- **Previsão:** 54.034 por máquina a ~98/min → ~9h10, fim do chregister ~00:10 de 14/10. Romands da P2: GE ~17:50, VD ~20:45 de hoje.
+- **Previsão (16:18):** ~44.900 por máquina, 2,46–2,53 s por empresa (~97/min por máquina, ~775/min no total), sem 403. Cada parte faz a P2 primeiro: **P2 do chregister ~22:05**, P1 do chregister ~00:00 de 14/10. Romands da P2: GE ~18:05 (~12.600 restantes), VD ~20:35 (~23.650). NE terminou.
 - **Droplets:** `s-1vcpu-512mb-10gb`, `fra1`, Ubuntu 24.04, tag `cantonal`, US$ 0,00595/h cada, chave `~/.ssh/extrapolo.pvt`, hosts `cantonal-1..5` no `~/.ssh/config`. Token em `~/Projetos/swissviz/.env` (variável `digitalocean`, ignorado pelo git). As duas primeiras (14:28) mediram ~98/min cada sem deixar as outras mais lentas. **No fim: trazer os caches, apagar as droplets (`DELETE /v2/droplets?tag_name=cantonal`) e tirar os blocos `cantonal-*` do `~/.ssh/config`.**
+- **FR e droplets/outros IPs:** o usuário pediu (16:00) para usar uma droplet em FR depois do chregister; recusado: cada IP novo seria uma cota fresca para contornar o 429. Reconhecido que mover FR para a colmeia depois do 429 do Mac (12:32) foi o mesmo erro. Proposto: FR amanhã a partir das 8h só no Mac, 1 faixa, `--pause 3`, parando no 429; e/ou um pedido em lote ao registro de Friburgo. Aguardando resposta.
 - **FR parado** desde o 429 da finland (13:36): `build/p12_fr.json` (1.246 da P1 + 14.620 da P2), para outro dia, 1 faixa, `--pause 3`, uma máquina só.
 - **AG:** o 403 isolado da finland (13:36) não se repetiu; os jobs pendentes entraram na redivisão.
 - GE e NE da P1 terminaram; ~130 de VD da P1 com erro ou pendentes entram numa próxima rodada.
