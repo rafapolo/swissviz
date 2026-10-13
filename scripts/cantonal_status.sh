@@ -1,14 +1,18 @@
 #!/bin/bash
-# Último bloco de 5 min de cada coletor: soma do chregister, s/empresa, erros, linhas "!!".
+# Last 5-minute block of every worker log on the Mac, finland and livre:
+# chregister total and s/firm, each romand host, "!!" lines, live workers.
+last='for f in build/cantonal_*.log; do case $f in *errors*|*colmeia*) continue;; esac
+  [ -n "$(find "$f" -mmin -30)" ] || continue
+  echo "@log $f"; tail -120 "$f" | awk "/^-- /{buf=\"\"} {buf=buf \$0 \"\n\"} END{printf \"%s\", buf}"; grep "^!!" "$f" | tail -3; done
+echo "@live $(ps -eo args | grep -c "[f]etch_cantonal.py --jobs")  errors=$(grep -c . build/cantonal_errors.jsonl)"'
 summ() { awk -v m="$1" '
-  /^-- /{blk=$0; n=0; s=0; e=0; nf=0}
-  /chregister\.ch/{n+=$3; nf+=$5; e+=$7; s+=$3*$8; last=1}
-  /^!!/{bang=bang "\n   " $0}
-  END{printf "%-8s %s\n   chregister (acumulado desde o início do processo): ok %d nf %d err %d  %.2f s/empresa%s\n", m, blk, n, nf, e, (n?s/n:0), bang}'; }
-tail -200 ~/Projetos/swissviz-cantonal/build/cantonal_p1.log | awk '/^=== restart/{buf=""} {buf=buf $0 "\n"} END{printf "%s", buf}' | awk '/^-- /{buf=""} {buf=buf $0 "\n"} END{printf "%s", buf}' | summ mac
-pgrep -f fetch_cantonal >/dev/null && echo "   processo: vivo" || echo "   processo: PARADO"
-for h in finland livre; do
-  ssh -o ConnectTimeout=10 -o BatchMode=yes $h 'tail -200 ~/cantonal/build/cantonal_p1.log; echo "@@ $(pgrep -f fetch_cantonal.py >/dev/null && echo vivo || echo PARADO) erros=$(wc -l < ~/cantonal/build/cantonal_errors.jsonl)"' 2>&1 > /tmp/.cs_$h.$$
-  grep -v '^@@' /tmp/.cs_$h.$$ | awk '/^-- /{buf=""} {buf=buf $0 "\n"} END{printf "%s", buf}' | summ $h
-  grep '^@@' /tmp/.cs_$h.$$ | sed 's/^@@/   processo:/'; rm -f /tmp/.cs_$h.$$
-done
+  /^@log/{if(f)flush(); f=$2; blk=""; n=nf=e=s=0; rom=""; next}
+  /^@live/{if(f)flush(); f=""; printf "   workers vivos: %s  %s\n", $2, $3; next}
+  /^-- /{blk=$0; next}
+  /^!!/{rom=rom "\n     " $0; next}
+  /chregister\.ch/{n+=$3; nf+=$5; e+=$7; s+=$3*$8; next}
+  /^  [a-z0-9.]+ +ok/{rom=rom sprintf("\n     %-18s ok %s err %s  %s s/empresa%s", $1, $3, $7, $8, ($0~/STOPPED/?" STOPPED":"")); next}
+  function flush(){printf "%-8s %s  %s\n", m, f, blk; if(n) printf "     chregister (desde o início do processo): ok %d nf %d err %d  %.2f s/empresa\n", n, nf, e, s/n; if(rom) print substr(rom,2)}
+  END{if(f)flush()}'; }
+(cd ~/Projetos/swissviz-cantonal && bash -c "$last") | summ mac
+for h in finland livre; do ssh -o ConnectTimeout=10 -o BatchMode=yes $h "cd ~/cantonal && $last" 2>&1 | summ $h; done
