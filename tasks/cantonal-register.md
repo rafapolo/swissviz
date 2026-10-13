@@ -9,13 +9,13 @@
 ---
 
 <!-- HANDOFF:INICIO (seção reescrita a cada relatório de 30 min) -->
-## Estado atual e handoff — atualizado em 13/10/2026 às 16:18
+## Estado atual e handoff — atualizado em 13/10/2026 às 18:18
 
 **Quem toca:** sessão Claude `swissviz-e5`, no worktree `~/Projetos/swissviz-cantonal` (branch `feat/cantonal-register`). A cópia em `~/Projetos/swissviz/tasks/` é antiga; vale esta.
 
 **Prioridade (decisão do usuário, 13/10 ~13:00): P2 antes da P1.** P2 = 452.518 ativas sem abertura no SHAB (inscritas antes de 09/2018), de `jobs_p2` sobre `build/lindas_firms.parquet`. Roteamento pelo cantão atual (VS pelo distrito, `VS_DISTRICTS`), com o registro do CHID como segundo host.
 
-**Orçamento (usuário, 13/10 14:40): até US$ 5 em droplets DigitalOcean para terminar o mais rápido possível, com o gasto conferido pela API.** `python3 scripts/do_budget.py --hours-left H` mostra o gasto de cada droplet (created_at × preço por hora), o total, a projeção e o uso do mês no faturamento (que só atualiza uma vez por dia); guarda o custo das droplets apagadas em `build/do_spent.json`; sai com código 2 acima de US$ 4,50 → **apagar as droplets na hora**. Às 16:18: 5 droplets, US$ 0,030/h, gasto US$ 0,053, projeção até o fim ~US$ 0,29; o faturamento da DO já mostra US$ 0,07 de uso no mês.
+**Orçamento (usuário, 13/10 14:40): até US$ 5 em droplets DigitalOcean para terminar o mais rápido possível, com o gasto conferido pela API.** `python3 scripts/do_budget.py --hours-left H` mostra o gasto de cada droplet (created_at × preço por hora), o total, a projeção e o uso do mês no faturamento (que só atualiza uma vez por dia); guarda o custo das droplets apagadas em `build/do_spent.json`; sai com código 2 acima de US$ 4,50 → **apagar as droplets na hora**. Às 18:18: 5 droplets, US$ 0,030/h, gasto US$ 0,112, projeção até o fim ~US$ 0,29; o faturamento da DO já mostra US$ 0,07 de uso no mês.
 
 **O que está rodando (redividido às 14:38):** todo o chregister que falta (P2 primeiro, depois P1: 432.275 empresas) redividido em 8 partes iguais por `scripts/cantonal_rebalance.sh`, uma por IP, 4 faixas cada.
 
@@ -30,7 +30,7 @@
 | cantonal-4 (DO) | 164.92.245.40 | idem | — |
 | cantonal-5 (DO) | 167.71.62.96 | idem | — |
 
-- **Previsão (16:18):** ~44.900 por máquina, 2,46–2,53 s por empresa (~97/min por máquina, ~775/min no total), sem 403. Cada parte faz a P2 primeiro: **P2 do chregister ~22:05**, P1 do chregister ~00:00 de 14/10. Romands da P2: GE ~18:05 (~12.600 restantes), VD ~20:35 (~23.650). NE terminou.
+- **Previsão (18:18):** ~33.200 por máquina, 2,45–2,50 s por empresa (~98/min), sem 403. O Mac segue mais lento (2,61 s, ~92/min, 34.241 restantes; carga do Mac em ~20 por outras sessões). Cada parte faz a P2 primeiro: **P2 do chregister ~22:00**, P1 do chregister ~23:55 (Mac ~00:30). **GE da P2 terminou** nas três máquinas (~18:15). VD ~20:25 (~11.900 restantes). NE terminou. O apagador ainda não removeu nenhuma droplet.
 - **Apagador de droplets (16:25):** `scripts/do_reaper.sh` roda em segundo plano no Mac (log `build/do_reaper.log`). A cada 2 min, para cada droplet `cantonal`: se não tem worker em duas checagens seguidas e não há redivisão em curso (`build/.rebalancing`, criado por `cantonal_rebalance.sh`), copia o cache dela para o Mac, apaga a droplet pela API e tira o bloco dela do `~/.ssh/config`. Sai quando não sobra droplet, imprimindo o gasto final. Se esta sessão fechar, ele para: rodar de novo com `nohup bash scripts/do_reaper.sh >> build/do_reaper.log 2>&1 &`.
 - **Droplets:** `s-1vcpu-512mb-10gb`, `fra1`, Ubuntu 24.04, tag `cantonal`, US$ 0,00595/h cada, chave `~/.ssh/extrapolo.pvt`, hosts `cantonal-1..5` no `~/.ssh/config`. Token em `~/Projetos/swissviz/.env` (variável `digitalocean`, ignorado pelo git). As duas primeiras (14:28) mediram ~98/min cada sem deixar as outras mais lentas. **No fim: trazer os caches, apagar as droplets (`DELETE /v2/droplets?tag_name=cantonal`) e tirar os blocos `cantonal-*` do `~/.ssh/config`.**
 - **FR:** sem droplets nem outros IPs (cada IP novo seria uma cota fresca para contornar o 429; mover FR para a colmeia às 12:32 foi o mesmo erro). **Agendado (aprovado pelo usuário às ~16:20): amanhã 14/10 às 8:07, só no Mac**, 1 faixa, `--pause 3`, a partir de `build/p12_fr.json`, log `build/cantonal_fr.log`; se der 429, tentar de novo no dia seguinte às 8:07.
