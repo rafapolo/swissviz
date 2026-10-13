@@ -2,65 +2,62 @@
 
 **Objetivo**: Ter, para **todas** as empresas que o registro comercial conhece (ativas e canceladas desde 2000), a data de inscrição original ("Eingetragen am", desde 1883) e o histórico que interessa ao mapa: data de cancelamento, mudanças de sede, de nome, de forma jurídica e de endereço. Isso permite estender a linha do tempo para antes de 2018 com datas certas, em vez de estimadas.
 **Arquivos**: `scripts/fetch_cantonal.py` (novo), `build/cantonal/` (cache, fora do git), `build/cantonal.parquet`, `data/timeline/*`
-**Status**: Em andamento (C0 feito em 13/10/2026; P1 coletando)
+**Status**: Em andamento (C0 feito em 13/10/2026; P2 coletando, P1 pausada no chregister)
 **Depende de**: `tasks/timeline-shab.md` (UIDs 2018–2026), lista de UIDs ativos do LINDAS (`tasks/update-data-lindas.md` T1)
 **Prazo**: não bloqueia a inscrição de 16/10/2026. A animação 2018–2026 já está pronta.
 
 ---
 
 <!-- HANDOFF:INICIO (seção reescrita a cada relatório de 30 min) -->
-## Estado atual e handoff — atualizado em 13/10/2026 às 12:46
+## Estado atual e handoff — atualizado em 13/10/2026 às 13:50
 
 **Quem toca:** sessão Claude `swissviz-e5`, no worktree `~/Projetos/swissviz-cantonal` (branch `feat/cantonal-register`). A cópia em `~/Projetos/swissviz/tasks/` é antiga; vale esta.
 
-**⏸ Sessão interrompida às 13:14 por limite de uso, no meio da troca P1 → P2.** Decisão do usuário (13/10, ~13:00): **a P2 é mais relevante que a P1 e passa na frente.** O que falta para a troca:
-1. Conferir que `build/lindas_firms.parquet` existe (download do LINDAS estava em 700 mil de ~795 mil às 13:13; se não existir, rodar `jobs_p2` de novo, ele refaz o download).
-2. Testar `jobs_p2` (em `scripts/fetch_cantonal.py`, **ainda não testado**): contar jobs por sistema e conferir alguns roteamentos (VS por distrito, segundo host pelo CHID).
-3. Dividir só o chregister da P2 em 3 arquivos (`build/p2_chreg{0,1,2}.json`), enviar às remotas, parar os processos `p1_chreg*` (`run.sh stop chreg1` etc.; no Mac, kill do processo de `p1_chreg0.json`) e iniciar a P2 com 4 faixas por IP. A P1 do chregister retoma depois, pelo cache.
-4. Romands da P2: só depois que VD e FR da P1 terminarem, 1 faixa por host e por máquina; FR só pela colmeia, devagar.
-Até lá, **a P1 segue rodando normalmente** (estado das 13:13 abaixo: chregister ~98,7 mil por fazer, fim ~18:50; VD ~2.500, fim ~13:35; FR na colmeia 1.540, fim ~14:40, um HTTP 500 isolado). Os agendamentos da sessão continuam valendo enquanto ela estiver aberta.
+**Prioridade (decisão do usuário, 13/10 ~13:00): a P2 passa na frente da P1.** P2 = 452.518 empresas ativas sem abertura no SHAB (inscritas antes de 09/2018), lista de `jobs_p2` a partir de `build/lindas_firms.parquet` (LINDAS: UID, CHID, cantão e município, baixado em 13/10). Roteamento: cantão do endereço atual (VS pelo distrito do município BFS, `VS_DISTRICTS`), e o registro do CHID como segundo host quando difere (51 mil empresas que mudaram de cantão).
 
-**O que está rodando (P1), dois processos por máquina:**
+**O que está rodando:**
 
-| Máquina | chregister (4 faixas) | Falta | s/empresa | Romands (1 faixa por host) | Falta GE / VD / FR |
-|---|---|---|---|---|---|
-| Mac | `p1_chreg0.json` → `build/cantonal_chreg0.log` | 36.026 | 2,43 | `p1_part0_romand.json` → `build/cantonal_p1.log` | 0 / 1.602 / — |
-| finland | `p1_chreg1.json` → `cantonal_chreg1.log` | 35.816 | 2,45 | `p1_part1_romand.json` → `cantonal_p1.log` | 0 / 1.884 / — |
-| livre | `p1_chreg2.json` → `cantonal_chreg2.log` | 35.626 | 2,45 | `p1_part2_romand.json` → `cantonal_p1.log` | 0 / 1.611 / — |
-| colmeia | — | — | — | `p1_fr.json` → `cantonal_fr.log`, `--lanes 1 --pause 3` | — / — / 2.039 |
+| Máquina | Processo | Arquivo → log | Faixas | Falta (13:35) |
+|---|---|---|---|---|
+| Mac | P2 chregister | `build/p2_chreg0.json` → `build/cantonal_p2_chreg0.log` | 4 | 120.371 |
+| Mac | P1 romands (VD) | `build/p1_part0_romand.json` → `build/cantonal_p1.log` | 1 por host | ~160 VD |
+| finland | P2 chregister | `p1_p2_chreg1.json` → `cantonal_p2_chreg1.log` | 4 | 120.606 |
+| finland | P1 romands (VD) | `p1_part1_romand.json` → `cantonal_p1.log` | 1 por host | ~390 VD |
+| finland | FR (resto da P1, depois P2) | `p1_p12_fr.json` → `cantonal_p12_fr.log` | 1, `--pause 3` | 1.246 P1 + 14.620 P2 |
+| livre | P2 chregister | `p1_p2_chreg2.json` → `cantonal_p2_chreg2.log` | 4 | 119.886 |
+| livre | P1 romands (VD) | `p1_part2_romand.json` → `cantonal_p1.log` | 1 por host | ~40 VD |
 
-- **chregister retomado às 12:17** com 4 faixas por IP nas três máquinas (12 simultâneas), 0 erro e nenhum 403 novo. ~98/min por IP; faltam ~107,5 mil; previsão de fim ~18:50.
-- **GE terminou** nas três máquinas (~12:44). **VD:** faltam ~5.100, 1,8–1,9 s por empresa, fim ~13:40.
-- **Histórico do dia:** 16 faixas na livre (11:58) deram 403 em segundos e o IP dela ficou sem conectar por alguns minutos; o chregister foi pausado em todas as máquinas das 11:59 às 12:17. Às 12:15 a livre voltou a conectar (HTTP 302).
-- **FR:** voltou no Mac com 1 faixa às 11:59 e levou **um segundo 429** às ~12:24, depois de 990 empresas. Parece cota por IP num intervalo, não só simultaneidade. **Às 12:32, a pedido do usuário, o resto de FR (2.223 empresas; 4.930 de 7.153 já feitas) passou para a `colmeia`**, com 1 faixa e pausa de 3 s Às 12:42: 183 feitos em 10 min (3,3 s por empresa, ~18/min), sem 429; faltam 2.039, fim ~14:35. Se der 429 lá, parar e deixar para outro dia.
-- **Colmeia:** saiu do chregister às 12:08 (decisão do usuário: não usar essa máquina para scraping; os 5.161 extratos dela estão no cache do Mac, log em `build/cantonal_p1_colmeia.log`). Voltou às 12:32 **só para FR**, por pedido explícito. O sshd dela recusa conexões por ~1 min depois de várias chamadas seguidas: juntar os comandos numa só chamada ssh.
-- NE terminou. O 429 de FR no Mac deixou `STOPPED` nesse log; é o bloqueio já conhecido. Erros isolados: um HTTP 500 em GE (livre) e um em FR (Mac); ficam fora do cache e entram numa próxima rodada.
-- No cache do Mac: 58.408 extratos às 12:15 (com o rsync das remotas). O que as remotas baixam depois fica em `~/cantonal/build/cantonal/` até o rsync final.
+- **Previsões:** P2 chregister ~120 mil por máquina a ~98/min → ~20 h, fim ~14/10 09:30. FR ~15,9 mil a ~17/min → ~15 h, se a cota por IP deixar.
+- **P1 pausada no chregister** desde 13:35 (Mac, finland e livre). Faltam ~94 mil, em `build/p1_chreg{0,1,2}.json` (o cache evita refazer). Retomar depois da P2, com os mesmos arquivos.
+- **P2 romands por iniciar:** `build/p2_romand{0,1,2}.json` (GE ~31 mil, VD ~38 mil, NE ~7,8 mil, divididos em 3), já copiados para as remotas como `p1_p2_romand{1,2}.json`. **Iniciar em cada máquina só quando o processo de P1 romands dela terminar** (para não ter 2 faixas no mesmo host romand por máquina): remotas `bash ~/cantonal/run.sh p2_romand<i> 1 "(P2 romands)"`; Mac `nohup python3 -u scripts/fetch_cantonal.py --jobs-file build/p2_romand0.json --lanes 1 >> build/cantonal_p2_romand0.log 2>&1 &`.
+- **Colmeia fora de vez** (13:40, pedido do usuário: mover tudo dela e limpar). Os extratos de FR que ela baixou foram copiados para o Mac e conferidos (0 faltando); logs em `build/cantonal_fr_colmeia.log` e `build/cantonal_errors_colmeia.jsonl`; `~/cantonal` apagado lá, sem processo, sem cron e sem nada em `/tmp`.
+- GE e NE da P1 terminaram. Primeiros extratos da P2 (ativas) vêm com `registered` antigo (1985, 1987, 1999) e sem `deleted`, como esperado.
+- Cache no Mac: 70.863 extratos, 280 MB, às 13:45.
 
 **Como operar:**
 - Estado de tudo: `bash scripts/cantonal_status.sh` (no Mac).
-- Remotas: `ssh <host> 'bash ~/cantonal/run.sh <jobs> <faixas> "(nota)"'` inicia `build/p1_<jobs>.json` com log `build/cantonal_<jobs>.log` e só mexe no processo desse arquivo; `run.sh stop <jobs>` para um, `run.sh stop` para todos. Cópia em `scripts/cantonal_run.sh`. **Não** usar `pkill -f fetch_cantonal.py` por ssh: mata o próprio shell.
-- Mac: `nohup python3 -u scripts/fetch_cantonal.py --jobs-file build/<arquivo>.json --lanes N >> build/<log> 2>&1 &`. Nunca dois processos sobre os mesmos hosts na mesma máquina.
+- Remotas: `ssh <host> 'bash ~/cantonal/run.sh <jobs> <faixas> "(nota)" ["--pause 3"]'` inicia `build/p1_<jobs>.json` (por isso os arquivos da P2 nas remotas têm o prefixo `p1_`) com log `build/cantonal_<jobs>.log`, e só mexe no processo desse arquivo; `run.sh stop <jobs>` para um, `run.sh stop` para todos. Cópia em `scripts/cantonal_run.sh`. **Não** usar `pkill -f fetch_cantonal.py` por ssh: mata o próprio shell.
+- Mac: `nohup python3 -u scripts/fetch_cantonal.py --jobs-file build/<arquivo>.json --lanes N [--pause S] >> build/<log> 2>&1 &`. Nunca dois processos sobre os mesmos hosts na mesma máquina.
 - No zsh, rsync com aspas: `rsync -a "finland:cantonal/build/cantonal/" build/cantonal/`.
 - Tudo se retoma pelo cache: o script pula o que já tem arquivo em `build/cantonal/{host}/{uid}.json`.
 
-**O que se aprendeu sobre os limites:**
-- chregister, 4 faixas por IP: ~98 empresas/min, estável por horas. 8 faixas: mesmo total, tempo por requisição dobra. 16 faixas: **403 e bloqueio temporário do IP** em segundos.
-- FR: 429 com 3 simultâneas (após ~3.300 empresas no Mac) e de novo com 1 faixa (após 990). Cota por IP, tamanho desconhecido.
-- GE e VD: 3 simultâneas (uma por máquina) sem problema.
+**Limites aprendidos:**
+- chregister, 4 faixas por IP: ~98 empresas/min, estável por horas. 8 faixas: mesmo total, tempo por requisição dobra. 16 faixas: **403 e bloqueio temporário do IP** em segundos (livre, 11:58).
+- FR: cota por IP num intervalo de tempo. 429 no Mac com 3 simultâneas (após ~3.300) e de novo com 1 faixa (após 990). Na colmeia, 1 faixa com pausa de 3 s passou ~1.900 sem 429.
+- GE, VD e NE: 3 simultâneas (uma por máquina) sem problema.
 
 **Regras em vigor:**
 - No máximo 4 faixas por IP no chregister. Sem testes de mais faixas.
-- 403/429 num host: tirar esse host de **todas** as máquinas, não insistir por outro IP, avisar o usuário.
-- **Colmeia só para FR**, nada mais nela sem pedido explícito do usuário. Não usar proxies públicos (pedido várias vezes em 13/10 e recusado: são máquinas de terceiros e serviriam para contornar o limite por IP e o bloqueio). Não acrescentar IPs por conta própria.
+- 403/429 num host: parar esse host em **todas** as máquinas, não insistir por outro IP, avisar o usuário. Se FR der 429 na finland, parar FR e deixar para outro dia.
+- **Colmeia: não usar.** Não usar proxies (os endereços que o usuário passou estão na lista pública proxifly). Não acrescentar IPs por conta própria.
 
 **Próximos passos:**
-1. **FR na colmeia** — acompanhar; ao terminar, `rsync -a "colmeia:cantonal/build/cantonal/" build/cantonal/`, conferir e apagar `~/cantonal` lá.
-2. **Quando tudo terminar** — rsync dos caches da finland, da livre e da colmeia para o Mac, `python3 scripts/fetch_cantonal.py --parquet`, refazer a C3 com o conjunto completo e commitar.
-3. **P2** (ativas anteriores a 09/2018, ~425 mil no chregister) — **não iniciar sem aval do usuário**. Falta escrever `jobs_p2`, roteando pelo registro atual (CHID do LINDAS → `OFFICE_HOST`).
-4. C4 — repassar `uid → registered` à sessão night-light e estender a linha do tempo.
+1. Iniciar os P2 romands em cada máquina quando a P1 romands dela acabar (ver acima).
+2. Acompanhar a P2; ao fim, retomar a P1 do chregister com `p1_chreg{0,1,2}.json`.
+3. Quando tudo terminar: rsync dos caches da finland e da livre para o Mac, `python3 scripts/fetch_cantonal.py --parquet`, refazer a C3 com o conjunto completo e commitar.
+4. C4 — repassar `uid → registered` à sessão night-light (substitui as precisões 1, 2 e 3 de `data/opening_dates.json.gz`; ver `tasks/cobertura-dados.md`) e estender a linha do tempo.
 
-**Pendências com o usuário:** aval para a P2.
+**Pendências com o usuário:** nenhuma.
 
 **Agendamentos que só existem na sessão `swissviz-e5`** (somem se ela fechar; outra sessão precisa recriá-los): relatório aos minutos 13 e 43, que também reescreve esta seção.
 <!-- HANDOFF:FIM -->
