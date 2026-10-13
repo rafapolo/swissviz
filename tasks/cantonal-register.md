@@ -1,0 +1,118 @@
+# Datas de abertura e histórico de todas as empresas pelo registro cantonal
+
+**Objetivo**: Ter, para **todas** as empresas que o registro comercial conhece (ativas e canceladas desde 2000), a data de inscrição original ("Eingetragen am", desde 1883) e o histórico que interessa ao mapa: data de cancelamento, mudanças de sede, de nome, de forma jurídica e de endereço. Isso permite estender a linha do tempo para antes de 2018 com datas certas, em vez de estimadas.
+**Arquivos**: `scripts/fetch_cantonal.py` (novo), `build/cantonal/` (cache, fora do git), `build/cantonal.parquet`, `data/timeline/*`
+**Status**: Em andamento (C0 feito em 13/10/2026; P1 coletando)
+**Depende de**: `tasks/timeline-shab.md` (UIDs 2018–2026), lista de UIDs ativos do LINDAS (`tasks/update-data-lindas.md` T1)
+**Prazo**: não bloqueia a inscrição de 16/10/2026. A animação 2018–2026 já está pronta.
+
+---
+
+## Por que o registro cantonal (verificado em 13/10/2026)
+
+| Fonte | Tem data de abertura? |
+|---|---|
+| API SHAB (amtsblattportal), 09/2018 → hoje | Sim, mas só para as inscritas desde 09/2018 (`journalDate` do HR01) |
+| Arquivo SHAB `/api/v1/archive/public`, 2002 → 01/09/2018 | Só título "NOME, SEDE" + data, sem UID. Tem lacunas: a abertura da Brecon-Systems AG (2004) está no PDF, mas não na lista |
+| Zefix (`ZefixREST` e `ZefixPublicREST`) | **Não.** `shabDate` = última publicação (Nestlé: 2026-10-12); `shabPub[]` só desde ~2016 |
+| SHAB escaneado (e-periodica / e-Helvetica), 1883 → 2018 | Sim, mas o OCR estraga o número CH (`CH-645. 1.OIO.O6I-6`), e muitos avisos antigos não imprimem número. `robots.txt` = `Disallow: /`, e o e-periodica tem captcha |
+| **Extrato cantonal** | **Sim, exata**: "Eingetragen am 09.03.1883" (Nestlé), "Eingetragen am 30.06.1978 / Gelöscht am 04.03.2025" (Catalpa SA) |
+
+O link do extrato de cada empresa vem do Zefix, no campo `cantonalExcerptWeb` de `POST https://www.zefix.ch/ZefixREST/api/v1/firm/search.json` ou `GET …/firm/{ehraid}.json`. Esse mesmo endpoint dá `uid`, `chid` (= `code13` dos XML do SHAB), `ehraid`, `status`, `deleteDate` e `oldNames`.
+
+### Sistemas (contagem de uma amostra de 3.500 empresas do Zefix)
+- **`{canton}.chregister.ch`** (DV Bern, JSF): ZH, BE, SG, AG, ZG, BS, GR, TI, LU, BL, TG, SO, SZ, SH, GL, AR, NW, JU, OW, UR, AI, mais VS (`vo`/`vc`/`vb.chregister.ch`, três regiões). Cerca de 85% das empresas.
+- **Genebra**: `app2.ge.ch`
+- **Vaud**: `prestations.vd.ch`
+- **Friburgo**: `adm.appls.fr.ch`
+- **Neuchâtel**: `rcnet.ne.ch`
+
+### O que se sabe do chregister
+- **Empresa ativa**: `https://{c}.chregister.ch/cr-portal/auszug/auszug.xhtml?uid=CHE-…`
+- **Empresa cancelada**: `…/auszug/zefix.xhtml?uid=CHE-…&lang=de&shabdatum=AAAAMMDD`. Sem `shabdatum`, responde "Firma nicht gefunden". O valor vem do `cantonalExcerptWeb` do Zefix.
+- **Navegador obrigatório**: um GET simples traz só a casca da página, com "Übertrag von 30.08.1995" (a data da migração para o registro eletrônico). "Eingetragen am", "Gelöscht am" e as tabelas chegam depois, por JS/AJAX.
+  - Descobrir a chamada AJAX (JSF partial request) para evitar um navegador completo.
+  - Se não der, usar Playwright headless.
+- **Campos visíveis no extrato**:
+  - cabeçalho: nome, forma jurídica, sede, UID, Eingetragen am, Gelöscht am;
+  - tabelas com colunas Ei/Lö (número da inscrição em que o dado entrou e saiu): Firma (nomes antigos), Sitz, Kapital, Domiziladresse, Zweck, Bemerkungen;
+  - tabela de diário com TR-Nr, TR-Datum, SHAB-Nr, SHAB-Dat. (todas as inscrições desde a migração);
+  - pessoas.
+
+### Conduta (decisão do usuário em 13/10/2026: usar o registro cantonal)
+- Os dados são públicos por lei: CO art. 936 e HRegV. O `robots.txt` de todos os portais é `Disallow: /`. Não achei condições de uso que proíbam consulta automatizada, só a política de privacidade.
+- Por isso a coleta tem de ser **lenta e identificável**:
+  - no máximo 1 requisição por vez **por host**, com pausa de ≥1 s e recuo exponencial em erro 429/5xx;
+  - User-Agent `cantography-research`, **sem e-mail nem nenhum contato do usuário, em lugar nenhum** (decisão de 13/10/2026);
+  - cache em disco por UID, para que nada seja baixado duas vezes e a coleta possa ser retomada;
+  - parar se algum portal reclamar ou bloquear.
+- **Sem pedido ao EHRA/BJ** (decisão de 13/10/2026). É pesquisa temporária e não publicada: os extratos brutos ficam só em `build/`, fora do git, e não são redistribuídos. Do registro, o site só publica derivados (datas por ponto, agregados).
+- **Pessoas físicas** (nomes, cidadania, domicílio, funções): **não guardar**. Estão fora do escopo e entram na proteção de dados (nDSG). Guardar no máximo a contagem de pessoas por empresa, se for útil.
+
+---
+
+## Subtarefas
+
+### C0 — Teste com ~50 empresas ✅ 13/10/2026
+- [x] Amostra: 10 ativas e 10 canceladas do chregister, 3 ativas + 2 canceladas de GE, VD, FR e NE, e 3 empresas antigas (Nestlé ZG/VD, UBS). Resultado: **42 ok, 1 não encontrada, 0 erro**, ~3 min no total.
+- [x] **Nenhum sistema precisa de navegador:**
+  - **chregister** (os 24 registros): `GET …/auszug/auszug.xhtml?uid=CHE-…` (canceladas: `&loeschung=AAAAMMDD`, a **data do TR** do HR03, que é o `date` em `shab_events`), depois `POST` do painel "deferred" do PrimeFaces (`idAuszugForm:auszugContentPanel_load=true` + ViewState + nonce). São 2 requisições, ~2,3–2,7 s por empresa com as pausas.
+    - `Accept-Language: de` deixa o extrato em alemão (sem isso, vem em inglês).
+    - "Não encontrada" é uma resposta parcial sem `id="Titel"`.
+  - **GE, VD, FR e NE** usam o mesmo app (hrc-internet): `GET {base}/api/public/catalog/configuration` (cookie `XSRF-TOKEN`), depois `POST {base}/api/public/hrcexcerpts/` com o cabeçalho `X-XSRF-TOKEN`. A resposta é JSON:
+    - `dateInscription` / `dateRadiation` vêm por extenso, no idioma da empresa (FR tem empresas em alemão: "20. März 2026");
+    - `jrns[0] = {date: "report"}` marca a migração.
+- [x] **Validação:** `registered` = `journalDate` do HR01 em **21/21** casos, e `deleted` = data do HR03 em **18/18**. Datas antigas reais aparecem: Nestlé ZG 09.03.1883, Nestlé VD 19.07.1905, UBS 28.02.1978. O "Übertrag" de 1995 não aparece no lugar da data.
+  - A Nestlé tem o mesmo UID em ZG e VD, com datas diferentes. Por isso o cache é por `{host}/{uid}`.
+  - A não encontrada (CHE-480.244.350) mudou de AG para BS sem HR03. Para as **ativas**, rotear pelo registro atual (LINDAS: CHID/comuna), não pelo cantão do SHAB.
+  - O SHAB às vezes traz o UID sem formatação (`CHE495072402`); o script normaliza.
+- [x] e-periodica ficou de fora (captcha + `Disallow`). A validação usou o HR01, o HR03 e `archive_opens`: a data do arquivo é a da publicação, 3 a 6 dias depois do TR.
+- [x] **Roteamento sem o Zefix** (C1 encolhe):
+  - `pub` do HR03 = `deleteDate` do Zefix em 10/10.
+  - Tabela registro (`registerOfficeId` = dígitos 3–5 do CHID) → host em `OFFICE_HOST` do script.
+  - VS tem três registros (vo/vc/vb, por distrito). Sem o número BFS, a região é escolhida pela longitude, com recuo para as outras quando dá "não encontrada".
+- [x] **Servidores:** os 24 `*.chregister.ch` resolvem para **um só IP** (185.125.167.99). GE, VD, FR e NE são servidores separados.
+  - **Decisão do usuário (13/10/2026):** 4 requisições simultâneas no servidor da DV Bern, cada uma com pausa ≥1 s, e 1 por host romand.
+- [x] **Duração:**
+  - P1 (198.639 canceladas em 2018–2026 sem HR01, ~150 mil no chregister): ~150 mil × 2,5 s ÷ 4 ≈ **26 h**. O maior romand é VD, com 18 mil.
+  - P2 (ativas anteriores a 09/2018, ~425 mil no chregister): mais ~3 dias.
+- [ ] Erro da estimativa pelo `ehraid`: medir com as ativas da P2. As canceladas da P1 não têm `ehraid` no LINDAS.
+
+### C1 — Lista de empresas e links (Zefix)
+- [ ] Juntar os UIDs: LINDAS (ativas, ~795 mil), `build/shab_events.jsonl` (2018–2026, com canceladas) e `build/timeline_geo.parquet`.
+- [ ] Para cada UID: `ehraid`, `chid`, `status`, `deleteDate`, `cantonalExcerptWeb` e `oldNames` do Zefix. Uma requisição por empresa, com o mesmo ritmo baixo. Não usar a API PublicREST, porque as credenciais exigiriam o e-mail do usuário. Salvar em `build/zefix_firms.parquet`.
+- [ ] Isso também dá o `chid` (= `code13`) sem baixar de novo os 661 mil XML do SHAB.
+
+### C2 — Coletar os extratos (`scripts/fetch_cantonal.py`)
+- [ ] Um adaptador por sistema: chregister, GE, VD, FR, NE.
+- [ ] Prioridade:
+  1. as ~199 mil fechadas em 2018–2026 sem abertura conhecida (a animação);
+  2. as ativas abertas antes de 09/2018 (a tarefa de datas da sessão night-light);
+  3. o resto.
+- [ ] Um worker por host, com fila, pausa, retry e recuo exponencial. Cache em `build/cantonal/{uid}.json`, só com os campos extraídos.
+- [ ] Campos a extrair:
+  - `uid`, `chid`, `ehraid`, `canton`;
+  - `registered` (Eingetragen am), `deleted` (Gelöscht am), `migrated` (Übertrag von);
+  - `names[]` (nome + Ei/Lö), `seats[]` (sede + Ei/Lö), `legal_forms[]`, `addresses[]` (endereço + Ei/Lö);
+  - `capital[]` (valor + Ei/Lö);
+  - `journal[]` (TR-Nr, TR-Datum, SHAB-Nr, SHAB-Dat.), que permite datar cada Ei/Lö;
+  - `purpose` (último);
+  - `n_persons` (só a contagem).
+- [ ] Log de progresso por host, com contagem de erros. Parar sozinho se um host passar de 5% de erros.
+
+### C3 — Validar
+- [ ] Para as empresas inscritas desde 09/2018, `registered` deve bater com o `journalDate` do HR01. Medir a concordância, que deve ficar ≥ 99%.
+- [ ] Para 2002–2018, comparar com o casamento do arquivo (`build/archive_opens.parquet`) e medir o erro do casamento por nome.
+- [ ] Distribuição de `registered` por ano (1883 → hoje): procurar picos falsos, como datas de migração tomadas como data de abertura.
+- [ ] Mudanças de sede entre cantões: a empresa aparece nos dois cantões? Qual extrato guarda a data original?
+
+### C4 — Usar no mapa
+- [ ] Linha do tempo: decidir o novo início (2000? 1990?) e se as empresas sem endereço histórico (canceladas antes de 2018) aparecem na última sede conhecida, marcadas com precisão `seat`.
+- [ ] Endereço histórico: `addresses[]` com datas permite mover o ponto quando a empresa muda de endereço. É opcional e precisa de geocodificação por endereço antigo.
+- [ ] Achados para o texto (S5): idade das empresas ao fechar, empresas mais antigas ainda ativas por cantão, ondas de abertura por década.
+- [ ] Repassar à sessão night-light o parquet com `uid → registered` para a tarefa de datas de todas as empresas existentes.
+
+## Riscos
+- Bloqueio por IP ou mudança no portal no meio da coleta: o cache por UID permite retomar. Se um portal bloquear, parar esse host e usar a estimativa pelo `ehraid` (C0) para quem faltar.
+- Empresas canceladas antes de 2000 não estão no Zefix nem nos extratos, e para elas o registro cantonal não ajuda. Ficam só o SHAB escaneado ou o arquivo em papel.
+- "Eingetragen am" é a inscrição no registro, não necessariamente o início real da atividade. Uma empresa que mudou de cantão pode mostrar a data da nova inscrição. Verificar em C3.
