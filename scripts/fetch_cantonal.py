@@ -30,8 +30,11 @@ Usage:
   python3 scripts/fetch_cantonal.py --parquet           # cache -> build/cantonal.parquet
 """
 import argparse, collections, datetime, glob, html, json, os, queue, random, re, sys, threading, time
-import polars as pl
 import requests
+try:
+    import polars as pl
+except ImportError:   # a worker running --jobs-file needs no polars
+    pl = None
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD = os.path.join(ROOT, "build")
@@ -40,6 +43,7 @@ UA = "cantography-research"
 PAUSE = 1.0
 CHREG_LANES = 4
 MAX_ERR = 0.05
+ROMAND_PARTS = 3   # machines that share the GE/VD/FR/NE jobs when the work is split
 
 # registry office (Zefix registerOfficeId, CHID digits 3-5) -> host, read from Zefix on 2026-10-13
 OFFICE_HOST = {
@@ -480,7 +484,8 @@ if __name__ == "__main__":
     p.add_argument("--jobs", choices=["p1", "sample"])
     p.add_argument("--jobs-file", help="run a job list written by --split")
     p.add_argument("--split", type=int, help="write the remaining p1 jobs as N files build/p1_part{i}.json: "
-                   "chregister split by uid, every romand job in part 0 (one lane per romand host)")
+                   "chregister split by uid over all parts, romand jobs over the first ROMAND_PARTS "
+                   "(each part runs one lane per romand host)")
     p.add_argument("--limit", type=int)
     p.add_argument("--lanes", type=int, default=CHREG_LANES, help="parallel lanes on the chregister server")
     p.add_argument("--parquet", action="store_true")
@@ -493,7 +498,8 @@ if __name__ == "__main__":
         jobs = [j for j in jobs_p1(a.shab, a.geo) if not done(j)]
         parts = [[] for _ in range(a.split)]
         for j in jobs:
-            k = 0 if j["hosts"][0] in HRC_BASE else int(re.sub(r"\D", "", j["uid"])) % a.split
+            n = min(a.split, ROMAND_PARTS) if j["hosts"][0] in HRC_BASE else a.split
+            k = int(re.sub(r"\D", "", j["uid"])) % n
             parts[k].append(j)
         for k, part in enumerate(parts):
             json.dump(part, open(os.path.join(BUILD, f"p1_part{k}.json"), "w"))
