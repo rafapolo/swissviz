@@ -9,24 +9,25 @@
 ---
 
 <!-- HANDOFF:INICIO (seção reescrita a cada relatório de 30 min) -->
-## Estado atual e handoff — atualizado em 13/10/2026 às 12:36
+## Estado atual e handoff — atualizado em 13/10/2026 às 12:46
 
 **Quem toca:** sessão Claude `swissviz-e5`, no worktree `~/Projetos/swissviz-cantonal` (branch `feat/cantonal-register`). A cópia em `~/Projetos/swissviz/tasks/` é antiga; vale esta.
 
 **O que está rodando (P1), dois processos por máquina:**
 
-| Máquina | chregister (4 faixas) | Falta | Romands (1 faixa por host) | Falta GE / VD / FR |
-|---|---|---|---|---|
-| Mac | `p1_chreg0.json` → `build/cantonal_chreg0.log` | 38.477 | `p1_part0_romand.json` → `build/cantonal_p1.log` | 1.004 / 2.610 / 589 |
-| finland | `p1_chreg1.json` → `cantonal_chreg1.log` | 38.241 | `p1_part1_romand.json` → `cantonal_p1.log` | 930 / 2.875 / — |
-| livre | `p1_chreg2.json` → `cantonal_chreg2.log` | 38.066 | `p1_part2_romand.json` → `cantonal_p1.log` | 1.069 / 2.654 / — |
-| colmeia | — | — | `p1_fr.json` → `cantonal_fr.log`, `--lanes 1 --pause 3` | — / — / 2.223 |
+| Máquina | chregister (4 faixas) | Falta | s/empresa | Romands (1 faixa por host) | Falta GE / VD / FR |
+|---|---|---|---|---|---|
+| Mac | `p1_chreg0.json` → `build/cantonal_chreg0.log` | 36.026 | 2,43 | `p1_part0_romand.json` → `build/cantonal_p1.log` | 0 / 1.602 / — |
+| finland | `p1_chreg1.json` → `cantonal_chreg1.log` | 35.816 | 2,45 | `p1_part1_romand.json` → `cantonal_p1.log` | 0 / 1.884 / — |
+| livre | `p1_chreg2.json` → `cantonal_chreg2.log` | 35.626 | 2,45 | `p1_part2_romand.json` → `cantonal_p1.log` | 0 / 1.611 / — |
+| colmeia | — | — | — | `p1_fr.json` → `cantonal_fr.log`, `--lanes 1 --pause 3` | — / — / 2.039 |
 
-- **chregister retomado às 12:17** com 4 faixas por IP nas três máquinas (12 simultâneas), o ritmo que o servidor aceitou por horas. Previsão: ~98/min por IP → ~6h30, fim por volta das 18:45.
+- **chregister retomado às 12:17** com 4 faixas por IP nas três máquinas (12 simultâneas), 0 erro e nenhum 403 novo. ~98/min por IP; faltam ~107,5 mil; previsão de fim ~18:50.
+- **GE terminou** nas três máquinas (~12:44). **VD:** faltam ~5.100, 1,8–1,9 s por empresa, fim ~13:40.
 - **Histórico do dia:** 16 faixas na livre (11:58) deram 403 em segundos e o IP dela ficou sem conectar por alguns minutos; o chregister foi pausado em todas as máquinas das 11:59 às 12:17. Às 12:15 a livre voltou a conectar (HTTP 302).
-- **FR:** voltou no Mac com 1 faixa às 11:59 e levou **um segundo 429** às ~12:24, depois de 990 empresas. Parece cota por IP num intervalo, não só simultaneidade. **Às 12:32, a pedido do usuário, o resto de FR (2.223 empresas; 4.930 de 7.153 já feitas) passou para a `colmeia`**, com 1 faixa e pausa de 3 s (~15/min, ~2h30, fim ~15:00). Primeiro minuto: 20 extratos, sem 429. Se der 429 lá, parar e deixar para outro dia.
+- **FR:** voltou no Mac com 1 faixa às 11:59 e levou **um segundo 429** às ~12:24, depois de 990 empresas. Parece cota por IP num intervalo, não só simultaneidade. **Às 12:32, a pedido do usuário, o resto de FR (2.223 empresas; 4.930 de 7.153 já feitas) passou para a `colmeia`**, com 1 faixa e pausa de 3 s Às 12:42: 183 feitos em 10 min (3,3 s por empresa, ~18/min), sem 429; faltam 2.039, fim ~14:35. Se der 429 lá, parar e deixar para outro dia.
 - **Colmeia:** saiu do chregister às 12:08 (decisão do usuário: não usar essa máquina para scraping; os 5.161 extratos dela estão no cache do Mac, log em `build/cantonal_p1_colmeia.log`). Voltou às 12:32 **só para FR**, por pedido explícito. O sshd dela recusa conexões por ~1 min depois de várias chamadas seguidas: juntar os comandos numa só chamada ssh.
-- NE terminou. Erros isolados: um HTTP 500 em GE (livre) e um em FR (Mac); ficam fora do cache e entram numa próxima rodada.
+- NE terminou. O 429 de FR no Mac deixou `STOPPED` nesse log; é o bloqueio já conhecido. Erros isolados: um HTTP 500 em GE (livre) e um em FR (Mac); ficam fora do cache e entram numa próxima rodada.
 - No cache do Mac: 58.408 extratos às 12:15 (com o rsync das remotas). O que as remotas baixam depois fica em `~/cantonal/build/cantonal/` até o rsync final.
 
 **Como operar:**
