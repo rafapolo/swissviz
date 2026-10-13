@@ -14,7 +14,8 @@ Two systems cover every canton:
 Collection is slow and identifiable: one request at a time per lane, >=1 s
 between requests, exponential backoff on 403/429/5xx, User-Agent
 "cantography-research" and no contact. chregister runs CHREG_LANES lanes on
-its shared server (user decision 2026-10-13: 4, raised to 8 the same day), each romand host one lane.
+its shared server (4; 8 was tried on 2026-10-13 and was no faster), each romand host one lane.
+On 2026-10-13 P1 was split over three machines (--split 3, 4 lanes each).
 A host stops itself above 5% errors.
 
 Only extracted fields are cached, one JSON per company and register:
@@ -24,6 +25,8 @@ No people: only the count of entries in the people table is kept.
 Usage:
   python3 scripts/fetch_cantonal.py --jobs p1           # closed 2018-2026, no known opening
   python3 scripts/fetch_cantonal.py --jobs sample       # C0 stratified sample (~50)
+  python3 scripts/fetch_cantonal.py --split 3           # remaining p1 jobs -> build/p1_part{0,1,2}.json
+  python3 scripts/fetch_cantonal.py --jobs-file build/p1_part0.json   # one part per machine
   python3 scripts/fetch_cantonal.py --parquet           # cache -> build/cantonal.parquet
 """
 import argparse, collections, datetime, glob, html, json, os, queue, random, re, sys, threading, time
@@ -475,6 +478,9 @@ def to_parquet():
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--jobs", choices=["p1", "sample"])
+    p.add_argument("--jobs-file", help="run a job list written by --split")
+    p.add_argument("--split", type=int, help="write the remaining p1 jobs as N files build/p1_part{i}.json: "
+                   "chregister split by uid, every romand job in part 0 (one lane per romand host)")
     p.add_argument("--limit", type=int)
     p.add_argument("--lanes", type=int, default=CHREG_LANES, help="parallel lanes on the chregister server")
     p.add_argument("--parquet", action="store_true")
@@ -483,7 +489,18 @@ if __name__ == "__main__":
     a = p.parse_args()
     CHREG_LANES = a.lanes
     os.makedirs(CACHE, exist_ok=True)
-    if a.jobs:
+    if a.split:
+        jobs = [j for j in jobs_p1(a.shab, a.geo) if not done(j)]
+        parts = [[] for _ in range(a.split)]
+        for j in jobs:
+            k = 0 if j["hosts"][0] in HRC_BASE else int(re.sub(r"\D", "", j["uid"])) % a.split
+            parts[k].append(j)
+        for k, part in enumerate(parts):
+            json.dump(part, open(os.path.join(BUILD, f"p1_part{k}.json"), "w"))
+            print(f"part {k}: {len(part)} jobs")
+    elif a.jobs_file:
+        run(json.load(open(a.jobs_file)))
+    elif a.jobs:
         jobs = jobs_p1(a.shab, a.geo) if a.jobs == "p1" else jobs_sample(a.shab, a.geo)
         if a.jobs == "sample":
             json.dump(jobs, open(os.path.join(BUILD, "cantonal_sample.json"), "w"), indent=0)
