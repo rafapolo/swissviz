@@ -15,4 +15,4 @@ summ() { awk -v m="$1" '
   function flush(){printf "%-8s %s  %s\n", m, f, blk; if(n) printf "     chregister (desde o início do processo): ok %d nf %d err %d  %.2f s/empresa\n", n, nf, e, s/n; if(rom) print substr(rom,2)}
   END{if(f)flush()}'; }
 (cd ~/Projetos/swissviz-cantonal && bash -c "$last") | summ mac
-for h in finland livre cantonal-1 cantonal-2; do ssh -o ConnectTimeout=10 -o BatchMode=yes $h "cd ~/cantonal && $last" 2>&1 | summ $h; done
+for h in finland livre cantonal-1 cantonal-2 cantonal-3 cantonal-4 cantonal-5; do ssh -o ConnectTimeout=10 -o BatchMode=yes $h "cd ~/cantonal && $last" 2>&1 | summ $h; done

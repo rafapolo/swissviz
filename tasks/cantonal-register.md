@@ -9,36 +9,36 @@
 ---
 
 <!-- HANDOFF:INICIO (seção reescrita a cada relatório de 30 min) -->
-## Estado atual e handoff — atualizado em 13/10/2026 às 14:35
+## Estado atual e handoff — atualizado em 13/10/2026 às 14:55
 
 **Quem toca:** sessão Claude `swissviz-e5`, no worktree `~/Projetos/swissviz-cantonal` (branch `feat/cantonal-register`). A cópia em `~/Projetos/swissviz/tasks/` é antiga; vale esta.
 
-**Prioridade (decisão do usuário, 13/10 ~13:00): a P2 passa na frente da P1.** P2 = 452.518 empresas ativas sem abertura no SHAB (inscritas antes de 09/2018), lista de `jobs_p2` a partir de `build/lindas_firms.parquet` (LINDAS: UID, CHID, cantão e município, baixado em 13/10). Roteamento: cantão do endereço atual (VS pelo distrito do município BFS, `VS_DISTRICTS`), e o registro do CHID como segundo host quando difere (51 mil empresas que mudaram de cantão).
+**Prioridade (decisão do usuário, 13/10 ~13:00): P2 antes da P1.** P2 = 452.518 ativas sem abertura no SHAB (inscritas antes de 09/2018), de `jobs_p2` sobre `build/lindas_firms.parquet`. Roteamento pelo cantão atual (VS pelo distrito, `VS_DISTRICTS`), com o registro do CHID como segundo host.
 
-**O que está rodando:**
+**Orçamento (usuário, 13/10 14:40): até US$ 5 em droplets DigitalOcean para terminar o mais rápido possível, com o gasto conferido pela API.** `python3 scripts/do_budget.py --hours-left H` mostra o gasto de cada droplet (created_at × preço por hora), o total, a projeção e o uso do mês no faturamento (que só atualiza uma vez por dia); guarda o custo das droplets apagadas em `build/do_spent.json`; sai com código 2 acima de US$ 4,50 → **apagar as droplets na hora**. Às 14:55: 5 droplets, US$ 0,030/h; projeção até o fim ~US$ 0,30.
 
-| Máquina | Processo | Arquivo → log | Faixas | Falta (14:24) | Previsão |
-|---|---|---|---|---|---|
-| Mac | P2 chregister | `build/p2_chreg0.json` → `build/cantonal_p2_chreg0.log` | 4 | 115.455 | 14/10 ~10:00 |
-| Mac | P2 romands | `build/p2_romand0.json` → `build/cantonal_p2_romand0.log` | 1 por host | 20.519 | ~20:45 (VD) |
-| finland | P2 chregister | `p1_p2_chreg1.json` → `cantonal_p2_chreg1.log` | 4 | 115.416 | 14/10 ~10:00 |
-| finland | P2 romands | `p1_p2_romand1.json` → `cantonal_p2_romand1.log` | 1 por host | 20.591 | ~20:45 (VD) |
-| livre | P2 chregister | `p1_p2_chreg2.json` → `cantonal_p2_chreg2.log` | 4 | 114.967 | 14/10 ~10:00 |
-| livre | P2 romands | `p1_p2_romand2.json` → `cantonal_p2_romand2.log` | 1 por host | 20.743 | ~20:45 (VD) |
-| cantonal-1 (DO) | P1 chregister | `p1_do1.json` → `cantonal_do1.log` | 4 | 46.210 | ~22:25 |
-| cantonal-2 (DO) | P1 chregister | `p1_do2.json` → `cantonal_do2.log` | 4 | 46.160 | ~22:25 |
+**O que está rodando (14:55):** todo o chregister que falta (P2 primeiro, depois P1: 432.275 empresas) redividido em 8 partes iguais por `scripts/cantonal_rebalance.sh`, uma por IP, 4 faixas cada.
 
-- **Droplets DigitalOcean (14:28, pedido do usuário):** `cantonal-1` (165.232.117.125) e `cantonal-2` (167.172.190.36), `s-1vcpu-512mb-10gb` em `fra1`, Ubuntu 24.04, tag `cantonal`, US$ 0,00595/h cada. Entram no ssh como `cantonal-1`/`cantonal-2` (chave `~/.ssh/extrapolo.pvt`). Token da API em `~/Projetos/swissviz/.env` (variável `digitalocean`, ignorado pelo git). Rodam a **P1 do chregister** (o resto de `p1_chreg{0,1,2}.json`, dividido em 2). Primeiro bloco: ~98 empresas/min cada, 2,4 s por empresa, sem 403, e as outras máquinas não ficaram mais lentas (20 requisições simultâneas no servidor da DV Bern, de 5 IPs). **Apagar as droplets ao fim da coleta** (`DELETE /v2/droplets?tag_name=cantonal`) e tirar os dois blocos do `~/.ssh/config`. Quando a P1 delas acabar (~22:25), redividir o resto da P2 do chregister incluindo-as.
-- **Previsões:** P2 chregister ~10:00 de 14/10; P2 romands: NE ~14:40, GE ~17:50, VD ~20:45 de hoje; P1 chregister nas droplets, ~22:25 de hoje.
-- **403 isolado na finland (13:36):** um POST do painel em `ag.chregister.ch` deu 403 três vezes logo no reinício da P2, e o processo parou só esse cantão nela (`ag … STOPPED` no log). Não parece bloqueio: no mesmo servidor e IP, a finland segue com ~100 extratos/min dos outros cantões, sem outro 403 em 20 min, e `ag.chregister.ch/cr-portal/` responde 302 a ela; Mac e livre seguem com AG normal. Os jobs de AG da parte 1 ficam pendentes e entram na próxima rodada (o cache pula o resto). Se aparecer outro 403 em qualquer cantão, parar o chregister em todas as máquinas.
-- **FR PARADO:** a finland levou **429 na primeira requisição** de FR às 13:36 (0 extratos). O `run.sh` da finland era o antigo e ignorou o `--pause 3`, e a finland já tinha feito FR às 11:06. Pela regra, FR fica para outro dia: `build/p12_fr.json` (1.246 da P1 + 14.620 da P2), 1 faixa, `--pause 3`, uma máquina só. O `run.sh` das remotas foi atualizado às 13:50.
-- **P1 romands terminaram** nas três máquinas (~13:45; ~130 de VD com erro ou pendentes entram numa próxima rodada). **P2 romands iniciados às 13:50.**
-- **Colmeia fora de vez** (13:40, pedido do usuário: mover tudo dela e limpar). Os extratos de FR que ela baixou foram copiados para o Mac e conferidos (0 faltando); logs em `build/cantonal_fr_colmeia.log` e `build/cantonal_errors_colmeia.jsonl`; `~/cantonal` apagado lá, sem processo, sem cron e sem nada em `/tmp`.
-- GE e NE da P1 terminaram. Primeiros extratos da P2 (ativas) vêm com `registered` antigo (1985, 1987, 1999) e sem `deleted`, como esperado.
-- Cache no Mac: 70.863 extratos, 280 MB, às 13:45.
+| Máquina | IP | chregister | Romands P2 (1 faixa por host) |
+|---|---|---|---|
+| Mac | 178.197.206.34 | `build/ch_part0.json` → `build/cantonal_ch.log` | `build/p2_romand0.json` → `build/cantonal_p2_romand0.log` |
+| finland | 89.167.95.136 | `p1_ch.json` → `cantonal_ch.log` | `p1_p2_romand1.json` → `cantonal_p2_romand1.log` |
+| livre | 83.228.221.143 | `p1_ch.json` → `cantonal_ch.log` | `p1_p2_romand2.json` → `cantonal_p2_romand2.log` |
+| cantonal-1 (DO) | 165.232.117.125 | `p1_ch.json` → `cantonal_ch.log` | — |
+| cantonal-2 (DO) | 167.172.190.36 | idem | — |
+| cantonal-3 (DO) | 167.172.175.17 | idem | — |
+| cantonal-4 (DO) | 164.92.245.40 | idem | — |
+| cantonal-5 (DO) | 167.71.62.96 | idem | — |
+
+- **Previsão:** 54.034 por máquina a ~98/min → ~9h10, fim do chregister ~00:10 de 14/10. Romands da P2: GE ~17:50, VD ~20:45 de hoje.
+- **Droplets:** `s-1vcpu-512mb-10gb`, `fra1`, Ubuntu 24.04, tag `cantonal`, US$ 0,00595/h cada, chave `~/.ssh/extrapolo.pvt`, hosts `cantonal-1..5` no `~/.ssh/config`. Token em `~/Projetos/swissviz/.env` (variável `digitalocean`, ignorado pelo git). As duas primeiras (14:28) mediram ~98/min cada sem deixar as outras mais lentas. **No fim: trazer os caches, apagar as droplets (`DELETE /v2/droplets?tag_name=cantonal`) e tirar os blocos `cantonal-*` do `~/.ssh/config`.**
+- **FR parado** desde o 429 da finland (13:36): `build/p12_fr.json` (1.246 da P1 + 14.620 da P2), para outro dia, 1 faixa, `--pause 3`, uma máquina só.
+- **AG:** o 403 isolado da finland (13:36) não se repetiu; os jobs pendentes entraram na redivisão.
+- GE e NE da P1 terminaram; ~130 de VD da P1 com erro ou pendentes entram numa próxima rodada.
 
 **Como operar:**
-- Estado de tudo: `bash scripts/cantonal_status.sh` (no Mac).
+- Estado de tudo: `bash scripts/cantonal_status.sh` (no Mac). Gasto: `python3 scripts/do_budget.py`.
+- Redividir o chregister (depois de criar ou apagar máquinas): `bash scripts/cantonal_rebalance.sh finland livre cantonal-1 …` (para todos os workers do chregister, junta os caches, divide P2+P1 em partes iguais e reinicia).
 - Remotas: `ssh <host> 'bash ~/cantonal/run.sh <jobs> <faixas> "(nota)" ["--pause 3"]'` inicia `build/p1_<jobs>.json` (por isso os arquivos da P2 nas remotas têm o prefixo `p1_`) com log `build/cantonal_<jobs>.log`, e só mexe no processo desse arquivo; `run.sh stop <jobs>` para um, `run.sh stop` para todos. Cópia em `scripts/cantonal_run.sh`. **Não** usar `pkill -f fetch_cantonal.py` por ssh: mata o próprio shell.
 - Mac: `nohup python3 -u scripts/fetch_cantonal.py --jobs-file build/<arquivo>.json --lanes N [--pause S] >> build/<log> 2>&1 &`. Nunca dois processos sobre os mesmos hosts na mesma máquina.
 - No zsh, rsync com aspas: `rsync -a "finland:cantonal/build/cantonal/" build/cantonal/`.
@@ -52,15 +52,15 @@
 **Regras em vigor:**
 - No máximo 4 faixas por IP no chregister. Sem testes de mais faixas.
 - 403/429 num host: parar esse host em **todas** as máquinas, não insistir por outro IP, avisar o usuário. Se FR der 429 na finland, parar FR e deixar para outro dia.
-- **Colmeia: não usar.** Não usar proxies (os endereços que o usuário passou estão na lista pública proxifly). Não acrescentar IPs por conta própria; droplets novas só com pedido do usuário.
+- **Colmeia: não usar.** Não usar proxies (os endereços que o usuário passou estão na lista pública proxifly). Não acrescentar IPs por conta própria; droplets novas só com pedido do usuário; no máximo 5 (recomendação de 14:35, para não sobrecarregar o servidor da DV Bern) e dentro de US$ 5.
 
 **Próximos passos:**
-1. FR: tentar outro dia, devagar, numa máquina só.
-2. Acompanhar a P2; ao fim, retomar a P1 do chregister com `p1_chreg{0,1,2}.json`.
-3. Quando tudo terminar: rsync dos caches da finland e da livre para o Mac, `python3 scripts/fetch_cantonal.py --parquet`, refazer a C3 com o conjunto completo e commitar.
-4. C4 — repassar `uid → registered` à sessão night-light (substitui as precisões 1, 2 e 3 de `data/opening_dates.json.gz`; ver `tasks/cobertura-dados.md`) e estender a linha do tempo.
+1. Acompanhar o tempo por empresa: se subir para ~3–4 s, o servidor está saturado; parar e apagar droplets primeiro.
+2. Quando o chregister terminar: caches de todas as máquinas para o Mac, apagar as droplets, conferir o gasto final com `do_budget.py`.
+3. `python3 scripts/fetch_cantonal.py --parquet`, refazer a C3 com o conjunto completo e commitar.
+4. FR em outro dia; C4 — repassar `uid → registered` à sessão night-light (ver `tasks/cobertura-dados.md`).
 
-**Pendências com o usuário:** quantas droplets a mais (estimativa de escala passada às 14:35).
+**Pendências com o usuário:** nenhuma.
 
 **Agendamentos que só existem na sessão `swissviz-e5`** (somem se ela fechar; outra sessão precisa recriá-los): relatório aos minutos 13 e 43, que também reescreve esta seção.
 <!-- HANDOFF:FIM -->
