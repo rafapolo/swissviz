@@ -9,7 +9,7 @@
 ---
 
 <!-- HANDOFF:INICIO (seção reescrita a cada relatório de 30 min) -->
-## Estado atual e handoff — atualizado em 13/10/2026 às 19:25
+## Estado atual e handoff — atualizado em 13/10/2026 às 19:58
 
 **Quem toca:** sessão Claude `swissviz-e5`, no worktree `~/Projetos/swissviz-cantonal` (branch `feat/cantonal-register`). A cópia em `~/Projetos/swissviz/tasks/` é antiga; vale esta.
 
@@ -21,7 +21,7 @@
 
 | Máquina | IP | chregister | Romands P2 (1 faixa por host) |
 |---|---|---|---|
-| Mac | 178.197.206.34 | `build/ch_part0.json` → `build/cantonal_ch.log` | `build/p2_romand0.json` → `build/cantonal_p2_romand0.log` |
+| Mac | 178.197.202.84 (dinâmico) | `build/ch_part0.json` → `build/cantonal_ch.log` | `build/p2_romand0.json` → `build/cantonal_p2_romand0.log` |
 | finland | 89.167.95.136 | `p1_ch.json` → `cantonal_ch.log` | `p1_p2_romand1.json` → `cantonal_p2_romand1.log` |
 | livre | 83.228.221.143 | `p1_ch.json` → `cantonal_ch.log` | `p1_p2_romand2.json` → `cantonal_p2_romand2.log` |
 | cantonal-3 (DO) | 167.172.175.17 | `p1_ch.json` → `cantonal_ch.log` | — |
@@ -31,10 +31,10 @@
 - **cantonal-1 tirada (18:52):** desde ~18:14 ela caiu para ~60 empresas/min (~4 s por empresa), sem erro nem 403, enquanto as outras seguiam em ~98/min. Pela regra de saturação, foi parada, o cache veio para o Mac (log em `build/cantonal_ch_cantonal-1.log`), o resto foi redividido entre as 7 máquinas e o apagador a removeu às 18:54 (HTTP 204). Parece limitação só daquele IP; se outra máquina cair assim, fazer o mesmo.
 - **Erro na redivisão das 18:52:** o `cantonal_rebalance.sh` não parava o worker antigo do Mac (`ch_part0.json` fora do padrão do `pgrep`), e o Mac ficou com 8 faixas por ~1 min até ele ser morto à mão. Padrão corrigido.
 - **cantonal-2 tirada (19:20):** depois da redivisão das 18:52, o tempo por empresa subiu em várias máquinas (cantonal-2 3,1 s, finland 2,8 s, Mac 4,0 s). Pela regra, a droplet acima de 3 s foi parada, o cache veio para o Mac e o resto foi redividido entre 6 máquinas. O **Mac** está em ~60 empresas/min desde ~18:55, o mesmo padrão da cantonal-1 (o Time Machine estava rodando, carga ~3,7; não está claro se é o IP sendo freado ou o Mac). Hipótese: o servidor freia o IP depois de um volume acumulado. Se mais máquinas caírem para ~60/min, não somar IPs: reduzir.
-- **Previsão (19:25):** 37.678 por máquina; a ~95/min nas que estão normais → ~02:00 de 14/10, o Mac (~60/min) bem depois; redividir quando as outras terminarem. VD da P2 ~20:20 (~6.000 restantes). GE e NE da P2 terminaram.
+- **Previsão (19:44):** ~35.900 por máquina, 2,44–2,94 s por empresa (~530/min no total). O Mac voltou a ~90/min depois que o Time Machine terminou; finland e livre perto de 3 s. P2 do chregister ~23:40, chregister inteiro entre 01:50 (cantonal-5) e 03:00 (finland). VD da P2 ~20:20. GE e NE da P2 terminaram.
 - **Apagador de droplets (16:25):** `scripts/do_reaper.sh` roda em segundo plano no Mac (log `build/do_reaper.log`). A cada 2 min, para cada droplet `cantonal`: se não tem worker em duas checagens seguidas e não há redivisão em curso (`build/.rebalancing`, criado por `cantonal_rebalance.sh`), copia o cache dela para o Mac, apaga a droplet pela API e tira o bloco dela do `~/.ssh/config`. Sai quando não sobra droplet, imprimindo o gasto final. Se esta sessão fechar, ele para: rodar de novo com `nohup bash scripts/do_reaper.sh >> build/do_reaper.log 2>&1 &`.
 - **Droplets:** `s-1vcpu-512mb-10gb`, `fra1`, Ubuntu 24.04, tag `cantonal`, US$ 0,00595/h cada, chave `~/.ssh/extrapolo.pvt`, hosts `cantonal-1..5` no `~/.ssh/config`. Token em `~/Projetos/swissviz/.env` (variável `digitalocean`, ignorado pelo git). As duas primeiras (14:28) mediram ~98/min cada sem deixar as outras mais lentas. **No fim: trazer os caches, apagar as droplets (`DELETE /v2/droplets?tag_name=cantonal`) e tirar os blocos `cantonal-*` do `~/.ssh/config`.**
-- **FR:** sem droplets nem outros IPs (cada IP novo seria uma cota fresca para contornar o 429; mover FR para a colmeia às 12:32 foi o mesmo erro). **Agendado (aprovado pelo usuário às ~16:20): amanhã 14/10 às 8:07, só no Mac**, 1 faixa, `--pause 3`, a partir de `build/p12_fr.json`, log `build/cantonal_fr.log`; se der 429, tentar de novo no dia seguinte às 8:07.
+- **FR retomado às 19:47, só no Mac** (`build/fr_todo.json`, 15.866 jobs: 1.246 da P1 + 14.620 da P2; 1 faixa, `--pause 3`, log `build/cantonal_fr.log`), depois que um extrato de FR abriu no navegador do usuário. Primeiros minutos: ~8–16 extratos/min, sem 429. Previsão ~15 h (amanhã ~11:00), se a cota deixar. O IP de saída do Mac mudou durante o dia (178.197.206.34 → 178.197.202.84, IP dinâmico da Swisscom), o que provavelmente explica a cota livre; não foi troca deliberada. Sem droplets nem outros IPs para FR. Conferência agendada para 14/10 às 8:07: se tiver parado por 429, recomeçar no dia seguinte, só no Mac.
 - **FR parado** desde o 429 da finland (13:36): `build/p12_fr.json` (1.246 da P1 + 14.620 da P2), para outro dia, 1 faixa, `--pause 3`, uma máquina só.
 - **AG:** o 403 isolado da finland (13:36) não se repetiu; os jobs pendentes entraram na redivisão.
 - GE e NE da P1 terminaram; ~130 de VD da P1 com erro ou pendentes entram numa próxima rodada.
@@ -65,7 +65,7 @@
 
 **Pendências com o usuário:** nenhuma.
 
-**Agendamentos que só existem na sessão `swissviz-e5`** (somem se ela fechar; outra sessão precisa recriá-los): relatório aos minutos 13 e 43, que também reescreve esta seção; FR em 14/10 às 8:07; o apagador de droplets em segundo plano.
+**Agendamentos que só existem na sessão `swissviz-e5`** (somem se ela fechar; outra sessão precisa recriá-los): relatório aos minutos 13 e 43, que também reescreve esta seção; conferência de FR em 14/10 às 8:07; o apagador de droplets em segundo plano.
 <!-- HANDOFF:FIM -->
 
 ---
