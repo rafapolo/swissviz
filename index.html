@@ -2404,15 +2404,15 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
 
             // ── Timeline: companies opening and closing, from the SHAB ─────────────
             // data/timeline/events.bin.gz (scripts/build_timeline.py): one lamp per
-            // company life, with the day it opened and the day it closed, in days
-            // since 2018-01-01 (65535 = outside the window). The lamps are uploaded
+            // company life, with the day it opened and the day it closed (65535 = unknown),
+            // sorted along a Morton curve with delta-coded positions. The lamps are uploaded
             // once; the shader works out from `day` whether each is dark, flashing
             // open, lit, or burning out, so a frame only changes one uniform.
             // days count from 1883, when the commercial registers start; before
             // 2018 only the entry date of companies alive today (or closed since) is known
             const TL_EPOCH = Date.UTC(1883, 0, 1);
             // the service worker caches data files for good: bump on every rebuild
-            const TL_VERSION = 5;
+            const TL_VERSION = 6;
             const TL_RANGE_STEPS = 10000; // slider resolution over the whole screen time
             const TL_NONE = 65535;
             const TL_FAR = 1e9; // a day that never comes
@@ -2615,19 +2615,31 @@ vec3 tl_state() {
                 const res = await fetch(`data/timeline/events.bin.gz?v=${TL_VERSION}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const buf = await new Response(res.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
-                const n = new DataView(buf).getUint32(0, true);
-                const lat = new Int32Array(buf, 4, n);
-                const lng = new Int32Array(buf, 4 + 4 * n, n);
-                const o16 = new Uint16Array(buf, 4 + 8 * n, n);
-                const c16 = new Uint16Array(buf, 4 + 10 * n, n);
-                const t8 = new Uint8Array(buf, 4 + 12 * n, n);
+                // header: n, names per chunk, then the uint16 grid (origin and step) of the positions
+                const dv = new DataView(buf);
+                const n = dv.getUint32(0, true);
+                tlNamesChunk = dv.getUint32(4, true);
+                const lat0 = dv.getFloat64(8, true), lng0 = dv.getFloat64(16, true);
+                const latStep = dv.getFloat64(24, true), lngStep = dv.getFloat64(32, true);
+                // each uint16 column is stored as its low-byte plane, then its high-byte plane
+                const bytes = new Uint8Array(buf, 40);
+                const col = (k) => {
+                    const out = new Uint16Array(n), lo = 2 * n * k, hi = lo + n;
+                    for (let i = 0; i < n; i++) out[i] = bytes[lo + i] | (bytes[hi + i] << 8);
+                    return out;
+                };
+                const dLat = col(0), dLng = col(1), o16 = col(2), c16 = col(3);
+                const t8 = new Uint8Array(buf, 40 + 8 * n, n);
                 const pos = new Float32Array(2 * n);
                 const rgba = new Uint8Array(4 * n);
                 const rgbByCode = {};
-                let lastDay = 0;
+                let lastDay = 0, qa = 0, qn = 0;
                 for (let i = 0; i < n; i++) {
-                    pos[2 * i] = lng[i] / 1e5;
-                    pos[2 * i + 1] = lat[i] / 1e5;
+                    // positions: zigzag deltas from the previous lamp, modulo 2^16
+                    qa = (qa + ((dLat[i] >>> 1) ^ -(dLat[i] & 1))) & 0xffff;
+                    qn = (qn + ((dLng[i] >>> 1) ^ -(dLng[i] & 1))) & 0xffff;
+                    pos[2 * i] = lng0 + qn * lngStep;
+                    pos[2 * i + 1] = lat0 + qa * latStep;
                     if (o16[i] !== TL_NONE && o16[i] > lastDay) lastDay = o16[i];
                     if (c16[i] !== TL_NONE && c16[i] > lastDay) lastDay = c16[i];
                     const code = String.fromCharCode(t8[i]);
@@ -2745,11 +2757,13 @@ vec3 tl_state() {
                 });
             }
 
-            // names come in a separate file (12 MB), fetched on the first hover or tap
-            let tlNames = null;
-            let tlNamesLoading = null;
-            async function tlLoadNames() {
-                const res = await fetch(`data/timeline/names.json.gz?v=${TL_VERSION}`);
+            // names come in chunks of tlNamesChunk lamps (~180 kB each, one region of the map),
+            // a chunk fetched on the first hover or tap over one of its lamps
+            let tlNamesChunk = 16384;
+            const tlNames = new Map(); // chunk → names
+            const tlNamesLoading = new Map(); // chunk → promise
+            async function tlLoadNames(k) {
+                const res = await fetch(`data/timeline/names/${k}.json.gz?v=${TL_VERSION}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 return JSON.parse(await new Response(res.body.pipeThrough(new DecompressionStream("gzip"))).text());
             }
@@ -2773,9 +2787,11 @@ vec3 tl_state() {
                 const hex = _labelToHex.get(label) ?? "#888";
                 const day = (d) => (d === TL_NONE ? "" : new Date(TL_EPOCH + d * 864e5).toLocaleDateString(numLocale(), {
                     year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }));
-                const name = tlNames ? tlNames[i] : "…";
+                const chunk = Math.floor(i / tlNamesChunk);
+                const names = tlNames.get(chunk);
+                const name = names ? names[i % tlNamesChunk] : "…";
                 const zefix = `https://www.zefix.ch/${currentLang}/search/entity/list?mainSearch=`;
-                const link = tlNames ? `<a class="tt-link" href="${zefix + encodeURIComponent(name)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t("openInZefix"))}" aria-label="${escapeHtml(t("openInZefix"))}">↗</a>` : "";
+                const link = names ? `<a class="tt-link" href="${zefix + encodeURIComponent(name)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t("openInZefix"))}" aria-label="${escapeHtml(t("openInZefix"))}">↗</a>` : "";
                 const dates = [
                     tl.o16[i] !== TL_NONE ? `${escapeHtml(t("tlEntered"))} ${day(tl.o16[i])}` : "",
                     tl.c16[i] !== TL_NONE ? `<span style="color:#ff6b4a">${escapeHtml(t("tlDeleted"))} ${day(tl.c16[i])}</span>` : "",
@@ -2791,11 +2807,12 @@ vec3 tl_state() {
         <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:3px">${escapeHtml(labelText(label))}</div>
         <div style="color:rgba(255,255,255,0.6);font-size:12px;margin-top:3px">${dates}</div>`;
                 place();
-                if (!tlNames) {
-                    (tlNamesLoading ??= tlLoadNames()).then((names) => {
-                        tlNames = names;
+                if (!names) {
+                    if (!tlNamesLoading.has(chunk)) tlNamesLoading.set(chunk, tlLoadNames(chunk));
+                    tlNamesLoading.get(chunk).then((loaded) => {
+                        tlNames.set(chunk, loaded);
                         if (_ttObject === `tl:${i}`) { _ttObject = null; tlShowCard(info, { pin: _ttPinned }); }
-                    }).catch((e) => { console.error("timeline names", e); tlNamesLoading = null; });
+                    }).catch((e) => { console.error("timeline names", e); tlNamesLoading.delete(chunk); });
                 }
             }
 

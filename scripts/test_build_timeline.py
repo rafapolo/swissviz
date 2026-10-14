@@ -98,18 +98,55 @@ def test_estimates():
     assert entry_days({6: 19500101}, {6: (2001, 2)}) == {6: day_of(19500101)}
 
 
+def read_timeline(out_dir):
+    """The decoding of loadTimeline in index.html: lamps as (name, t, lat, lng, o, c)."""
+    buf = gzip.decompress(open(f"{out_dir}/events.bin.gz", "rb").read())
+    n, chunk, lat0, lng0, lat_step, lng_step = struct.unpack_from("<II4d", buf)
+    p = 40
+    def col(k):   # k-th uint16 column: low-byte plane, then high-byte plane
+        lo, hi = buf[p + 2 * n * k: p + 2 * n * k + n], buf[p + 2 * n * k + n: p + 2 * n * (k + 1)]
+        return [lo[i] | hi[i] << 8 for i in range(n)]
+    def undelta(zz):
+        out, prev = [], 0
+        for z in zz:
+            prev = (prev + ((z >> 1) ^ -(z & 1))) & 0xFFFF
+            out.append(prev)
+        return out
+    qa, qn, o, c = undelta(col(0)), undelta(col(1)), col(2), col(3)
+    t = buf[p + 8 * n:].decode("ascii")
+    names = []
+    for k in range((n + chunk - 1) // chunk):
+        names += json.loads(gzip.decompress(open(f"{out_dir}/names/{k}.json.gz", "rb").read()))
+    return [(names[i], t[i], lat0 + qa[i] * lat_step, lng0 + qn[i] * lng_step, o[i], c[i]) for i in range(n)]
+
+
 def test_binary_round_trip(tmp_path):
     lamps = pl.DataFrame({"name": ["X", "Y"], "t": ["A", "G"], "lat": [47.1, 46.9], "lng": [8.1, 7.9],
                           "o": [10, NONE], "c": [NONE, 50000]})
     write_timeline(lamps, str(tmp_path))
-    buf = gzip.decompress((tmp_path / "events.bin.gz").read_bytes())
-    n = struct.unpack_from("<I", buf)[0]
-    assert n == 2
-    o = struct.unpack_from("<2H", buf, 4 + 8 * n)
-    c = struct.unpack_from("<2H", buf, 4 + 10 * n)
-    assert o == (10, NONE) and c == (NONE, 50000)
-    assert buf[4 + 12 * n:] == b"AG"
-    assert json.loads(gzip.decompress((tmp_path / "names.json.gz").read_bytes())) == ["X", "Y"]
+    got = sorted(read_timeline(tmp_path))
+    assert [(r[0], r[1], r[4], r[5]) for r in got] == [("X", "A", 10, NONE), ("Y", "G", NONE, 50000)]
+    assert abs(got[0][2] - 47.1) < 1e-9 and abs(got[1][3] - 7.9) < 1e-9   # box corners are exact
+
+
+def test_binary_round_trip_across_chunks(tmp_path):
+    """Lamps all over Switzerland, more than one names chunk: every lamp comes back
+    with its name, form and days, within half a grid step of where it was."""
+    import random
+    import build_timeline
+    rnd = random.Random(1)
+    n = build_timeline.NAMES_CHUNK + 1000
+    lamps = pl.DataFrame({"name": [f"F{i}" for i in range(n)], "t": [rnd.choice("ABGS") for _ in range(n)],
+                          "lat": [rnd.uniform(45.8, 47.8) for _ in range(n)],
+                          "lng": [rnd.uniform(5.9, 10.5) for _ in range(n)],
+                          "o": [rnd.randrange(NONE + 1) for _ in range(n)], "c": [rnd.randrange(NONE + 1) for _ in range(n)]})
+    write_timeline(lamps, str(tmp_path))
+    got = {r[0]: r for r in read_timeline(tmp_path)}
+    assert len(got) == n
+    for name, t, lat, lng, o, c in lamps.iter_rows():
+        g = got[name]
+        assert (g[1], g[4], g[5]) == (t, o, c)
+        assert abs(g[2] - lat) < 2.0 / 65535 and abs(g[3] - lng) < 4.7 / 65535
 
 
 def test_uid_without_dots_pairs_with_the_dotted_one():

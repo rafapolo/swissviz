@@ -13,18 +13,26 @@ swisstopo address register. Three sources, one lamp per company:
 Without an exact date, the estimate of data/opening_dates.json.gz (night-light branch) is used:
 precision 0-1 the day, 2 the 1st of July of the year, 3 none. See tasks/linha-do-tempo-longa.md.
 
-Output: data/timeline/events.bin.gz, little-endian, all columns n long:
-    uint32 n
-    int32  lat * 1e5      int32 lng * 1e5
-    uint16 open day       uint16 close day
+Output: data/timeline/events.bin.gz, little-endian (decoded by loadTimeline in index.html):
+    uint32 n               uint32 names per chunk
+    float64 lat0, lng0     float64 lat step, lng step (uint16 grid over the lamps' box, ~3-5 m)
+then five columns, n long each, every multi-byte column split into its low-byte plane
+followed by its high-byte plane (gzip packs the planes much better than the interleaved bytes):
+    uint16 lat cell, uint16 lng cell: zigzag delta from the previous lamp, modulo 2^16
+    uint16 open day        uint16 close day
     uint8  legal form (ASCII letter, see T_DECODE in index.html)
-plus data/timeline/names.json.gz (names in the same order, loaded on click)
+The lamps are sorted along a Morton curve, so neighbours on the map are neighbours in the
+file: the coordinate deltas stay small, and each names chunk covers one region.
+Plus data/timeline/names/{k}.json.gz (the names of lamps k*chunk .. (k+1)*chunk-1, fetched
+on the first hover over one of them)
 and build/timeline_geo.parquet (every SHAB event with its precision, for checks).
 
 Usage:
     python3 scripts/build_timeline.py
 """
-import datetime as dt, gzip, json, os, struct, sys
+import datetime as dt, glob, gzip, json, os, struct, sys
+
+import numpy as np
 
 import polars as pl
 
@@ -37,6 +45,7 @@ ESTIMATES = os.path.expanduser(os.environ.get("OPENING_ESTIMATES", "~/Projetos/s
 OUT = "data/timeline"
 EPOCH = dt.date(1883, 1, 1)
 NONE = 65535
+NAMES_CHUNK = 16384
 
 # eCH-0097 legal form → one-letter code used by the site (scripts/repack.py)
 LEGAL = {
@@ -135,22 +144,50 @@ def build_lamps(ev: pl.DataFrame, days: dict, active: pl.DataFrame) -> tuple[pl.
     return lamps.select(LAMP_COLS), counts
 
 
+def morton(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Interleave the bits of two uint16 arrays: a key that keeps nearby cells close."""
+    x, y, r = x.astype(np.uint64), y.astype(np.uint64), np.zeros(len(x), np.uint64)
+    for b in range(16):
+        r |= ((x >> np.uint64(b)) & np.uint64(1)) << np.uint64(2 * b)
+        r |= ((y >> np.uint64(b)) & np.uint64(1)) << np.uint64(2 * b + 1)
+    return r
+
+
+def planes(a: np.ndarray) -> bytes:
+    """Low bytes of every value, then high bytes."""
+    return a.astype("<u2").view(np.uint8).reshape(-1, 2).T.tobytes()
+
+
+def zigzag_delta(a: np.ndarray) -> np.ndarray:
+    d = np.diff(a.astype(np.int64), prepend=0).astype(np.uint16).view(np.int16).astype(np.int32)
+    return ((d << 1) ^ (d >> 15)).astype(np.uint16)
+
+
 def write_timeline(lamps: pl.DataFrame, out_dir: str):
-    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(f"{out_dir}/names", exist_ok=True)
+    lat, lng = lamps["lat"].to_numpy(), lamps["lng"].to_numpy()
+    lat0, lng0 = float(lat.min()), float(lng.min())
+    lat_step, lng_step = (float(lat.max()) - lat0) / 65535, (float(lng.max()) - lng0) / 65535
+    qa = np.round((lat - lat0) / lat_step).astype(np.uint16)
+    qn = np.round((lng - lng0) / lng_step).astype(np.uint16)
+    order = np.lexsort((lamps["c"].to_numpy(), lamps["o"].to_numpy(), morton(qn, qa)))
+    lamps, qa, qn = lamps[order], qa[order], qn[order]
     n = lamps.height
     buf = b"".join([
-        struct.pack("<I", n),
-        (lamps["lat"] * 1e5).round().cast(pl.Int32).to_numpy().astype("<i4").tobytes(),
-        (lamps["lng"] * 1e5).round().cast(pl.Int32).to_numpy().astype("<i4").tobytes(),
-        lamps["o"].cast(pl.UInt16).to_numpy().astype("<u2").tobytes(),
-        lamps["c"].cast(pl.UInt16).to_numpy().astype("<u2").tobytes(),
+        struct.pack("<II4d", n, NAMES_CHUNK, lat0, lng0, lat_step, lng_step),
+        planes(zigzag_delta(qa)), planes(zigzag_delta(qn)),
+        planes(lamps["o"].to_numpy()), planes(lamps["c"].to_numpy()),
         "".join(lamps["t"].to_list()).encode("ascii"),
     ])
     with open(f"{out_dir}/events.bin.gz", "wb") as f:
         f.write(gzip.compress(buf, 9))
-    with open(f"{out_dir}/names.json.gz", "wb") as f:
-        f.write(gzip.compress(json.dumps(lamps["name"].to_list(), ensure_ascii=False,
-                                         separators=(",", ":")).encode(), 9))
+    for old in glob.glob(f"{out_dir}/names/*.json.gz") + glob.glob(f"{out_dir}/names.json.gz"):
+        os.remove(old)
+    names = lamps["name"].to_list()
+    for k in range(0, n, NAMES_CHUNK):
+        with open(f"{out_dir}/names/{k // NAMES_CHUNK}.json.gz", "wb") as f:
+            f.write(gzip.compress(json.dumps(names[k:k + NAMES_CHUNK], ensure_ascii=False,
+                                             separators=(",", ":")).encode(), 9))
 
 
 def place_events() -> pl.DataFrame:
@@ -210,8 +247,10 @@ def main():
            .group_by("dec").len().sort("dec"))
     print("[DECADES] " + "  ".join(f"{d}s {n:,}" for d, n in dec.iter_rows()))
     write_timeline(lamps, OUT)
-    for name in ("events.bin.gz", "names.json.gz"):
-        print(f"[OUT] {OUT}/{name}  {os.path.getsize(f'{OUT}/{name}') / 1e6:.1f} MB")
+    print(f"[OUT] {OUT}/events.bin.gz  {os.path.getsize(f'{OUT}/events.bin.gz') / 1e6:.1f} MB")
+    chunks = [os.path.getsize(f) for f in glob.glob(f"{OUT}/names/*.json.gz")]
+    print(f"[OUT] {OUT}/names/  {len(chunks)} chunks  {sum(chunks) / 1e6:.1f} MB  "
+          f"largest {max(chunks) / 1e3:.0f} kB")
 
 
 if __name__ == "__main__":
