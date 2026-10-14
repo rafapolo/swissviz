@@ -6,9 +6,9 @@ import { strict as assert } from "node:assert";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const block = html.match(/\/\/ <tl-clock>[^\n]*\n([\s\S]*?)\/\/ <\/tl-clock>/);
 assert.ok(block, "index.html has no // <tl-clock> block");
-const { tlBuildClock, tlInterp, tlStepDay, tlScreenTimes, tlDimFactor, TL_SPLIT_DAY, TL_DAYS_PER_SEC } =
+const { tlBuildClock, tlInterp, tlStepDay, tlScreenTimes, TL_SPLIT_DAY, TL_DAYS_PER_SEC } =
     new Function("TL_NONE", "TL_FAR",
-        `${block[1]}; return { tlBuildClock, tlInterp, tlStepDay, tlScreenTimes, tlDimFactor, TL_SPLIT_DAY, TL_DAYS_PER_SEC };`)(65535, 1e9);
+        `${block[1]}; return { tlBuildClock, tlInterp, tlStepDay, tlScreenTimes, TL_SPLIT_DAY, TL_DAYS_PER_SEC };`)(65535, 1e9);
 
 const DAY = (y, m = 1, d = 1) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1883, 0, 1)) / 864e5);
 const lastDay = DAY(2026, 10, 12);
@@ -78,19 +78,5 @@ test("lamps get their opening and closing in screen seconds, so a flash never de
     for (let i = 0; i < 3; i++) assert.ok(Math.abs(out[i] - timeAt(days[i])) < 1e-3, `lamp ${i}`);
     assert.equal(out[3], 1e9);   // no date: never
     assert.ok(out[0] < out[1] && out[1] < out[2]);
-});
-test("dim old lights: full when new, down to 25% after 5 years", () => {
-    assert.equal(tlDimFactor(0, "old"), 1);
-    assert.ok(Math.abs(tlDimFactor(2.5 * 365.25, "old") - 0.625) < 1e-9);
-    assert.equal(tlDimFactor(5 * 365.25, "old"), 0.25);
-    assert.equal(tlDimFactor(40 * 365.25, "old"), 0.25);
-});
-test("dim new lights: 25% when new, full after 5 years", () => {
-    assert.equal(tlDimFactor(0, "new"), 0.25);
-    assert.equal(tlDimFactor(5 * 365.25, "new"), 1);
-    assert.equal(tlDimFactor(100 * 365.25, "new"), 1);
-});
-test("no dimming: always full", () => {
-    for (const a of [0, 400, 40000]) assert.equal(tlDimFactor(a, "none"), 1);
 });
 process.exit(failures ? 1 : 0);
