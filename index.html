@@ -4452,6 +4452,8 @@ vec3 tl_state() {
                 initTimelineUi();
                 initLightPanel();
                 initChips();
+                // the lamps twinkle from the first frame, in either color
+                twinkleLoop();
 
                 document
                     .getElementById("btn-night-view")
