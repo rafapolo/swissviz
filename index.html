@@ -2,7 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <title>SwissViz — Swiss Companies Map</title>
         <meta name="description" content="Interactive map of 750k+ Swiss companies visualised by location, canton, and legal form. Built with open data from opendata.swiss." />
         <meta name="author" content="ExtraPolo.com" />
@@ -86,6 +86,8 @@
             #map {
                 width: 100vw;
                 height: 100vh;
+                /* phones: the visible height, without the area under the browser's toolbars */
+                height: 100dvh;
                 position: relative;
                 z-index: 0;
                 outline: none;
@@ -934,14 +936,6 @@
             .tl-close {
                 color: #ff6b4a;
             }
-            #tl-speed {
-                background: var(--surface);
-                border: 1px solid var(--border-mid);
-                border-radius: 4px;
-                color: inherit;
-                font: inherit;
-                padding: 3px 4px;
-            }
             .tl-track {
                 position: relative;
                 height: 64px;
@@ -987,7 +981,7 @@
                     transform: none;
                     padding: 8px 12px 10px;
                 }
-                /* play, date and speed on top; the three counters get a line of their own */
+                /* play and date on top; the three counters get a line of their own */
                 .tl-row {
                     flex-wrap: wrap;
                     row-gap: 4px;
@@ -1025,6 +1019,95 @@
                 .maplibregl-ctrl-bottom-left {
                     bottom: var(--tl-h, 0px);
                 }
+            }
+            /* ── Phones ───────────────────────────────────────────────────────────── */
+            @media (max-width: 600px) {
+                /* the toggles hug the edges and clear the notch */
+                #toggle-canton,
+                #toggle-legend,
+                #search-bar {
+                    top: calc(12px + env(safe-area-inset-top));
+                }
+                #toggle-canton {
+                    left: calc(12px + env(safe-area-inset-left));
+                }
+                #toggle-legend {
+                    right: calc(12px + env(safe-area-inset-right));
+                }
+                /* the search takes the whole row; night view and timeline stack under the
+                   legend toggle, like map controls */
+                #search-bar {
+                    left: calc(64px + env(safe-area-inset-left));
+                    right: calc(64px + env(safe-area-inset-right));
+                }
+                .mode-btn {
+                    position: fixed;
+                    right: calc(12px + env(safe-area-inset-right));
+                    z-index: 11;
+                }
+                #btn-night-view {
+                    top: calc(64px + env(safe-area-inset-top));
+                }
+                #btn-timeline {
+                    top: calc(116px + env(safe-area-inset-top));
+                }
+                /* an open sheet owns the screen below the search */
+                body:has(.panel.open) .mode-btn {
+                    visibility: hidden;
+                }
+                /* results use the whole width, over the stacked buttons, so names fit */
+                #search-results {
+                    position: fixed;
+                    left: calc(12px + env(safe-area-inset-left));
+                    right: calc(12px + env(safe-area-inset-right));
+                    max-height: min(420px, 60dvh);
+                    z-index: 12;
+                }
+                .search-result-form {
+                    max-width: 35%;
+                }
+                .search-result-item {
+                    min-height: 44px;
+                }
+                .panel {
+                    padding-bottom: env(safe-area-inset-bottom) !important;
+                }
+                /* clear of the frame's rounded bottom corners */
+                #timeline {
+                    left: calc(12px + env(safe-area-inset-left));
+                    right: calc(12px + env(safe-area-inset-right));
+                    bottom: calc(14px + env(safe-area-inset-bottom));
+                }
+            }
+            /* ── Touch ───────────────────────────────────────────────────────────── */
+            @media (hover: none) {
+                /* below 16px iOS zooms the page on focus */
+                #search-input {
+                    font-size: 16px;
+                }
+                #tl-play {
+                    width: 40px;
+                    height: 40px;
+                }
+                /* a taller slider: the thumb is easy to catch with a finger */
+                .tl-track {
+                    height: 64px;
+                }
+                #tl-hist {
+                    inset: 0 0 26px 0;
+                    height: calc(100% - 26px);
+                }
+                #tl-cursor {
+                    bottom: 26px;
+                }
+                #tl-range {
+                    height: 26px;
+                }
+            }
+            /* the credits button clears the frame's rounded bottom corner */
+            .maplibregl-ctrl-bottom-left .maplibregl-ctrl {
+                margin-left: 14px;
+                margin-bottom: calc(14px + env(safe-area-inset-bottom));
             }
         </style>
     </head>
@@ -1127,12 +1210,6 @@
             <div class="tl-row">
                 <button id="tl-play" aria-label="Play" data-i18n-aria="tlPlay"><span aria-hidden="true">▶</span></button>
                 <span id="tl-date" aria-live="off">1883</span>
-                <select id="tl-speed" aria-label="Speed" data-i18n-aria="tlSpeed">
-                    <option value="0.25">¼×</option>
-                    <option value="0.5">½×</option>
-                    <option value="1" selected>1×</option>
-                    <option value="2">2×</option>
-                </select>
                 <div class="tl-stats">
                     <span class="tl-open"><span data-i18n="tlOpened">Opened</span> <b id="tl-opened">0</b></span>
                     <span class="tl-close"><span data-i18n="tlClosed">Closed</span> <b id="tl-closed">0</b></span>
@@ -1174,7 +1251,6 @@
                     timeline: "Zeitachse",
                     tlPlay: "Abspielen",
                     tlPause: "Pause",
-                    tlSpeed: "Tempo",
                     tlDate: "Datum",
                     tlOpened: "Gegründet",
                     tlEntered: "Eingetragen",
@@ -1231,7 +1307,6 @@
                     timeline: "Timeline",
                     tlPlay: "Play",
                     tlPause: "Pause",
-                    tlSpeed: "Speed",
                     tlDate: "Date",
                     tlOpened: "Opened",
                     tlEntered: "Entered",
@@ -1286,7 +1361,6 @@
                     timeline: "Chronologie",
                     tlPlay: "Lire",
                     tlPause: "Pause",
-                    tlSpeed: "Vitesse",
                     tlDate: "Date",
                     tlOpened: "Créées",
                     tlEntered: "Inscrite le",
@@ -1340,7 +1414,6 @@
                     timeline: "Cronologia",
                     tlPlay: "Riproduci",
                     tlPause: "Pausa",
-                    tlSpeed: "Velocità",
                     tlDate: "Data",
                     tlOpened: "Iscritte",
                     tlEntered: "Iscritta il",
@@ -2584,7 +2657,8 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             const tlDayAt = (t) => tlInterp(tl.clockT, tl.clockDay, t);
             const tlTimeAt = (day) => tlInterp(tl.clockDay, tl.clockT, day);
             let tlPlaying = false;
-            let tlSpeed = 1;
+            // playback runs at 3× the clock's 1× pace (a year in ~2.3 s from 2018), with no speed control
+            const TL_SPEED = 3;
             let tlFrame = 0;
             let tlLastT = 0;
 
@@ -2755,8 +2829,8 @@ vec3 tl_state() {
                     // lamps carry their times in screen seconds: compare with the screen clock
                     day: tlT,
                     // the same wall-clock length at every speed; none at rest
-                    flash: tlPlaying || tlMoving ? TL_FLASH_SEC * tlSpeed : 0,
-                    fade: tlPlaying || tlMoving ? TL_FADE_SEC * tlSpeed : 0,
+                    flash: tlPlaying || tlMoving ? TL_FLASH_SEC * TL_SPEED : 0,
+                    fade: tlPlaying || tlMoving ? TL_FADE_SEC * TL_SPEED : 0,
                 };
                 if (nightView) {
                     // no auto exposure here: it reads the company layer, and
@@ -2977,7 +3051,7 @@ vec3 tl_state() {
                 // clamp the step so a frame after a hidden tab doesn't skip a year
                 const dt = Math.min(0.1, (now - tlLastT) / 1000);
                 tlLastT = now;
-                tlT += dt * tlSpeed;
+                tlT += dt * TL_SPEED;
                 tlDay = tlT <= tl.tMax ? tlDayAt(tlT) : tl.lastDay + (tlT - tl.tMax) * TL_DAYS_PER_SEC;
                 if (tlT >= tl.tMax + TL_FADE_SEC) {
                     tlT = tl.tMax;
@@ -3035,7 +3109,6 @@ vec3 tl_state() {
             function initTimelineUi() {
                 document.getElementById("btn-timeline").addEventListener("click", () => setTimeline(!timelineOn));
                 document.getElementById("tl-play").addEventListener("click", () => tlSetPlaying(!tlPlaying));
-                document.getElementById("tl-speed").addEventListener("change", (e) => { tlSpeed = +e.target.value; redrawLayer(); });
                 const range = document.getElementById("tl-range");
                 range.addEventListener("input", () => {
                     if (!tl) return;
