@@ -2672,7 +2672,11 @@ vec3 tl_state() {
                         getClose: { value: close, size: 1 },
                     },
                 };
-                return { n, data, cumOpen, cumClose, firstDay, lastDay, weekOpen, weekClose, ...clock };
+                // night view: the same lamps without the colour per legal form, so the layer's
+                // single warm night colour applies (binary attributes win over accessors)
+                const { getFillColor, ...nightAttributes } = data.attributes;
+                const dataNight = { length: n, attributes: nightAttributes };
+                return { n, data, dataNight, cumOpen, cumClose, firstDay, lastDay, weekOpen, weekClose, ...clock };
             }
 
             function buildTimelineLayer() {
@@ -2699,6 +2703,7 @@ vec3 tl_state() {
                     return new TimelineNightLayer({
                         ...shared,
                         id: "timeline-night",
+                        data: tl.dataNight,
                         night: 1,
                         getFillColor: [...NIGHT_RGB, 255],
                         getRadius: 1,
