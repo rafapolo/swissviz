@@ -9,26 +9,14 @@
 ---
 
 <!-- HANDOFF:INICIO (seção reescrita a cada relatório de 30 min) -->
-## Estado atual e handoff — atualizado em 14/10/2026 às 08:50
+## Estado atual e handoff — atualizado em 14/10/2026 às 12:20
 
-**O Mac sai do ar a partir de ~08:50 de 14/10 (pedido do usuário).** Tudo o que restava foi movido para as remotas e roda sem o Mac e sem esta sessão.
-
-**O que roda sem o Mac:**
-
-| Máquina | Processo | Arquivo → log | Falta (08:45) | Previsão |
-|---|---|---|---|---|
-| finland | chregister, 4 faixas | `~/cantonal/build/p1_chf.json` → `cantonal_chf.log` | 2.982 | ~09:20 |
-| finland | **Friburgo**, 1 faixa, `--pause 3` | `p1_fr.json` → `cantonal_fr.log` | 12.826 | ~21:30, se não vier 429 |
-| finland | **fechamento** `~/cantonal/finish.sh` | log `build/finish.log` | — | sai quando terminar |
-| livre | chregister, 4 faixas | `p1_chf.json` → `cantonal_chf.log` | 2.982 | ~09:20 |
-| cantonal-3..5 (DO) | chregister, 4 faixas | `p1_chf.json` → `cantonal_chf.log` | 2.982 cada | ~09:20 |
-
-- O chregister que faltava (P2 primeiro, depois P1: 14.909) foi dividido em 5 partes iguais às 08:45, com `adm.appls.fr.ch` tirado dos hosts de reserva (FR só no processo de FR da finland).
-- **`finish.sh` na finland** (cópia em `scripts/finland_finish.sh`): a cada 2 min, droplet sem coletor em duas checagens → copia o cache dela para `finland:~/cantonal/build/cantonal/` e apaga a droplet pela API; sem droplets e com a livre ociosa → copia o cache da livre e sai. Usa um token guardado em `finland:~/cantonal/.do_token` (modo 600) e uma chave SSH própria da finland (`~/.ssh/cantonal_do`, só a pública foi para as droplets e para a livre).
-- **Friburgo só na finland**, 1 faixa, pausa de 3 s; se der 429, o processo para sozinho e **não** se tenta por outro IP. O usuário pediu (08:45) para distribuir FR também com a livre; recusado (seriam dois IPs em paralelo para escapar da cota). Com um IP, FR não termina antes do meio-dia; o que faltar usa as datas estimadas na linha do tempo e entra depois.
-- **Cache mestre:** o do Mac (`build/cantonal/`, 606.453 extratos, 2,4 GB às 08:45) tem tudo até 08:45. O que as remotas baixarem depois fica na finland (droplets e livre são copiadas para lá pelo `finish.sh`). **Quando o Mac voltar:** `rsync -a "finland:cantonal/build/cantonal/" build/cantonal/`, conferir `finland:~/cantonal/build/finish.log` (todas as droplets com "delete -> HTTP 204") e `python3 scripts/do_budget.py` (deve mostrar 0 droplets), e então `python3 scripts/fetch_cantonal.py --parquet` e a Tarefa 1 do plano da linha do tempo.
-- **Gasto DigitalOcean:** US$ 0,375 às 08:33 de 14/10, ~US$ 0,40 no fim (orçamento US$ 5). A noite custou ~US$ 0,14 a mais porque o Mac dormiu e o apagador antigo (no Mac) não alcançou a API.
-- **Linha do tempo longa:** especificação `tasks/linha-do-tempo-longa.md` e plano `tasks/linha-do-tempo-longa-plano.md`, aprovados; implementação ainda não começou (aguardava o fim do chregister e a escolha do modo de execução; recomendado o modo nativo).
+- **chregister completo para P1 e P2** (~09:28 de 14/10). GE, VD e NE completos (28 jobs com erro 500/rede a refazer).
+- **Friburgo** roda só na finland (`~/cantonal/build/p1_fr.json`, 1 faixa, `--pause 3`, log `cantonal_fr.log`): 9.321 restantes às 12:06, ~17/min, sem 429 → ~21:15. Quando terminar: `rsync -a "finland:cantonal/build/cantonal/" build/cantonal/` e `python3 scripts/fetch_cantonal.py --parquet` de novo.
+- **Droplets apagadas** (cantonal-3/4/5, 09:19–09:22, HTTP 204); gasto final ~US$ 0,38. Token e chave temporária removidos da finland e da livre; blocos `cantonal-*` tirados do `~/.ssh/config`.
+- **Parquet** (12:15): 629.010 ok, 184 não encontrados; sem data de inscrição em 594 (439 FR, 131 GE); 6 erros de digitação do registro com ano antes de 1883 (0214, 1000…, 1190) a tratar como sem data. Distribuição por década lisa, sem pico falso; dia mais frequente com 281 inscrições.
+- **Próximo:** implementar a linha do tempo longa (`tasks/linha-do-tempo-longa-plano.md`), aguardando o usuário escolher o modo de execução (recomendado: nativo). Na Tarefa 1, datas antes de 1883 contam como ausentes.
+- Resumo em inglês: `tasks/actual_status.md`.
 
 **Como operar:**
 - Estado de tudo: `bash scripts/cantonal_status.sh` (no Mac). Gasto: `python3 scripts/do_budget.py`.

@@ -1,9 +1,22 @@
 # Cantonal register collection: actual status and the spread-machines approach
 
-**Snapshot:** 14 Oct 2026, 08:58 (CEST). The Mac is going offline; the end of the collection runs on the remote machines by itself.
+**Snapshot:** 14 Oct 2026, 12:20 (CEST). **The chregister is complete for P1 and P2; only Fribourg is still running** (on finland). Section 1 below is the 08:58 snapshot, kept for the record.
 **Detailed, continuously updated handoff (Portuguese):** the `HANDOFF` section of `tasks/cantonal-register.md`.
 
 ---
+
+## 0. Status at 12:20
+
+| Item | Result |
+|---|---|
+| Chregister P1 + P2 | **done** (~09:28); 0 jobs left |
+| GE, VD, NE | done; 27 P2 and 1 P1 jobs left after HTTP 500 / network errors (retry later) |
+| Fribourg (finland only, 1 lane, 3 s pause) | 3,502 fetched since 08:47, **9,321 left** at 12:06, ~17/min, no 429 → ~21:15 |
+| Droplets | cantonal-3/4/5 deleted 09:19–09:22 (HTTP 204); **0 alive** |
+| DigitalOcean spend | **~US$ 0.38** of the US$ 5 budget |
+| Cache on the Mac | 629,194 excerpts (finland's merged cache pulled at 12:15) |
+| `build/cantonal.parquet` | 629,010 ok + 184 not found; entry date missing in 594 (439 FR, 131 GE); 6 register typos with years before 1883 (0214, 1000s, 1190) to treat as missing |
+| Clean-up | DO token and finland's temporary key removed from finland; its key removed from livre; droplet entries removed from `~/.ssh/config` |
 
 ## 1. Status at 08:58
 
@@ -93,7 +106,7 @@ The 24 `*.chregister.ch` registers (85% of Swiss companies) sit on **one server*
 1. `rsync -a "finland:cantonal/build/cantonal/" build/cantonal/` (the Mac holds everything up to 08:45; finland collects the rest).
 2. Check `finish.log` (every droplet with `delete -> HTTP 204`) and `python3 scripts/do_budget.py` (0 droplets, final spend).
 3. `python3 scripts/fetch_cantonal.py --parquet`, then the long-timeline plan (`tasks/linha-do-tempo-longa-plano.md`).
-4. Re-run once more when Fribourg finishes, and remove `finland:~/cantonal/.do_token` and the `cantonal_do` key from livre's `authorized_keys`.
+4. Re-run once more when Fribourg finishes. (Token and key clean-up: done at 12:20.)
 
 ### Scripts
 | Script | Role |
