@@ -1,7 +1,7 @@
 # Cobertura dos dados: localização e data de abertura
 
 **Objetivo**: registrar o que o projeto tem e o que falta, por grupo de empresas, em localização e em data de abertura.
-**Situação em**: 13/10/2026, 13:10; atualizada em 14/10/2026 (seção "Atualização de 14/10/2026" no fim). Números medidos em `data/opening_dates.json.gz` (branch `feat/night-light`) e em `build/timeline_geo.parquet` (worktree `swissviz-timeline`).
+**Situação em**: 13/10/2026, 13:10; atualizada em 14/10/2026 (seção "Atualização de 14/10/2026" no fim). Números medidos em `data/opening_dates.json.gz` (branch `feat/night-light`) e em `build/timeline_geo.parquet` (`build/` do repositório).
 **Relacionadas**: `tasks/cantonal-register.md` (P1 e P2), `tasks/timeline-shab.md`.
 
 ---
