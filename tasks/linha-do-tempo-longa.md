@@ -66,6 +66,10 @@ Tudo por script, regenerável; nada editado à mão.
 - ~1,1 milhão de instâncias em vez de ~660 mil. Medir no desktop e num celular: tempo de carga, quadros por segundo na animação e memória.
 - Se o celular não segurar: no celular a linha do tempo carrega só as lâmpadas com abertura ou fechamento de 2018 em diante (corte feito no cliente, pelo dia), e a régua começa em 2018. Decisão tomada pela medição, não antes.
 
+### Medição (14/10/2026, arquivo provisório de 609 mil lâmpadas)
+- Mac (Apple Silicon), viewport 1400 e 390 px: 120 quadros/s tocando; arquivo carregado em 44 ms (servidor local); 73 MB de heap JS.
+- Celular de verdade: **não medido** (sem limitação de CPU na ferramenta). O corte para celular (seção 3) não foi implementado; decidir depois de testar num aparelho.
+
 ## 4. Verificação
 
 - **Gerador** (teste automatizado, `scripts/test_build_timeline.py`): com um conjunto pequeno de eventos, datas e ativas, conferir a precedência das três fontes, o tratamento de data anterior a 1883, de abertura posterior ao fechamento e da estimativa por precisão; ler de volta o binário e conferir contagem e colunas.
