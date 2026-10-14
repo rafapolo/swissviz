@@ -832,19 +832,17 @@
                 width: 640px;
                 max-width: calc(100vw - 660px);
                 min-width: 320px;
+                /* same surface as the canton and legend panels */
+                opacity: 0.97;
                 background: var(--bg);
-                border: 1px solid var(--border-mid);
-                border-radius: 8px;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+                border: 1px solid var(--border);
+                border-radius: 6px;
                 padding: 10px 14px 12px;
                 color: rgba(255, 255, 255, 0.85);
                 font-size: 12px;
             }
             #timeline[hidden] {
                 display: none;
-            }
-            body.night #timeline {
-                background: rgba(0, 0, 0, 0.82);
             }
             .tl-row {
                 display: flex;
@@ -923,7 +921,8 @@
                 bottom: 0;
                 width: 100%;
                 margin: 0;
-                accent-color: var(--accent);
+                /* the progress takes the colour of the lamps */
+                accent-color: rgb(var(--spark-raw));
             }
             .tl-source {
                 margin-top: 4px;
