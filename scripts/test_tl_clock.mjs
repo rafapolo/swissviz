@@ -6,8 +6,9 @@ import { strict as assert } from "node:assert";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const block = html.match(/\/\/ <tl-clock>[^\n]*\n([\s\S]*?)\/\/ <\/tl-clock>/);
 assert.ok(block, "index.html has no // <tl-clock> block");
-const { tlBuildClock, tlInterp, tlStepDay, TL_SPLIT_DAY, TL_DAYS_PER_SEC } =
-    new Function(`${block[1]}; return { tlBuildClock, tlInterp, tlStepDay, TL_SPLIT_DAY, TL_DAYS_PER_SEC };`)();
+const { tlBuildClock, tlInterp, tlStepDay, tlScreenTimes, TL_SPLIT_DAY, TL_DAYS_PER_SEC } =
+    new Function("TL_NONE", "TL_FAR",
+        `${block[1]}; return { tlBuildClock, tlInterp, tlStepDay, tlScreenTimes, TL_SPLIT_DAY, TL_DAYS_PER_SEC };`)(65535, 1e9);
 
 const DAY = (y, m = 1, d = 1) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1883, 0, 1)) / 864e5);
 const lastDay = DAY(2026, 10, 12);
@@ -69,5 +70,13 @@ test("arrow keys step one year before 2018, one week after", () => {
     assert.equal(tlStepDay(DAY(2018), 1), DAY(2018) + 7);
     assert.equal(tlStepDay(DAY(2018) + 3, -1), DAY(2018));
     assert.equal(tlStepDay(DAY(2018), -1), DAY(2017));
+});
+test("lamps get their opening and closing in screen seconds, so a flash never depends on the speed", () => {
+    const days = Uint16Array.from([DAY(1890), DAY(1950, 7, 1), DAY(2019, 3, 1), 65535]);
+    const out = tlScreenTimes(days, c);
+    assert.ok(out instanceof Float32Array);
+    for (let i = 0; i < 3; i++) assert.ok(Math.abs(out[i] - timeAt(days[i])) < 1e-3, `lamp ${i}`);
+    assert.equal(out[3], 1e9);   // no date: never
+    assert.ok(out[0] < out[1] && out[1] < out[2]);
 });
 process.exit(failures ? 1 : 0);

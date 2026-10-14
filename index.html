@@ -2452,6 +2452,15 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 const w = Math.floor((day - TL_SPLIT_DAY) / 7);
                 return TL_SPLIT_DAY + 7 * (dir > 0 ? w + 1 : (day - TL_SPLIT_DAY) % 7 ? w : w - 1);
             }
+            // each lamp's day (uint16, TL_NONE = never) as seconds of screen time at 1×:
+            // the shader compares these with the screen clock, so a flash lasts the
+            // same in every era and never starts again when the pace changes
+            function tlScreenTimes(days, clock) {
+                const out = new Float32Array(days.length);
+                for (let i = 0; i < days.length; i++)
+                    out[i] = days[i] === TL_NONE ? TL_FAR : tlInterp(clock.clockDay, clock.clockT, days[i]);
+                return out;
+            }
             // </tl-clock>
             const TL_FLASH_SEC = 0.6; // an opening flares, then settles
             const TL_FADE_SEC = 1.0; // a closing burns red and goes out
@@ -2463,8 +2472,6 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             let tlT = 0; // seconds of screen time at 1× since the start; tlDay follows from it
             const tlDayAt = (t) => tlInterp(tl.clockT, tl.clockDay, t);
             const tlTimeAt = (day) => tlInterp(tl.clockDay, tl.clockT, day);
-            // days per second of screen time at t (1×)
-            const tlRateAt = (t) => (tlDayAt(Math.min(t, tl.tMax - 0.01) + 0.01) - tlDayAt(Math.min(t, tl.tMax - 0.01))) / 0.01;
             let tlPlaying = false;
             let tlSpeed = 1;
             let tlFrame = 0;
@@ -2550,15 +2557,11 @@ vec3 tl_state() {
                 const t8 = new Uint8Array(buf, 4 + 12 * n, n);
                 const pos = new Float32Array(2 * n);
                 const rgba = new Uint8Array(4 * n);
-                const open = new Float32Array(n);
-                const close = new Float32Array(n);
                 const rgbByCode = {};
                 let lastDay = 0;
                 for (let i = 0; i < n; i++) {
                     pos[2 * i] = lng[i] / 1e5;
                     pos[2 * i + 1] = lat[i] / 1e5;
-                    open[i] = o16[i] === TL_NONE ? TL_FAR : o16[i];
-                    close[i] = c16[i] === TL_NONE ? TL_FAR : c16[i];
                     if (o16[i] !== TL_NONE && o16[i] > lastDay) lastDay = o16[i];
                     if (c16[i] !== TL_NONE && c16[i] > lastDay) lastDay = c16[i];
                     const code = String.fromCharCode(t8[i]);
@@ -2582,6 +2585,8 @@ vec3 tl_state() {
                 let firstDay = 0;
                 while (firstDay < lastDay && cumOpen[firstDay + 1] + cumClose[firstDay + 1] === 0) firstDay++;
                 const clock = tlBuildClock(cumOpen, firstDay, lastDay);
+                const open = tlScreenTimes(o16, clock);
+                const close = tlScreenTimes(c16, clock);
                 const data = {
                     length: n,
                     attributes: {
@@ -2596,16 +2601,16 @@ vec3 tl_state() {
 
             function buildTimelineLayer() {
                 const z = map ? map.getZoom() : 8;
-                // flash and fade last the same screen time in 1900 and in 2020
-                const perDay = tlRateAt(tlT) * tlSpeed;
+
                 const shared = {
                     id: "timeline",
                     data: tl.data,
                     pickable: false,
                     stroked: false,
-                    day: tlDay,
-                    flash: TL_FLASH_SEC * perDay,
-                    fade: TL_FADE_SEC * perDay,
+                    // lamps carry their times in screen seconds: compare with the screen clock
+                    day: tlT,
+                    flash: TL_FLASH_SEC * tlSpeed, // the same wall-clock length at every speed
+                    fade: TL_FADE_SEC * tlSpeed,
                 };
                 if (nightView) {
                     // no auto exposure here: it reads the company layer, and
