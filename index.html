@@ -2924,12 +2924,16 @@ vec3 tl_state() {
                     range.min = 0;
                     range.max = TL_RANGE_STEPS;
                 }
-                tlDay = day != null ? clamp(day, tl.firstDay, tl.lastDay) : tl.firstDay;
-                tlT = tlTimeAt(tlDay);
+                // reopened after being played or moved: stay where it was, without restarting
+                const resume = day == null && tlT > 0;
+                if (!resume) {
+                    tlDay = day != null ? clamp(day, tl.firstDay, tl.lastDay) : tl.firstDay;
+                    tlT = tlTimeAt(tlDay);
+                }
                 tlDrawHist();
                 tlUpdateUi();
                 refreshLayer();
-                if (day == null && !reduceMotion) tlSetPlaying(true);
+                if (day == null && !resume && !reduceMotion) tlSetPlaying(true);
             }
 
             function initTimelineUi() {
