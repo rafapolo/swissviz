@@ -918,7 +918,8 @@
             .tl-close {
                 color: #ff6b4a;
             }
-            #tl-speed {
+            #tl-speed,
+            #tl-dim {
                 background: var(--surface);
                 border: 1px solid var(--border-mid);
                 border-radius: 4px;
@@ -1117,6 +1118,11 @@
                     <option value="1" selected>1×</option>
                     <option value="2">2×</option>
                 </select>
+                <select id="tl-dim" aria-label="Dimming" data-i18n-aria="tlDim">
+                    <option value="old" selected data-i18n="tlDimOld">Dim old lights</option>
+                    <option value="new" data-i18n="tlDimNew">Dim new lights</option>
+                    <option value="none" data-i18n="tlDimNone">No dimming</option>
+                </select>
                 <div class="tl-stats">
                     <span class="tl-open"><span data-i18n="tlOpened">Opened</span> <b id="tl-opened">0</b></span>
                     <span class="tl-close"><span data-i18n="tlClosed">Closed</span> <b id="tl-closed">0</b></span>
@@ -1159,6 +1165,10 @@
                     tlPlay: "Abspielen",
                     tlPause: "Pause",
                     tlSpeed: "Tempo",
+                    tlDim: "Dimmen",
+                    tlDimOld: "Alte Lichter dimmen",
+                    tlDimNew: "Neue Lichter dimmen",
+                    tlDimNone: "Nicht dimmen",
                     tlDate: "Datum",
                     tlOpened: "Gegründet",
                     tlClosed: "Gelöscht",
@@ -1214,6 +1224,10 @@
                     tlPlay: "Play",
                     tlPause: "Pause",
                     tlSpeed: "Speed",
+                    tlDim: "Dimming",
+                    tlDimOld: "Dim old lights",
+                    tlDimNew: "Dim new lights",
+                    tlDimNone: "No dimming",
                     tlDate: "Date",
                     tlOpened: "Opened",
                     tlClosed: "Closed",
@@ -1267,6 +1281,10 @@
                     tlPlay: "Lire",
                     tlPause: "Pause",
                     tlSpeed: "Vitesse",
+                    tlDim: "Atténuation",
+                    tlDimOld: "Atténuer les anciennes",
+                    tlDimNew: "Atténuer les nouvelles",
+                    tlDimNone: "Sans atténuation",
                     tlDate: "Date",
                     tlOpened: "Créées",
                     tlClosed: "Radiées",
@@ -1319,6 +1337,10 @@
                     tlPlay: "Riproduci",
                     tlPause: "Pausa",
                     tlSpeed: "Velocità",
+                    tlDim: "Attenuazione",
+                    tlDimOld: "Attenua le vecchie",
+                    tlDimNew: "Attenua le nuove",
+                    tlDimNone: "Nessuna attenuazione",
                     tlDate: "Data",
                     tlOpened: "Iscritte",
                     tlClosed: "Cancellate",
@@ -2483,6 +2505,18 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     out[i] = days[i] === TL_NONE ? TL_FAR : tlInterp(clock.clockDay, clock.clockT, days[i]);
                 return out;
             }
+            // how bright a lit lamp is for its age in days: "old" dims lamps as they age,
+            // "new" dims young lamps so long-lived companies shine, "none" keeps all equal.
+            // The shader applies the same rule (TL_DIM_* below).
+            const TL_DIM_YEARS = 5; // age at which the change is complete
+            const TL_DIM_LOW = 0.25; // brightness of a dimmed lamp
+            const TL_DIM_MODES = ["old", "new", "none"];
+            function tlDimFactor(ageDays, mode) {
+                const f = Math.min(1, Math.max(0, ageDays / (TL_DIM_YEARS * 365.25)));
+                if (mode === "old") return 1 - (1 - TL_DIM_LOW) * f;
+                if (mode === "new") return TL_DIM_LOW + (1 - TL_DIM_LOW) * f;
+                return 1;
+            }
             // </tl-clock>
             const TL_FLASH_SEC = 0.6; // an opening flares, then settles
             const TL_FADE_SEC = 1.0; // a closing burns red and goes out
@@ -2496,6 +2530,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             // the timeline moves (playing, or the slider being dragged or stepped); at rest
             // every lamp is plain lit or gone
             let tlMoving = false;
+            let tlDim = "old"; // see tlDimFactor
             let tlIdle = 0;
             function tlNudge() {
                 tlMoving = true;
@@ -2515,6 +2550,8 @@ layout(std140) uniform tlUniforms {
   float flash;
   float fade;
   float night;
+  float now;
+  float dim;
 } tl;
 `;
             const tlModule = {
@@ -2522,6 +2559,7 @@ layout(std140) uniform tlUniforms {
                 vs: `${TL_UNIFORMS}
 in float instanceOpen;
 in float instanceClose;
+in float instanceOpenDay;
 // x: shown (0/1), y: opening flash 1 → 0, z: closing glow 1 → 0
 vec3 tl_state() {
   float ao = tl.day - instanceOpen;
@@ -2532,7 +2570,7 @@ vec3 tl_state() {
   return vec3(max(lit, step(1e-4, fc)), fo, fc);
 }
 `,
-                uniformTypes: { day: "f32", flash: "f32", fade: "f32", night: "f32" },
+                uniformTypes: { day: "f32", flash: "f32", fade: "f32", night: "f32", now: "f32", dim: "f32" },
                 getUniforms: (p) => p,
                 inject: {
                     "vs:DECKGL_FILTER_SIZE": `
@@ -2546,6 +2584,10 @@ vec3 tl_state() {
   if (tlc.z > 0.0) color.rgb = vec3(${TL_CLOSE_RGB.map((v) => (v / 255).toFixed(3)).join(", ")});
   float boost = tl.night > 0.5 ? 6.0 : 1.0;
   color.a = tlc.z > 0.0 ? tlc.z * (tl.night > 0.5 ? 4.0 : 1.0) : color.a * (1.0 + boost * tlc.y);
+  // dimming by age (tlDimFactor): 1 = old lamps dim, 2 = new lamps dim; flashes stay full
+  float tlf = clamp((tl.now - instanceOpenDay) / (${TL_DIM_YEARS.toFixed(1)} * 365.25), 0.0, 1.0);
+  float tlk = tl.dim > 1.5 ? mix(${TL_DIM_LOW.toFixed(3)}, 1.0, tlf) : tl.dim > 0.5 ? mix(1.0, ${TL_DIM_LOW.toFixed(3)}, tlf) : 1.0;
+  if (tlc.y == 0.0 && tlc.z == 0.0) color.a *= tlk;
   color.a *= tlc.x;
 `,
                 },
@@ -2562,16 +2604,17 @@ vec3 tl_state() {
                         this.getAttributeManager().addInstanced({
                             instanceOpen: { size: 1, accessor: "getOpen", defaultValue: TL_FAR },
                             instanceClose: { size: 1, accessor: "getClose", defaultValue: TL_FAR },
+                            instanceOpenDay: { size: 1, accessor: "getOpenDay", defaultValue: TL_FAR },
                         });
                     }
                     draw(opts) {
-                        const { day, flash, fade, night } = this.props;
-                        this.setShaderModuleProps({ tl: { day, flash, fade, night } });
+                        const { day, flash, fade, night, now, dim } = this.props;
+                        this.setShaderModuleProps({ tl: { day, flash, fade, night, now, dim } });
                         super.draw(opts);
                     }
                 }
                 L.layerName = name;
-                L.defaultProps = { ...Base.defaultProps, day: 0, flash: 30, fade: 50, night: 0 };
+                L.defaultProps = { ...Base.defaultProps, day: 0, flash: 30, fade: 50, night: 0, now: 0, dim: 0 };
                 return L;
             };
             const TimelineLayer = withTimeline(deck.ScatterplotLayer, "TimelineLayer");
@@ -2625,6 +2668,7 @@ vec3 tl_state() {
                         getPosition: { value: pos, size: 2 },
                         getFillColor: { value: rgba, size: 4, normalized: true },
                         getOpen: { value: open, size: 1 },
+                        getOpenDay: { value: Float32Array.from(o16, (d) => (d === TL_NONE ? TL_FAR : d)), size: 1 },
                         getClose: { value: close, size: 1 },
                     },
                 };
@@ -2642,6 +2686,8 @@ vec3 tl_state() {
                     // lamps carry their times in screen seconds: compare with the screen clock
                     day: tlT,
                     // the same wall-clock length at every speed; none at rest
+                    now: tlDay,
+                    dim: { old: 1, new: 2, none: 0 }[tlDim],
                     flash: tlPlaying || tlMoving ? TL_FLASH_SEC * tlSpeed : 0,
                     fade: tlPlaying || tlMoving ? TL_FADE_SEC * tlSpeed : 0,
                 };
@@ -2858,6 +2904,7 @@ vec3 tl_state() {
                 document.getElementById("btn-timeline").addEventListener("click", () => setTimeline(!timelineOn));
                 document.getElementById("tl-play").addEventListener("click", () => tlSetPlaying(!tlPlaying));
                 document.getElementById("tl-speed").addEventListener("change", (e) => { tlSpeed = +e.target.value; redrawLayer(); });
+                document.getElementById("tl-dim").addEventListener("change", (e) => { tlDim = e.target.value; redrawLayer(); updateUrl(); });
                 const range = document.getElementById("tl-range");
                 range.addEventListener("input", () => {
                     if (!tl) return;
@@ -2910,6 +2957,7 @@ vec3 tl_state() {
                 const off = (h.get("off") || "").split(",").filter((i) => /^\d+$/.test(i)).map((i) => colorAssignments[+i]?.label).filter(Boolean);
                 if (off.length) st.labelsOff = off;
                 st.night = h.get("night") === "1";
+                if (TL_DIM_MODES.includes(h.get("dim"))) st.dim = h.get("dim");
                 // tl=YYYY-MM-DD; a bare number is an old link: days since 2018-01-01
                 const tlq = h.get("tl") || "";
                 if (/^\d{4}-\d{2}-\d{2}$/.test(tlq)) {
@@ -2934,6 +2982,7 @@ vec3 tl_state() {
                     if (off.length) h.set("off", off.join(","));
                     if (nightView) h.set("night", "1");
                     if (timelineOn) h.set("tl", tlIsoDay(tlDay));
+                    if (timelineOn && tlDim !== "old") h.set("dim", tlDim);
                     // URLSearchParams escapes the commas; they are safe in a fragment
                     history.replaceState(null, "", location.pathname + location.search + "#" + h.toString().replace(/%2C/g, ","));
                 }, 250);
@@ -3088,6 +3137,7 @@ vec3 tl_state() {
                     await firstCanton;
                     refreshLayer();
                     if (urlState.night && !nightView) document.getElementById("btn-night-view").click();
+                    if (urlState.dim) { tlDim = urlState.dim; document.getElementById("tl-dim").value = tlDim; }
                     if (urlState.timelineDay != null) setTimeline(true, urlState.timelineDay);
 
                     const ls = document.getElementById("loading-screen");
