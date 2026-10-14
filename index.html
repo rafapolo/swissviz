@@ -4011,27 +4011,25 @@ vec3 tl_state() {
                 const spark = `rgb(${css.getPropertyValue("--spark-raw")})`;
                 const yearDay = (y) => Math.round((Date.UTC(y, 0, 1) - TL_EPOCH) / 864e5);
                 const split = Math.min(TL_SPLIT_DAY, tl.lastDay);
+                // one scale for the year bars and the month bars: companies a month,
+                // each count over the length of its span (the first and last are partial)
+                const perMonth = (n, a, b) => (n * 30.4375) / Math.max(1, b - a);
+                const bars = [];
                 // years before 2018
                 const y0 = new Date(TL_EPOCH + tl.firstDay * 864e5).getUTCFullYear();
-                const years = [];
                 for (let y = y0; yearDay(y) < split; y++) {
                     const a = Math.max(yearDay(y), tl.firstDay), b = Math.min(yearDay(y + 1), split);
-                    years.push([a, b, tl.cumOpen[b] - tl.cumOpen[a]]);
-                }
-                const maxYear = Math.max(1, ...years.map((v) => v[2]));
-                g.fillStyle = spark;
-                for (const [a, b, o] of years) {
-                    const x = X(a), bh = (o / maxYear) * up;
-                    g.fillRect(x, mid - bh, Math.max(1, X(b) - x - 0.5), bh);
+                    bars.push([a, b, perMonth(tl.cumOpen[b] - tl.cumOpen[a], a, b), 0]);
                 }
                 // months from 2018
-                const m0 = tlMonthOf(split), m1 = tl.monthOpen.length;
-                let maxMonth = 1;
-                for (let i = m0; i < m1; i++) maxMonth = Math.max(maxMonth, tl.monthOpen[i], tl.monthClose[i]);
-                for (let i = m0; i < m1; i++) {
-                    const x = X(Math.max(split, tlMonthStart(i)));
-                    const bw = Math.max(1, X(Math.min(tl.lastDay, tlMonthStart(i + 1))) - x - 0.5);
-                    const bo = (tl.monthOpen[i] / maxMonth) * up, bc = Math.min(down, (tl.monthClose[i] / maxMonth) * up);
+                for (let i = tlMonthOf(split); i < tl.monthOpen.length; i++) {
+                    const a = Math.max(split, tlMonthStart(i)), b = Math.min(tl.lastDay + 1, tlMonthStart(i + 1));
+                    bars.push([a, b, perMonth(tl.monthOpen[i], a, b), perMonth(tl.monthClose[i], a, b)]);
+                }
+                const max = Math.max(1, ...bars.map((v) => Math.max(v[2], v[3])));
+                for (const [a, b, o, c] of bars) {
+                    const x = X(a), bw = Math.max(1, X(Math.min(tl.lastDay, b)) - x - 0.5);
+                    const bo = (o / max) * up, bc = Math.min(down, (c / max) * up);
                     g.fillStyle = spark;
                     g.fillRect(x, mid - bo, bw, bo);
                     g.fillStyle = "#ff6b4a";
