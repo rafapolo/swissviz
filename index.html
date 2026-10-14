@@ -2497,10 +2497,17 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             // every lamp is plain lit or gone
             let tlMoving = false;
             let tlIdle = 0;
+            const TL_STILL_MS = 150; // the slider counts as still after this long without a move
+            function tlSettle() {
+                clearTimeout(tlIdle);
+                if (!tlMoving) return;
+                tlMoving = false;
+                if (timelineOn) redrawLayer();
+            }
             function tlNudge() {
                 tlMoving = true;
                 clearTimeout(tlIdle);
-                tlIdle = setTimeout(() => { tlMoving = false; if (timelineOn) redrawLayer(); }, TL_FLASH_SEC * 1000);
+                tlIdle = setTimeout(tlSettle, TL_STILL_MS);
             }
             const tlDayAt = (t) => tlInterp(tl.clockT, tl.clockDay, t);
             const tlTimeAt = (day) => tlInterp(tl.clockDay, tl.clockT, day);
@@ -2799,8 +2806,8 @@ vec3 tl_state() {
                     tlLastT = performance.now();
                     tlFrame = requestAnimationFrame(tlTick);
                 } else {
-                    // the lamps flashing at the moment of the stop settle once the flash has run
-                    if (tl && timelineOn) tlNudge();
+                    // stopped: the flashes go at once
+                    if (tl && timelineOn) redrawLayer();
                     updateUrl();
                 }
             }
@@ -2874,6 +2881,10 @@ vec3 tl_state() {
                     tlUpdateUi();
                 });
                 range.addEventListener("change", updateUrl);
+                // released: the flashes go at once
+                range.addEventListener("change", tlSettle);
+                range.addEventListener("pointerup", tlSettle);
+                range.addEventListener("keyup", tlSettle);
                 // arrows move a year before 2018 and a week after, however compressed the slider is there
                 range.addEventListener("keydown", (e) => {
                     const dir = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
