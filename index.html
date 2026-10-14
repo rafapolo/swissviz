@@ -2,7 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <title>SwissViz — Swiss Companies Map</title>
         <meta name="description" content="Interactive map of 750k+ Swiss companies visualised by location, canton, and legal form. Built with open data from opendata.swiss." />
         <meta name="author" content="ExtraPolo.com" />
@@ -86,6 +86,8 @@
             #map {
                 width: 100vw;
                 height: 100vh;
+                /* phones: the visible height, without the area under the browser's toolbars */
+                height: 100dvh;
                 position: relative;
                 z-index: 0;
                 outline: none;
@@ -1017,6 +1019,95 @@
                 .maplibregl-ctrl-bottom-left {
                     bottom: var(--tl-h, 0px);
                 }
+            }
+            /* ── Phones ───────────────────────────────────────────────────────────── */
+            @media (max-width: 600px) {
+                /* the toggles hug the edges and clear the notch */
+                #toggle-canton,
+                #toggle-legend,
+                #search-bar {
+                    top: calc(12px + env(safe-area-inset-top));
+                }
+                #toggle-canton {
+                    left: calc(12px + env(safe-area-inset-left));
+                }
+                #toggle-legend {
+                    right: calc(12px + env(safe-area-inset-right));
+                }
+                /* the search takes the whole row; night view and timeline stack under the
+                   legend toggle, like map controls */
+                #search-bar {
+                    left: calc(64px + env(safe-area-inset-left));
+                    right: calc(64px + env(safe-area-inset-right));
+                }
+                .mode-btn {
+                    position: fixed;
+                    right: calc(12px + env(safe-area-inset-right));
+                    z-index: 11;
+                }
+                #btn-night-view {
+                    top: calc(64px + env(safe-area-inset-top));
+                }
+                #btn-timeline {
+                    top: calc(116px + env(safe-area-inset-top));
+                }
+                /* an open sheet owns the screen below the search */
+                body:has(.panel.open) .mode-btn {
+                    visibility: hidden;
+                }
+                /* results use the whole width, over the stacked buttons, so names fit */
+                #search-results {
+                    position: fixed;
+                    left: calc(12px + env(safe-area-inset-left));
+                    right: calc(12px + env(safe-area-inset-right));
+                    max-height: min(420px, 60dvh);
+                    z-index: 12;
+                }
+                .search-result-form {
+                    max-width: 35%;
+                }
+                .search-result-item {
+                    min-height: 44px;
+                }
+                .panel {
+                    padding-bottom: env(safe-area-inset-bottom) !important;
+                }
+                /* clear of the frame's rounded bottom corners */
+                #timeline {
+                    left: calc(12px + env(safe-area-inset-left));
+                    right: calc(12px + env(safe-area-inset-right));
+                    bottom: calc(14px + env(safe-area-inset-bottom));
+                }
+            }
+            /* ── Touch ───────────────────────────────────────────────────────────── */
+            @media (hover: none) {
+                /* below 16px iOS zooms the page on focus */
+                #search-input {
+                    font-size: 16px;
+                }
+                #tl-play {
+                    width: 40px;
+                    height: 40px;
+                }
+                /* a taller slider: the thumb is easy to catch with a finger */
+                .tl-track {
+                    height: 64px;
+                }
+                #tl-hist {
+                    inset: 0 0 26px 0;
+                    height: calc(100% - 26px);
+                }
+                #tl-cursor {
+                    bottom: 26px;
+                }
+                #tl-range {
+                    height: 26px;
+                }
+            }
+            /* the credits button clears the frame's rounded bottom corner */
+            .maplibregl-ctrl-bottom-left .maplibregl-ctrl {
+                margin-left: 14px;
+                margin-bottom: calc(14px + env(safe-area-inset-bottom));
             }
         </style>
     </head>
