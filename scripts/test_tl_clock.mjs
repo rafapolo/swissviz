@@ -6,8 +6,8 @@ import { strict as assert } from "node:assert";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const block = html.match(/\/\/ <tl-clock>[^\n]*\n([\s\S]*?)\/\/ <\/tl-clock>/);
 assert.ok(block, "index.html has no // <tl-clock> block");
-const { tlBuildClock, tlInterp, TL_SPLIT_DAY, TL_DAYS_PER_SEC } =
-    new Function(`${block[1]}; return { tlBuildClock, tlInterp, TL_SPLIT_DAY, TL_DAYS_PER_SEC };`)();
+const { tlBuildClock, tlInterp, tlStepDay, TL_SPLIT_DAY, TL_DAYS_PER_SEC } =
+    new Function(`${block[1]}; return { tlBuildClock, tlInterp, tlStepDay, TL_SPLIT_DAY, TL_DAYS_PER_SEC };`)();
 
 const DAY = (y, m = 1, d = 1) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1883, 0, 1)) / 864e5);
 const lastDay = DAY(2026, 10, 12);
@@ -59,5 +59,15 @@ test("years with no opening still pass, at the slowest allowed speed or faster",
     const e = tlBuildClock(empty, 0, lastDay);
     const t = tlInterp(e.clockDay, e.clockT, TL_SPLIT_DAY);
     assert.ok(Number.isFinite(t) && t > 0, `t ${t}`);
+});
+test("arrow keys step one year before 2018, one week after", () => {
+    assert.equal(tlStepDay(DAY(1892, 6, 1), 1), DAY(1893));
+    assert.equal(tlStepDay(DAY(1893), 1), DAY(1894));
+    assert.equal(tlStepDay(DAY(1893), -1), DAY(1892));
+    assert.equal(tlStepDay(DAY(1892, 6, 1), -1), DAY(1892));
+    assert.equal(tlStepDay(DAY(2017, 3, 1), 1), DAY(2018));
+    assert.equal(tlStepDay(DAY(2018), 1), DAY(2018) + 7);
+    assert.equal(tlStepDay(DAY(2018) + 3, -1), DAY(2018));
+    assert.equal(tlStepDay(DAY(2018), -1), DAY(2017));
 });
 process.exit(failures ? 1 : 0);

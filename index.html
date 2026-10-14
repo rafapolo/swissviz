@@ -2383,6 +2383,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             const TL_EPOCH = Date.UTC(1883, 0, 1);
             // the service worker caches data files for good: bump on every rebuild
             const TL_VERSION = 5;
+            const TL_RANGE_STEPS = 10000; // slider resolution over the whole screen time
             const TL_NONE = 65535;
             const TL_FAR = 1e9; // a day that never comes
             // <tl-clock> screen time ↔ day (tested by scripts/test_tl_clock.mjs)
@@ -2439,6 +2440,17 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 let lo = 0, hi = n - 1;
                 while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] <= x) lo = m; else hi = m; }
                 return ys[lo] + ((x - xs[lo]) / (xs[hi] - xs[lo])) * (ys[hi] - ys[lo]);
+            }
+            // the next (dir 1) or previous (dir -1) step from day for the arrow keys:
+            // 1 January before 2018, a week from 2018 on
+            function tlStepDay(day, dir) {
+                const yearDay = (y) => Math.round((Date.UTC(y, 0, 1) - Date.UTC(1883, 0, 1)) / 864e5);
+                if (dir > 0 ? day < TL_SPLIT_DAY : day <= TL_SPLIT_DAY) {
+                    const y = new Date(Date.UTC(1883, 0, 1) + day * 864e5).getUTCFullYear();
+                    return dir > 0 ? yearDay(y + 1) : yearDay(day > yearDay(y) ? y : y - 1);
+                }
+                const w = Math.floor((day - TL_SPLIT_DAY) / 7);
+                return TL_SPLIT_DAY + 7 * (dir > 0 ? w + 1 : (day - TL_SPLIT_DAY) % 7 ? w : w - 1);
             }
             // </tl-clock>
             const TL_FLASH_SEC = 0.6; // an opening flares, then settles
@@ -2666,8 +2678,9 @@ vec3 tl_state() {
                 document.getElementById("tl-net").textContent = (o >= c ? "+" : "−") + Math.abs(o - c).toLocaleString(loc);
                 const range = document.getElementById("tl-range");
                 const f = clamp(tlT / tl.tMax, 0, 1);
-                const v = Math.round(f * 1000);
+                const v = Math.round(f * TL_RANGE_STEPS);
                 if (+range.value !== v) range.value = v;
+                range.setAttribute("aria-valuetext", tlDateText(d));
                 document.getElementById("tl-cursor").style.left = `calc(${(f * 100).toFixed(3)}% + ${(8 - 16 * f).toFixed(1)}px)`;
             }
             // bars on the screen-time axis, like the slider: one per year before 2018
@@ -2789,7 +2802,7 @@ vec3 tl_state() {
                     if (!timelineOn) return;
                     const range = document.getElementById("tl-range");
                     range.min = 0;
-                    range.max = 1000;
+                    range.max = TL_RANGE_STEPS;
                 }
                 tlDay = day != null ? clamp(day, tl.firstDay, tl.lastDay) : tl.firstDay;
                 tlT = tlTimeAt(tlDay);
@@ -2807,12 +2820,24 @@ vec3 tl_state() {
                 range.addEventListener("input", () => {
                     if (!tl) return;
                     tlSetPlaying(false);
-                    tlT = (+range.value / 1000) * tl.tMax;
+                    tlT = (+range.value / TL_RANGE_STEPS) * tl.tMax;
                     tlDay = tlDayAt(tlT);
                     redrawLayer();
                     tlUpdateUi();
                 });
                 range.addEventListener("change", updateUrl);
+                // arrows move a year before 2018 and a week after, however compressed the slider is there
+                range.addEventListener("keydown", (e) => {
+                    const dir = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
+                    if (!dir || !tl) return;
+                    e.preventDefault();
+                    tlSetPlaying(false);
+                    tlDay = clamp(tlStepDay(Math.floor(tlDay), dir), tl.firstDay, tl.lastDay);
+                    tlT = tlTimeAt(tlDay);
+                    redrawLayer();
+                    tlUpdateUi();
+                    updateUrl();
+                });
                 window.addEventListener("resize", () => { if (timelineOn) tlDrawHist(); });
                 // publish the bar's footprint so the bottom controls can clear it on phones
                 new ResizeObserver(([entry]) => {
