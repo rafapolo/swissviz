@@ -1161,6 +1161,8 @@
                     tlSpeed: "Tempo",
                     tlDate: "Datum",
                     tlOpened: "Gegründet",
+                    tlEntered: "Eingetragen",
+                    tlDeleted: "Gelöscht",
                     tlClosed: "Gelöscht",
                     tlNet: "Saldo",
                     tlLoading: "Zeitachse wird geladen…",
@@ -1216,6 +1218,8 @@
                     tlSpeed: "Speed",
                     tlDate: "Date",
                     tlOpened: "Opened",
+                    tlEntered: "Entered",
+                    tlDeleted: "Deleted",
                     tlClosed: "Closed",
                     tlNet: "Net",
                     tlLoading: "Loading timeline…",
@@ -1269,6 +1273,8 @@
                     tlSpeed: "Vitesse",
                     tlDate: "Date",
                     tlOpened: "Créées",
+                    tlEntered: "Inscrite le",
+                    tlDeleted: "Radiée le",
                     tlClosed: "Radiées",
                     tlNet: "Solde",
                     tlLoading: "Chargement de la chronologie…",
@@ -1321,6 +1327,8 @@
                     tlSpeed: "Velocità",
                     tlDate: "Data",
                     tlOpened: "Iscritte",
+                    tlEntered: "Iscritta il",
+                    tlDeleted: "Cancellata il",
                     tlClosed: "Cancellate",
                     tlNet: "Saldo",
                     tlLoading: "Caricamento cronologia…",
@@ -2639,7 +2647,7 @@ vec3 tl_state() {
                 // single warm night colour applies (binary attributes win over accessors)
                 const { getFillColor, ...nightAttributes } = data.attributes;
                 const dataNight = { length: n, attributes: nightAttributes };
-                return { n, data, dataNight, cumOpen, cumClose, firstDay, lastDay, weekOpen, weekClose, ...clock };
+                return { n, data, dataNight, o16, c16, t8, cumOpen, cumClose, firstDay, lastDay, weekOpen, weekClose, ...clock };
             }
 
             function buildTimelineLayer() {
@@ -2648,7 +2656,11 @@ vec3 tl_state() {
                 const shared = {
                     id: "timeline",
                     data: tl.data,
-                    pickable: false,
+                    // only lit lamps have a size, so only they can be picked
+                    pickable: true,
+                    autoHighlight: false,
+                    onHover: (info) => { if (!_touchMQ.matches) tlShowCard(info); },
+                    onClick: (info) => { tlShowCard(info, { pin: !_touchMQ.matches }); return true; },
                     stroked: false,
                     // lamps carry their times in screen seconds: compare with the screen clock
                     day: tlT,
@@ -2703,6 +2715,60 @@ vec3 tl_state() {
                         blendEquation: 32774,
                     },
                 });
+            }
+
+            // names come in a separate file (12 MB), fetched on the first hover or tap
+            let tlNames = null;
+            let tlNamesLoading = null;
+            async function tlLoadNames() {
+                const res = await fetch(`data/timeline/names.json.gz?v=${TL_VERSION}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return JSON.parse(await new Response(res.body.pipeThrough(new DecompressionStream("gzip"))).text());
+            }
+            // the card of one lamp: name, legal form, entry and deletion dates
+            function tlShowCard(info, opts = {}) {
+                const tt = document.getElementById("tooltip");
+                const touch = _touchMQ.matches;
+                if (_ttPinned && !opts.pin && !touch) return;
+                if (info.index == null || info.index < 0 || !tl) { hideTooltip(); return; }
+                _ttPinned = !!opts.pin && !touch;
+                tt.classList.toggle("pinned", _ttPinned);
+                const place = () => {
+                    if (touch) return;
+                    tt.style.left = Math.max(10, Math.min(info.x + 15, window.innerWidth - tt.offsetWidth - 10)) + "px";
+                    tt.style.top = Math.max(10, Math.min(info.y + 15, window.innerHeight - tt.offsetHeight - 10)) + "px";
+                };
+                if (_ttObject === `tl:${info.index}` && !opts.pin && !touch) { place(); return; }
+                _ttObject = `tl:${info.index}`;
+                const i = info.index;
+                const label = T_DECODE[String.fromCharCode(tl.t8[i])] || "";
+                const hex = _labelToHex.get(label) ?? "#888";
+                const day = (d) => (d === TL_NONE ? "" : new Date(TL_EPOCH + d * 864e5).toLocaleDateString(numLocale(), {
+                    year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }));
+                const name = tlNames ? tlNames[i] : "…";
+                const zefix = `https://www.zefix.ch/${currentLang}/search/entity/list?mainSearch=`;
+                const link = tlNames ? `<a class="tt-link" href="${zefix + encodeURIComponent(name)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t("openInZefix"))}" aria-label="${escapeHtml(t("openInZefix"))}">↗</a>` : "";
+                const dates = [
+                    tl.o16[i] !== TL_NONE ? `${escapeHtml(t("tlEntered"))} ${day(tl.o16[i])}` : "",
+                    tl.c16[i] !== TL_NONE ? `<span style="color:#ff6b4a">${escapeHtml(t("tlDeleted"))} ${day(tl.c16[i])}</span>` : "",
+                ].filter(Boolean).join(" · ");
+                tt.style.display = touch ? "flex" : "block";
+                const ttContent = document.getElementById("tooltip-content");
+                ttContent.scrollTop = 0;
+                ttContent.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:${hex}"></span>
+          <span style="color:#fff;font-weight:500;font-size:13px">${escapeHtml(name)}</span>${link}
+        </div>
+        <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:3px">${escapeHtml(labelText(label))}</div>
+        <div style="color:rgba(255,255,255,0.6);font-size:12px;margin-top:3px">${dates}</div>`;
+                place();
+                if (!tlNames) {
+                    (tlNamesLoading ??= tlLoadNames()).then((names) => {
+                        tlNames = names;
+                        if (_ttObject === `tl:${i}`) { _ttObject = null; tlShowCard(info, { pin: _ttPinned }); }
+                    }).catch((e) => { console.error("timeline names", e); tlNamesLoading = null; });
+                }
             }
 
             // the companies of today, or the timeline in their place
