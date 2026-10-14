@@ -29,7 +29,7 @@ Usage:
   python3 scripts/fetch_cantonal.py --jobs-file build/p1_part0.json   # one part per machine
   python3 scripts/fetch_cantonal.py --parquet           # cache -> build/cantonal.parquet
 """
-import argparse, collections, datetime, glob, html, json, os, queue, random, re, sys, threading, time
+import argparse, collections, datetime, glob, gzip, html, json, os, queue, random, re, sys, threading, time
 import requests
 try:
     import polars as pl
@@ -546,7 +546,39 @@ def to_parquet():
                                          .str.to_date(strict=False))
     df.write_parquet(os.path.join(BUILD, "cantonal.parquet"))
     print(df.group_by("host", "status").len().sort("host"))
+    reg = registered_dates(df)
+    write_registered(reg, os.path.join(ROOT, "data", "registered.json.gz"))
+    print(f"data/registered.json.gz: {reg.height} companies, {reg['date'].min()} .. {reg['date'].max()}")
     return df
+
+
+# the oldest entries in the electronic registers are from 1883; earlier years (0214, 1190 …)
+# and future ones (2027) are typos
+FIRST_ENTRY = datetime.date(1883, 1, 1)
+
+
+def registered_dates(df):
+    """Entry date per company: "Eingetragen am", else the first journal entry when the journal is
+    not just the start of the electronic register (has_report). A company in two registers (moved
+    canton) keeps the older date. -> uid (int, 9 digits), date (int, YYYYMMDD), sorted by uid."""
+    ok = df.filter(pl.col("status") == "ok")
+    today = datetime.date.today()
+    valid = lambda c: pl.when(pl.col(c).is_between(FIRST_ENTRY, today)).then(pl.col(c))
+    d = ok.select(
+        pl.col("uid").str.replace_all(r"\D", "").cast(pl.Int64).alias("uid"),
+        pl.coalesce(valid("registered"),
+                    pl.when(~pl.col("has_report").fill_null(False)).then(valid("first_journal"))).alias("d"),
+    ).filter(pl.col("d").is_not_null())
+    return (d.group_by("uid").agg(pl.col("d").min())
+            .select("uid", (pl.col("d").dt.strftime("%Y%m%d").cast(pl.Int32)).alias("date"))
+            .sort("uid"))
+
+
+def write_registered(df, path):
+    """Columnar gzip JSON, the only register data that goes into git: {"asOf", "uid", "date"}."""
+    out = {"asOf": datetime.date.today().isoformat(), "uid": df["uid"].to_list(), "date": df["date"].to_list()}
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        json.dump(out, f, separators=(",", ":"))
 
 
 if __name__ == "__main__":
