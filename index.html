@@ -295,11 +295,6 @@
                 color: var(--lamp);
                 box-shadow: var(--lit);
             }
-            #night-view-controls {
-                border-top: 1px solid var(--border-subtle);
-                border-bottom: none;
-                margin-bottom: 0;
-            }
             /* Night: the frame and the window corners go to the same black as the map */
             body.night {
                 --corner: #000;
@@ -645,9 +640,45 @@
                 left: 50%;
                 transform: translateX(-50%);
                 z-index: 14;
-                width: 400px;
+                width: 504px; /* the search box plus the two mode buttons */
                 /* stay clear of both 285px panels (+ their 20px offsets) */
                 max-width: calc(100vw - 660px);
+            }
+            #search-row {
+                display: flex;
+                gap: 8px;
+            }
+            #search-row #search-wrapper {
+                flex: 1;
+                min-width: 0;
+            }
+            /* night view and timeline: square like the panel toggles, lit like the lamps when on */
+            .mode-btn {
+                flex: none;
+                width: 44px;
+                height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: var(--bg);
+                border: 1px solid var(--border-mid);
+                border-radius: 8px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+                color: rgba(255, 255, 255, 0.85);
+                cursor: pointer;
+                transition:
+                    border-color 0.15s,
+                    color 0.15s;
+            }
+            .mode-btn:hover {
+                border-color: rgba(255, 255, 255, 0.25);
+                color: #fff;
+            }
+            .mode-btn.active {
+                background: rgba(var(--ember-raw), 0.3);
+                border-color: rgba(var(--ember-lit-raw), 0.55);
+                color: var(--lamp);
+                box-shadow: var(--lit);
             }
             #search-wrapper {
                 display: flex;
@@ -998,23 +1029,32 @@
         <div id="sr-status" aria-live="polite" aria-atomic="true" class="sr-only"></div>
 
         <div id="search-bar" role="search" aria-label="Search Swiss companies">
-            <div id="search-wrapper">
-                <span id="search-icon" aria-hidden="true">⌕</span>
-                <label for="search-input" class="sr-only">Search companies</label>
-                <input
-                    id="search-input"
-                    type="text"
-                    placeholder="Search companies…"
-                    autocomplete="off"
-                    spellcheck="false"
-                    aria-autocomplete="list"
-                    aria-controls="search-results"
-                    aria-haspopup="listbox"
-                    aria-expanded="false"
-                    role="combobox"
-                />
-                <span id="search-count" aria-live="polite" aria-atomic="true"></span>
-                <button id="search-clear" aria-label="Clear search">✕</button>
+            <div id="search-row">
+                <div id="search-wrapper">
+                    <span id="search-icon" aria-hidden="true">⌕</span>
+                    <label for="search-input" class="sr-only">Search companies</label>
+                    <input
+                        id="search-input"
+                        type="text"
+                        placeholder="Search companies…"
+                        autocomplete="off"
+                        spellcheck="false"
+                        aria-autocomplete="list"
+                        aria-controls="search-results"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        role="combobox"
+                    />
+                    <span id="search-count" aria-live="polite" aria-atomic="true"></span>
+                    <button id="search-clear" aria-label="Clear search">✕</button>
+                </div>
+                <!-- the two modes of the map, next to the search: night view and the timeline -->
+                <button id="btn-night-view" class="mode-btn" aria-pressed="false" aria-label="Night view" data-i18n-aria="nightView">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                </button>
+                <button id="btn-timeline" class="mode-btn" aria-pressed="false" aria-controls="timeline" aria-label="Timeline" data-i18n-aria="timeline">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                </button>
             </div>
             <div id="search-results" role="listbox" aria-label="Search results"></div>
         </div>
@@ -1065,10 +1105,6 @@
                 <button id="btn-deselect-all" data-i18n="deselectAll">Deselect all</button>
             </div>
             <div id="legend-items" role="group" aria-labelledby="legend-subtitle"></div>
-            <div class="panel-controls" id="night-view-controls">
-                <button id="btn-night-view" aria-pressed="false" data-i18n="nightView">Night view</button>
-                <button id="btn-timeline" aria-pressed="false" aria-controls="timeline" data-i18n="timeline">Timeline</button>
-            </div>
         </div>
 
         <div id="timeline" role="region" aria-labelledby="tl-date" hidden>
@@ -1360,7 +1396,10 @@
                     });
                 // static UI: data-i18n → text, data-i18n-aria → aria-label
                 document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
-                document.querySelectorAll("[data-i18n-aria]").forEach((el) => el.setAttribute("aria-label", t(el.dataset.i18nAria)));
+                document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
+                    el.setAttribute("aria-label", t(el.dataset.i18nAria));
+                    if (el.classList.contains("mode-btn")) el.title = t(el.dataset.i18nAria);
+                });
                 const input = document.getElementById("search-input");
                 input.placeholder = t(searchReady ? "searchReady" : _searchWorker ? "searchLoading" : "searchPlaceholder");
                 document.getElementById("legend-subtitle").textContent =
