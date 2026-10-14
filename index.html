@@ -930,9 +930,6 @@
                 font-size: 10px;
                 color: var(--white-muted);
             }
-            .tl-source.tl-note {
-                margin-top: 1px;
-            }
             @media (max-width: 980px) {
                 #timeline {
                     left: 8px;
@@ -965,15 +962,7 @@
                     height: 52px;
                     margin-top: 6px;
                 }
-                .tl-source {
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                }
-                /* the note is the caveat of the pre-2018 part: let it wrap */
-                .tl-source.tl-note {
-                    white-space: normal;
-                }
+                /* the source line carries the pre-2018 caveat: it wraps rather than being cut */
                 /* an open sheet covers the timeline, not the reverse: the company card
                    goes on top, and the panels (slightly translucent) hide it */
                 #tooltip {
@@ -1104,8 +1093,7 @@
                 <div id="tl-cursor"></div>
                 <input id="tl-range" type="range" min="0" max="1" step="1" value="0" aria-label="Date" data-i18n-aria="tlDate" />
             </div>
-            <div class="tl-source" data-i18n="tlSource">Entry dates from the cantonal commercial registers; new entries and deletions since 2018 from the Official Gazette of Commerce (SHAB)</div>
-            <div class="tl-source tl-note" data-i18n="tlBefore2018">Before 2018: companies that exist today or were deleted since 2018. Those opened and closed earlier are missing.</div>
+            <div class="tl-source" data-i18n="tlSource">Entry dates from the cantonal commercial registers and new entries and deletions in the SHAB since 2018; before 2018 only companies that exist today or were deleted since then appear.</div>
         </div>
 
 
@@ -1141,8 +1129,7 @@
                     tlClosed: "Gelöscht",
                     tlNet: "Saldo",
                     tlLoading: "Zeitachse wird geladen…",
-                    tlSource: "Eintragungsdaten aus den kantonalen Handelsregistern; Neueintragungen und Löschungen seit 2018 aus dem Schweizerischen Handelsamtsblatt (SHAB)",
-                    tlBefore2018: "Vor 2018: Unternehmen, die heute bestehen oder seit 2018 gelöscht wurden. Früher gegründete und gelöschte fehlen.",
+                    tlSource: "Eintragungsdaten aus den kantonalen Handelsregistern und Neueintragungen und Löschungen im SHAB seit 2018; vor 2018 erscheinen nur Unternehmen, die heute bestehen oder seither gelöscht wurden.",
                     searchPlaceholder: "Firmen suchen…",
                     searchLoading: "Suchindex wird geladen…",
                     searchReady: "760'000 Firmen durchsuchen…",
@@ -1197,8 +1184,7 @@
                     tlClosed: "Closed",
                     tlNet: "Net",
                     tlLoading: "Loading timeline…",
-                    tlSource: "Entry dates from the cantonal commercial registers; new entries and deletions since 2018 from the Official Gazette of Commerce (SHAB)",
-                    tlBefore2018: "Before 2018: companies that exist today or were deleted since 2018. Those opened and closed earlier are missing.",
+                    tlSource: "Entry dates from the cantonal commercial registers and new entries and deletions in the SHAB since 2018; before 2018 only companies that exist today or were deleted since then appear.",
                     searchPlaceholder: "Search companies…",
                     searchLoading: "Loading search index…",
                     searchReady: "Search 760k companies…",
@@ -1251,8 +1237,7 @@
                     tlClosed: "Radiées",
                     tlNet: "Solde",
                     tlLoading: "Chargement de la chronologie…",
-                    tlSource: "Dates d’inscription des registres cantonaux du commerce ; inscriptions et radiations depuis 2018 dans la Feuille officielle suisse du commerce (FOSC)",
-                    tlBefore2018: "Avant 2018 : entreprises existant aujourd’hui ou radiées depuis 2018. Celles créées et radiées plus tôt manquent.",
+                    tlSource: "Dates d’inscription des registres cantonaux du commerce et inscriptions et radiations dans la FOSC depuis 2018 ; avant 2018 n’apparaissent que les entreprises existant aujourd’hui ou radiées depuis.",
                     searchPlaceholder: "Rechercher des entreprises…",
                     searchLoading: "Chargement de l’index…",
                     searchReady: "Rechercher parmi 760 000 entreprises…",
@@ -1304,8 +1289,7 @@
                     tlClosed: "Cancellate",
                     tlNet: "Saldo",
                     tlLoading: "Caricamento cronologia…",
-                    tlSource: "Date d’iscrizione dai registri di commercio cantonali; iscrizioni e cancellazioni dal 2018 dal Foglio ufficiale svizzero di commercio (FUSC)",
-                    tlBefore2018: "Prima del 2018: imprese esistenti oggi o cancellate dal 2018. Mancano quelle aperte e chiuse prima.",
+                    tlSource: "Date d’iscrizione dai registri di commercio cantonali e iscrizioni e cancellazioni nel FUSC dal 2018; prima del 2018 appaiono solo le imprese esistenti oggi o cancellate da allora.",
                     searchPlaceholder: "Cerca aziende…",
                     searchLoading: "Caricamento dell’indice…",
                     searchReady: "Cerca tra 760 000 aziende…",
