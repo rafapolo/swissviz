@@ -2470,6 +2470,16 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             let tlLoading = null;
             let tlDay = 0;
             let tlT = 0; // seconds of screen time at 1× since the start; tlDay follows from it
+            // the white flash of an opening and the red glow of a closing only show while
+            // the timeline moves (playing, or the slider being dragged or stepped); at rest
+            // every lamp is plain lit or gone
+            let tlMoving = false;
+            let tlIdle = 0;
+            function tlNudge() {
+                tlMoving = true;
+                clearTimeout(tlIdle);
+                tlIdle = setTimeout(() => { tlMoving = false; if (timelineOn) redrawLayer(); }, TL_FLASH_SEC * 1000);
+            }
             const tlDayAt = (t) => tlInterp(tl.clockT, tl.clockDay, t);
             const tlTimeAt = (day) => tlInterp(tl.clockDay, tl.clockT, day);
             let tlPlaying = false;
@@ -2609,8 +2619,9 @@ vec3 tl_state() {
                     stroked: false,
                     // lamps carry their times in screen seconds: compare with the screen clock
                     day: tlT,
-                    flash: TL_FLASH_SEC * tlSpeed, // the same wall-clock length at every speed
-                    fade: TL_FADE_SEC * tlSpeed,
+                    // the same wall-clock length at every speed; none at rest
+                    flash: tlPlaying || tlMoving ? TL_FLASH_SEC * tlSpeed : 0,
+                    fade: tlPlaying || tlMoving ? TL_FADE_SEC * tlSpeed : 0,
                 };
                 if (nightView) {
                     // no auto exposure here: it reads the company layer, and
@@ -2760,7 +2771,11 @@ vec3 tl_state() {
                     if (tlT >= tl.tMax) { tlT = 0; tlDay = tl.firstDay; }
                     tlLastT = performance.now();
                     tlFrame = requestAnimationFrame(tlTick);
-                } else updateUrl();
+                } else {
+                    // the lamps flashing at the moment of the stop settle once the flash has run
+                    if (tl && timelineOn) tlNudge();
+                    updateUrl();
+                }
             }
             function tlTick(now) {
                 // clamp the step so a frame after a hidden tab doesn't skip a year
@@ -2827,6 +2842,7 @@ vec3 tl_state() {
                     tlSetPlaying(false);
                     tlT = (+range.value / TL_RANGE_STEPS) * tl.tMax;
                     tlDay = tlDayAt(tlT);
+                    tlNudge();
                     redrawLayer();
                     tlUpdateUi();
                 });
@@ -2839,6 +2855,7 @@ vec3 tl_state() {
                     tlSetPlaying(false);
                     tlDay = clamp(tlStepDay(Math.floor(tlDay), dir), tl.firstDay, tl.lastDay);
                     tlT = tlTimeAt(tlDay);
+                    tlNudge();
                     redrawLayer();
                     tlUpdateUi();
                     updateUrl();
