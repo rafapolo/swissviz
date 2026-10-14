@@ -2,7 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <title>SwissViz — Swiss Companies Map</title>
         <meta name="description" content="Interactive map of 750k+ Swiss companies visualised by location, canton, and legal form. Built with open data from opendata.swiss." />
         <meta name="author" content="ExtraPolo.com" />
@@ -99,6 +99,8 @@
             #map {
                 width: 100vw;
                 height: 100vh;
+                /* phones: the visible height, without the area under the browser's toolbars */
+                height: 100dvh;
                 position: relative;
                 z-index: 0;
                 outline: none;
@@ -1213,14 +1215,6 @@
             .tl-close {
                 color: #ff6b4a;
             }
-            #tl-speed {
-                background: var(--surface);
-                border: 1px solid var(--border-mid);
-                border-radius: 4px;
-                color: inherit;
-                font: inherit;
-                padding: 3px 4px;
-            }
             .tl-track {
                 position: relative;
                 height: 64px;
@@ -1266,7 +1260,7 @@
                     transform: none;
                     padding: 8px 12px 10px;
                 }
-                /* play, date and speed on top; the three counters get a line of their own */
+                /* play and date on top; the three counters get a line of their own */
                 .tl-row {
                     flex-wrap: wrap;
                     row-gap: 4px;
@@ -1301,6 +1295,63 @@
                 .maplibregl-ctrl-bottom-left {
                     bottom: var(--tl-h, 0px);
                 }
+            }
+            /* ── Phones ───────────────────────────────────────────────────────────── */
+            @media (max-width: 600px) {
+                /* the top row and the bottom bar are laid out in the lumen block below */
+                /* results use the whole width so names fit */
+                #search-results {
+                    position: fixed;
+                    left: calc(12px + env(safe-area-inset-left));
+                    right: calc(12px + env(safe-area-inset-right));
+                    max-height: min(420px, 60dvh);
+                    z-index: 12;
+                }
+                .search-result-form {
+                    max-width: 35%;
+                }
+                .search-result-item {
+                    min-height: 44px;
+                }
+                .panel {
+                    padding-bottom: env(safe-area-inset-bottom) !important;
+                }
+                /* clear of the frame's rounded bottom corners */
+                #timeline {
+                    left: calc(12px + env(safe-area-inset-left));
+                    right: calc(12px + env(safe-area-inset-right));
+                    bottom: calc(14px + env(safe-area-inset-bottom));
+                }
+            }
+            /* ── Touch ───────────────────────────────────────────────────────────── */
+            @media (hover: none) {
+                /* below 16px iOS zooms the page on focus */
+                #search-input {
+                    font-size: 16px;
+                }
+                #tl-play {
+                    width: 40px;
+                    height: 40px;
+                }
+                /* a taller slider: the thumb is easy to catch with a finger */
+                .tl-track {
+                    height: 64px;
+                }
+                #tl-hist {
+                    inset: 0 0 26px 0;
+                    height: calc(100% - 26px);
+                }
+                #tl-cursor {
+                    bottom: 26px;
+                }
+                #tl-range {
+                    height: 26px;
+                }
+            }
+            /* the credits button clears the frame's rounded bottom corner */
+            .maplibregl-ctrl-bottom-left .maplibregl-ctrl {
+                margin-left: 14px;
+                margin-bottom: calc(14px + env(safe-area-inset-bottom));
             }
 
             /* ---------- lumen: controls in ../brasilume's look ----------
@@ -1998,12 +2049,6 @@
             <div class="tl-row">
                 <button id="tl-play" aria-label="Play" data-i18n-aria="tlPlay"><span aria-hidden="true">▶</span></button>
                 <span id="tl-date" aria-live="off">1883</span>
-                <select id="tl-speed" aria-label="Speed" data-i18n-aria="tlSpeed">
-                    <option value="0.25">¼×</option>
-                    <option value="0.5">½×</option>
-                    <option value="1" selected>1×</option>
-                    <option value="2">2×</option>
-                </select>
                 <div class="tl-stats">
                     <span class="tl-open"><span data-i18n="tlOpened">Opened</span> <b id="tl-opened">0</b></span>
                     <span class="tl-close"><span data-i18n="tlClosed">Closed</span> <b id="tl-closed">0</b></span>
@@ -2067,7 +2112,6 @@
                     timeline: "Zeitachse",
                     tlPlay: "Abspielen",
                     tlPause: "Pause",
-                    tlSpeed: "Tempo",
                     tlDate: "Datum",
                     tlOpened: "Gegründet",
                     tlEntered: "Eingetragen",
@@ -2142,7 +2186,6 @@
                     timeline: "Timeline",
                     tlPlay: "Play",
                     tlPause: "Pause",
-                    tlSpeed: "Speed",
                     tlDate: "Date",
                     tlOpened: "Opened",
                     tlEntered: "Entered",
@@ -2215,7 +2258,6 @@
                     timeline: "Chronologie",
                     tlPlay: "Lire",
                     tlPause: "Pause",
-                    tlSpeed: "Vitesse",
                     tlDate: "Date",
                     tlOpened: "Créées",
                     tlEntered: "Inscrite le",
@@ -2287,7 +2329,6 @@
                     timeline: "Cronologia",
                     tlPlay: "Riproduci",
                     tlPause: "Pausa",
-                    tlSpeed: "Velocità",
                     tlDate: "Data",
                     tlOpened: "Iscritte",
                     tlEntered: "Iscritta il",
@@ -3279,7 +3320,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     t: chunks.flatMap((c) => c.t),
                     lat: chunks.flatMap((c) => c.lat),
                     lng: chunks.flatMap((c) => c.lng),
-                    // entry year, 0 = unknown (scripts/canton_years.py)
+                    // entry year, 0 = unknown (scripts/canton_files.py)
                     y: chunks.flatMap((c) => c.y ?? new Array(c.n.length).fill(0)),
                 };
             }
@@ -3507,7 +3548,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             // 2018 only the entry date of companies alive today (or closed since) is known
             const TL_EPOCH = Date.UTC(1883, 0, 1);
             // the service worker caches data files for good: bump on every rebuild
-            const TL_VERSION = 7;
+            const TL_VERSION = 9;
             const TL_RANGE_STEPS = 10000; // slider resolution over the whole screen time
             const TL_NONE = 65535;
             const TL_FAR = 1e9; // a day that never comes
@@ -3566,16 +3607,25 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] <= x) lo = m; else hi = m; }
                 return ys[lo] + ((x - xs[lo]) / (xs[hi] - xs[lo])) * (ys[hi] - ys[lo]);
             }
+            // from 2018 the timeline reads month by month: months since January 1883,
+            // and the day each one starts on
+            function tlMonthOf(day) {
+                const d = new Date(Date.UTC(1883, 0, 1) + Math.floor(day) * 864e5);
+                return (d.getUTCFullYear() - 1883) * 12 + d.getUTCMonth();
+            }
+            const tlMonthStart = (m) => Math.round((Date.UTC(1883, m, 1) - Date.UTC(1883, 0, 1)) / 864e5);
+            // a day picked on the slider: from 2018 the 1st of its month, before 2018 as is
+            const tlSnapDay = (day) => (day < TL_SPLIT_DAY ? day : tlMonthStart(tlMonthOf(day)));
             // the next (dir 1) or previous (dir -1) step from day for the arrow keys:
-            // 1 January before 2018, a week from 2018 on
+            // 1 January before 2018, the 1st of a month from 2018 on
             function tlStepDay(day, dir) {
                 const yearDay = (y) => Math.round((Date.UTC(y, 0, 1) - Date.UTC(1883, 0, 1)) / 864e5);
                 if (dir > 0 ? day < TL_SPLIT_DAY : day <= TL_SPLIT_DAY) {
                     const y = new Date(Date.UTC(1883, 0, 1) + day * 864e5).getUTCFullYear();
                     return dir > 0 ? yearDay(y + 1) : yearDay(day > yearDay(y) ? y : y - 1);
                 }
-                const w = Math.floor((day - TL_SPLIT_DAY) / 7);
-                return TL_SPLIT_DAY + 7 * (dir > 0 ? w + 1 : (day - TL_SPLIT_DAY) % 7 ? w : w - 1);
+                const m = tlMonthOf(day);
+                return tlMonthStart(dir > 0 ? m + 1 : day > tlMonthStart(m) ? m : m - 1);
             }
             // each lamp's day (uint16, TL_NONE = never) as seconds of screen time at 1×:
             // the shader compares these with the screen clock, so a flash lasts the
@@ -3586,31 +3636,37 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     out[i] = days[i] === TL_NONE ? TL_FAR : tlInterp(clock.clockDay, clock.clockT, days[i]);
                 return out;
             }
-            // cumulative openings and closings per day (index day + 1) and per week, over the
+            // cumulative openings and closings per day (index day + 1) and per month, over the
             // lamps whose keep[i] is set (keep null: all), for the counters and the bars
             function tlStats(o16, c16, lastDay, keep) {
                 const cumOpen = new Uint32Array(lastDay + 2);
                 const cumClose = new Uint32Array(lastDay + 2);
-                const weeks = Math.floor(lastDay / 7) + 1;
-                const weekOpen = new Uint32Array(weeks);
-                const weekClose = new Uint32Array(weeks);
+                // month of each day, worked out once per call instead of once per lamp
+                const monthOfDay = new Uint16Array(lastDay + 1);
+                for (let d = 0, m = 0; d <= lastDay; d++) {
+                    if (d >= tlMonthStart(m + 1)) m++;
+                    monthOfDay[d] = m;
+                }
+                const months = monthOfDay[lastDay] + 1;
+                const monthOpen = new Uint32Array(months);
+                const monthClose = new Uint32Array(months);
                 for (let i = 0; i < o16.length; i++) {
                     if (keep && !keep[i]) continue;
-                    if (o16[i] !== TL_NONE) { cumOpen[o16[i] + 1]++; weekOpen[(o16[i] / 7) | 0]++; }
-                    if (c16[i] !== TL_NONE) { cumClose[c16[i] + 1]++; weekClose[(c16[i] / 7) | 0]++; }
+                    if (o16[i] !== TL_NONE) { cumOpen[o16[i] + 1]++; monthOpen[monthOfDay[o16[i]]]++; }
+                    if (c16[i] !== TL_NONE) { cumClose[c16[i] + 1]++; monthClose[monthOfDay[c16[i]]]++; }
                 }
                 for (let d = 1; d < cumOpen.length; d++) {
                     cumOpen[d] += cumOpen[d - 1];
                     cumClose[d] += cumClose[d - 1];
                 }
-                return { cumOpen, cumClose, weekOpen, weekClose };
+                return { cumOpen, cumClose, monthOpen, monthClose };
             }
             // </tl-clock>
             const TL_FLASH_SEC = 0.6; // an opening flares, then settles
             const TL_FADE_SEC = 1.0; // a closing burns red and goes out
             const TL_CLOSE_RGB = [255, 80, 40];
             let timelineOn = false;
-            let tl = null; // { n, data, cumOpen, cumClose, lastDay, weekOpen, weekClose }
+            let tl = null; // { n, data, cumOpen, cumClose, lastDay, monthOpen, monthClose }
             let tlLoading = null;
             let tlDay = 0;
             let tlT = 0; // seconds of screen time at 1× since the start; tlDay follows from it
@@ -3634,7 +3690,8 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             const tlDayAt = (t) => tlInterp(tl.clockT, tl.clockDay, t);
             const tlTimeAt = (day) => tlInterp(tl.clockDay, tl.clockT, day);
             let tlPlaying = false;
-            let tlSpeed = 1;
+            // playback runs at 3× the clock's 1× pace (a year in ~2.3 s from 2018), with no speed control
+            const TL_SPEED = 3;
             let tlFrame = 0;
             let tlLastT = 0;
 
@@ -3725,6 +3782,8 @@ vec3 tl_state() {
                 };
                 const dLat = col(0), dLng = col(1), o16 = col(2), c16 = col(3);
                 const t8 = new Uint8Array(buf, 40 + 8 * n, n);
+                // canton: index into the 26 codes in alphabetical order (255: unknown)
+                const canton8 = new Uint8Array(buf, 40 + 9 * n, n);
                 const pos = new Float32Array(2 * n);
                 const rgba = new Uint8Array(4 * n);
                 const rgbByCode = {};
@@ -3742,7 +3801,7 @@ vec3 tl_state() {
                     rgba.set([rgb[0], rgb[1], rgb[2], 230], 4 * i);
                 }
                 // all lamps set the pace of the clock; the counters follow the legend (tlApplyLegend)
-                const { cumOpen, cumClose, weekOpen, weekClose } = tlStats(o16, c16, lastDay, null);
+                const { cumOpen, cumClose, monthOpen, monthClose } = tlStats(o16, c16, lastDay, null);
                 // begin at the first lamp
                 let firstDay = 0;
                 while (firstDay < lastDay && cumOpen[firstDay + 1] + cumClose[firstDay + 1] === 0) firstDay++;
@@ -3762,17 +3821,20 @@ vec3 tl_state() {
                 // single warm night colour applies (binary attributes win over accessors)
                 const { getFillColor, ...nightAttributes } = data.attributes;
                 const dataNight = { length: n, attributes: nightAttributes };
-                return { n, data, dataNight, o16, c16, t8, cumOpen, cumClose, firstDay, lastDay, weekOpen, weekClose, ...clock };
+                return { n, data, dataNight, o16, c16, t8, canton8, cumOpen, cumClose, firstDay, lastDay, monthOpen, monthClose, ...clock };
             }
 
-            // the legend's legal forms apply to the timeline too: hidden forms leave the map,
-            // the counters and the bars (the playback pace stays that of all lamps)
+            // the switched-on cantons and the legend's legal forms apply to the timeline too: hidden
+            // lamps leave the map, the counters and the bars (the playback pace stays that of all lamps)
+            const TL_CANTON_IDS = CANTONS.map((c) => c.id).sort();
             function tlApplyLegend() {
                 const on = {};
                 for (const code in T_DECODE) on[code.charCodeAt(0)] = activeLabels.has(T_DECODE[code]) ? 1 : 0;
+                const cantonOn = new Uint8Array(256).fill(1);
+                TL_CANTON_IDS.forEach((id, k) => { cantonOn[k] = activeCantons.has(id) ? 1 : 0; });
                 const keep = new Uint8Array(tl.n);
                 const filter = new Float32Array(tl.n);
-                for (let i = 0; i < tl.n; i++) keep[i] = filter[i] = on[tl.t8[i]] ?? 1;
+                for (let i = 0; i < tl.n; i++) keep[i] = filter[i] = (on[tl.t8[i]] ?? 1) & cantonOn[tl.canton8[i]];
                 Object.assign(tl, tlStats(tl.o16, tl.c16, tl.lastDay, keep));
                 const getFilterValue = { value: filter, size: 1 };
                 tl.data = { length: tl.n, attributes: { ...tl.data.attributes, getFilterValue } };
@@ -3800,8 +3862,8 @@ vec3 tl_state() {
                     // lamps carry their times in screen seconds: compare with the screen clock
                     day: tlT,
                     // the same wall-clock length at every speed; none at rest
-                    flash: tlPlaying || tlMoving ? TL_FLASH_SEC * tlSpeed : 0,
-                    fade: tlPlaying || tlMoving ? TL_FADE_SEC * tlSpeed : 0,
+                    flash: tlPlaying || tlMoving ? TL_FLASH_SEC * TL_SPEED : 0,
+                    fade: tlPlaying || tlMoving ? TL_FADE_SEC * TL_SPEED : 0,
                 };
                 {
                     // no auto exposure here: it reads the company layer, and
@@ -3917,11 +3979,11 @@ vec3 tl_state() {
                 return timelineOn && tl ? [buildTimelineLayer()] : [buildLayer()];
             }
 
-            // before 2018 years fly by: show the year only
+            // before 2018 years fly by: show the year only; from 2018 the month and the year
             function tlDateText(day) {
                 const date = new Date(TL_EPOCH + Math.floor(day) * 864e5);
                 if (day < TL_SPLIT_DAY) return String(date.getUTCFullYear());
-                return date.toLocaleDateString(numLocale(), { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+                return date.toLocaleDateString(numLocale(), { year: "numeric", month: "short", timeZone: "UTC" });
             }
             const tlIsoDay = (day) => new Date(TL_EPOCH + Math.floor(day) * 864e5).toISOString().slice(0, 10);
             function tlUpdateUi() {
@@ -3941,7 +4003,7 @@ vec3 tl_state() {
                 document.getElementById("tl-cursor").style.left = `calc(${(f * 100).toFixed(3)}% + ${(8 - 16 * f).toFixed(1)}px)`;
             }
             // bars on the screen-time axis, like the slider: one per year before 2018
-            // (openings only), one per week after (openings up, closings down); each
+            // (openings only), one per month after (openings up, closings down); each
             // part has its own vertical scale
             function tlDrawHist() {
                 const cv = document.getElementById("tl-hist");
@@ -3971,13 +4033,14 @@ vec3 tl_state() {
                     const x = X(a), bh = (o / maxYear) * up;
                     g.fillRect(x, mid - bh, Math.max(1, X(b) - x - 0.5), bh);
                 }
-                // weeks from 2018
-                const w0 = Math.ceil(split / 7), w1 = tl.weekOpen.length;
-                let maxWeek = 1;
-                for (let i = w0; i < w1; i++) maxWeek = Math.max(maxWeek, tl.weekOpen[i], tl.weekClose[i]);
-                for (let i = w0; i < w1; i++) {
-                    const x = X(i * 7), bw = Math.max(1, X(Math.min(tl.lastDay, i * 7 + 7)) - x - 0.5);
-                    const bo = (tl.weekOpen[i] / maxWeek) * up, bc = Math.min(down, (tl.weekClose[i] / maxWeek) * up);
+                // months from 2018
+                const m0 = tlMonthOf(split), m1 = tl.monthOpen.length;
+                let maxMonth = 1;
+                for (let i = m0; i < m1; i++) maxMonth = Math.max(maxMonth, tl.monthOpen[i], tl.monthClose[i]);
+                for (let i = m0; i < m1; i++) {
+                    const x = X(Math.max(split, tlMonthStart(i)));
+                    const bw = Math.max(1, X(Math.min(tl.lastDay, tlMonthStart(i + 1))) - x - 0.5);
+                    const bo = (tl.monthOpen[i] / maxMonth) * up, bc = Math.min(down, (tl.monthClose[i] / maxMonth) * up);
                     g.fillStyle = spark;
                     g.fillRect(x, mid - bo, bw, bo);
                     g.fillStyle = "#ff6b4a";
@@ -4022,7 +4085,7 @@ vec3 tl_state() {
                 // clamp the step so a frame after a hidden tab doesn't skip a year
                 const dt = Math.min(0.1, (now - tlLastT) / 1000);
                 tlLastT = now;
-                tlT += dt * tlSpeed;
+                tlT += dt * TL_SPEED;
                 tlDay = tlT <= tl.tMax ? tlDayAt(tlT) : tl.lastDay + (tlT - tl.tMax) * TL_DAYS_PER_SEC;
                 if (tlT >= tl.tMax + TL_FADE_SEC) {
                     tlT = tl.tMax;
@@ -4080,13 +4143,13 @@ vec3 tl_state() {
             function initTimelineUi() {
                 document.getElementById("btn-timeline").addEventListener("click", () => setTimeline(!timelineOn));
                 document.getElementById("tl-play").addEventListener("click", () => tlSetPlaying(!tlPlaying));
-                document.getElementById("tl-speed").addEventListener("change", (e) => { tlSpeed = +e.target.value; redrawLayer(); });
                 const range = document.getElementById("tl-range");
                 range.addEventListener("input", () => {
                     if (!tl) return;
                     tlSetPlaying(false);
-                    tlT = (+range.value / TL_RANGE_STEPS) * tl.tMax;
-                    tlDay = tlDayAt(tlT);
+                    // from 2018 the slider lands on the 1st of a month
+                    tlDay = clamp(tlSnapDay(tlDayAt((+range.value / TL_RANGE_STEPS) * tl.tMax)), tl.firstDay, tl.lastDay);
+                    tlT = tlTimeAt(tlDay);
                     tlNudge();
                     redrawLayer();
                     tlUpdateUi();
@@ -4096,7 +4159,7 @@ vec3 tl_state() {
                 range.addEventListener("change", tlSettle);
                 range.addEventListener("pointerup", tlSettle);
                 range.addEventListener("keyup", tlSettle);
-                // arrows move a year before 2018 and a week after, however compressed the slider is there
+                // arrows move a year before 2018 and a month after, however compressed the slider is there
                 range.addEventListener("keydown", (e) => {
                     const dir = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
                     if (!dir || !tl) return;
@@ -4199,32 +4262,32 @@ vec3 tl_state() {
 
                 // counts:begin — generated by scripts/canton_counts.py
                 const cantonCounts = {
-                    AG: 45528,
-                    AI: 2102,
-                    AR: 5773,
-                    BE: 68714,
-                    BL: 20129,
-                    BS: 18850,
-                    FR: 25438,
-                    GE: 56043,
-                    GL: 3610,
-                    GR: 19682,
-                    JU: 6425,
-                    LU: 34312,
-                    NE: 13160,
-                    NW: 5607,
-                    OW: 4291,
-                    SG: 41962,
-                    SH: 6413,
-                    SO: 18269,
-                    SZ: 21947,
-                    TG: 23135,
-                    TI: 41450,
-                    UR: 2376,
-                    VD: 66682,
-                    VS: 33969,
-                    ZG: 41755,
-                    ZH: 133003,
+                    AG: 47380,
+                    AI: 2190,
+                    AR: 5937,
+                    BE: 70376,
+                    BL: 20891,
+                    BS: 19611,
+                    FR: 26679,
+                    GE: 58461,
+                    GL: 3721,
+                    GR: 20463,
+                    JU: 7039,
+                    LU: 35732,
+                    NE: 13694,
+                    NW: 5749,
+                    OW: 4402,
+                    SG: 43920,
+                    SH: 6655,
+                    SO: 18943,
+                    SZ: 23310,
+                    TG: 24134,
+                    TI: 44029,
+                    UR: 2462,
+                    VD: 70312,
+                    VS: 36259,
+                    ZG: 44390,
+                    ZH: 138532,
                 };
                 // counts:end
                 // the picker's tiles, [column, row] on an 8 × 5 grid shaped like the country

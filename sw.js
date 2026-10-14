@@ -1,4 +1,4 @@
-const V = 'swissviz-v6';
+const V = 'swissviz-v7';
 
 const PRECACHE = [
     './',

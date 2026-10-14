@@ -6,9 +6,9 @@ import { strict as assert } from "node:assert";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const block = html.match(/\/\/ <tl-clock>[^\n]*\n([\s\S]*?)\/\/ <\/tl-clock>/);
 assert.ok(block, "index.html has no // <tl-clock> block");
-const { tlBuildClock, tlInterp, tlStepDay, tlScreenTimes, tlStats, TL_SPLIT_DAY, TL_DAYS_PER_SEC } =
+const { tlBuildClock, tlInterp, tlStepDay, tlSnapDay, tlMonthOf, tlMonthStart, tlScreenTimes, tlStats, TL_SPLIT_DAY, TL_DAYS_PER_SEC } =
     new Function("TL_NONE", "TL_FAR",
-        `${block[1]}; return { tlBuildClock, tlInterp, tlStepDay, tlScreenTimes, tlStats, TL_SPLIT_DAY, TL_DAYS_PER_SEC };`)(65535, 1e9);
+        `${block[1]}; return { tlBuildClock, tlInterp, tlStepDay, tlSnapDay, tlMonthOf, tlMonthStart, tlScreenTimes, tlStats, TL_SPLIT_DAY, TL_DAYS_PER_SEC };`)(65535, 1e9);
 
 const DAY = (y, m = 1, d = 1) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1883, 0, 1)) / 864e5);
 const lastDay = DAY(2026, 10, 12);
@@ -61,15 +61,24 @@ test("years with no opening still pass, at the slowest allowed speed or faster",
     const t = tlInterp(e.clockDay, e.clockT, TL_SPLIT_DAY);
     assert.ok(Number.isFinite(t) && t > 0, `t ${t}`);
 });
-test("arrow keys step one year before 2018, one week after", () => {
+test("arrow keys step one year before 2018, one month after", () => {
     assert.equal(tlStepDay(DAY(1892, 6, 1), 1), DAY(1893));
     assert.equal(tlStepDay(DAY(1893), 1), DAY(1894));
     assert.equal(tlStepDay(DAY(1893), -1), DAY(1892));
     assert.equal(tlStepDay(DAY(1892, 6, 1), -1), DAY(1892));
     assert.equal(tlStepDay(DAY(2017, 3, 1), 1), DAY(2018));
-    assert.equal(tlStepDay(DAY(2018), 1), DAY(2018) + 7);
-    assert.equal(tlStepDay(DAY(2018) + 3, -1), DAY(2018));
+    assert.equal(tlStepDay(DAY(2018), 1), DAY(2018, 2));
+    assert.equal(tlStepDay(DAY(2018, 12, 20), 1), DAY(2019));
+    assert.equal(tlStepDay(DAY(2018, 3, 15), -1), DAY(2018, 3));
+    assert.equal(tlStepDay(DAY(2018, 3), -1), DAY(2018, 2));
     assert.equal(tlStepDay(DAY(2018), -1), DAY(2017));
+});
+test("from 2018 the slider lands on the 1st of a month; before, anywhere", () => {
+    assert.equal(tlSnapDay(DAY(2020, 5, 17)), DAY(2020, 5));
+    assert.equal(tlSnapDay(DAY(2018)), DAY(2018));
+    assert.equal(tlSnapDay(DAY(1950, 5, 17)), DAY(1950, 5, 17));
+    assert.equal(tlMonthStart(tlMonthOf(DAY(2024, 2, 29))), DAY(2024, 2));
+    assert.equal(tlMonthOf(DAY(1884, 1, 10)), 12);
 });
 test("lamps get their opening and closing in screen seconds, so a flash never depends on the speed", () => {
     const days = Uint16Array.from([DAY(1890), DAY(1950, 7, 1), DAY(2019, 3, 1), 65535]);
@@ -86,11 +95,11 @@ test("counters count only the lamps kept by the legend", () => {
     assert.equal(all.cumOpen[15], 3);          // opened by day 14
     assert.equal(all.cumClose[15], 2);
     assert.equal(all.cumOpen[4], 2);           // opened by day 3
-    assert.equal(all.weekOpen[0], 2);          // days 0-6
-    assert.equal(all.weekClose[1], 2);         // days 7-13
+    assert.equal(all.monthOpen[0], 3);         // January 1883
+    assert.equal(all.monthClose[0], 2);
     const some = tlStats(o, cl, 14, Uint8Array.from([0, 1, 1, 0]));
     assert.equal(some.cumOpen[15], 2);
     assert.equal(some.cumClose[15], 1);
-    assert.equal(some.weekOpen[0], 1);
+    assert.equal(some.monthOpen[0], 2);
 });
 process.exit(failures ? 1 : 0);

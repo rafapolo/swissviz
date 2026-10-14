@@ -36,7 +36,7 @@ EHRAID_ORDERED = 550_000
 
 p = argparse.ArgumentParser()
 p.add_argument("--anchors", type=int, default=300, help="zefix firm details sampled from mid-2016 on")
-p.add_argument("--shab", default=os.path.expanduser("~/Projetos/swissviz-timeline/build/shab_events.jsonl"),
+p.add_argument("--shab", default="build/shab_events.jsonl",
                help="SHAB events JSONL from the timeline fetch (read only)")
 args = p.parse_args()
 os.makedirs(BUILD, exist_ok=True)

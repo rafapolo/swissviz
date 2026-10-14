@@ -6,3 +6,4 @@ dist/
 build/
 scripts/__pycache__/
 .env
+tmp/

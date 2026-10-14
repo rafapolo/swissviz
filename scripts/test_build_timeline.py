@@ -3,7 +3,7 @@ import gzip, json, os, struct, sys
 import polars as pl
 
 sys.path.insert(0, os.path.dirname(__file__))
-from build_timeline import NONE, build_lamps, day_of, entry_days, write_timeline
+from build_timeline import CANTON_IDS, NONE, build_lamps, day_of, entry_days, write_timeline
 
 
 def events(rows):
@@ -61,6 +61,43 @@ def test_active_without_shab_event_gets_a_lamp():
     assert counts["active"] == 1
 
 
+def test_alive_company_shines_at_its_current_address_and_name():
+    ev = events([("CHE-555.555.555", "open", "2019-03-01", "Old Name GmbH", "0107", 47.0, 8.0)])
+    lamps, counts = build_lamps(ev, {}, active([("CHE-555.555.555", "New Name AG", "0106", 46.5, 7.4)]))
+    r = lamps.row(0, named=True)
+    assert (r["name"], r["lat"], r["lng"], r["c"]) == ("New Name AG", 46.5, 7.4, NONE)
+    assert r["canton"] == ""   # the test's LINDAS rows carry no canton
+    assert counts["moved_to_current"] == 1
+
+
+def test_closed_company_stays_where_it_closed():
+    ev = events([("CHE-555.555.555", "open", "2019-03-01", "X GmbH", "0107", 47.0, 8.0),
+                 ("CHE-555.555.555", "close", "2021-03-01", "X GmbH", "0107", 47.1, 8.1)])
+    lamps, _ = build_lamps(ev, {}, active([("CHE-555.555.555", "X GmbH", "0107", 46.5, 7.4)]))
+    r = lamps.row(0, named=True)
+    assert (r["lat"], r["lng"]) == (47.0, 8.0)
+
+
+def test_company_gone_from_lindas_goes_dark_on_the_snapshot_day():
+    snap = day_of(20261014)
+    ev = events([("CHE-666.666.666", "open", "2020-01-01", "Merged AG", "0106", 47.0, 8.0),
+                 ("CHE-777.777.777", "open", "2026-10-01", "Brand New AG", "0106", 47.0, 8.0)])
+    lamps, counts = build_lamps(ev, {}, active([("CHE-999.999.999", "Other AG", "0106", 46.0, 7.0)]), snap)
+    c = {r["name"]: r["c"] for r in lamp_rows(lamps)}
+    assert c["Merged AG"] == snap            # left the register with no SHAB deletion
+    assert c["Brand New AG"] == NONE         # entered two weeks ago: LINDAS just hasn't caught up
+    assert counts["left_without_deletion"] == 1
+
+
+def test_lamp_canton_comes_from_lindas_when_alive_and_the_shab_when_closed():
+    ev = events([("CHE-111.111.111", "open", "2019-03-01", "Moved AG", "0106", 47.0, 8.0),
+                 ("CHE-222.222.222", "close", "2020-05-04", "Gone AG", "0106", 46.2, 6.1)]
+                ).with_columns(cantons=pl.Series(["ZH", "GE"]))
+    act = active([("CHE-111.111.111", "Moved AG", "0106", 46.9, 7.4)]).with_columns(canton=pl.lit("BE"))
+    lamps, _ = build_lamps(ev, {}, act)
+    assert dict(zip(lamps["name"], lamps["canton"])) == {"Moved AG": "BE", "Gone AG": "GE"}
+
+
 def test_uid_in_shab_and_active_is_one_lamp():
     ev = events([("CHE-555.555.555", "open", "2022-01-10", "E AG", "0106", 47.4, 8.5)])
     lamps, _ = build_lamps(ev, {555555555: day_of(20220110)},
@@ -99,7 +136,7 @@ def test_estimates():
 
 
 def read_timeline(out_dir):
-    """The decoding of loadTimeline in index.html: lamps as (name, t, lat, lng, o, c)."""
+    """The decoding of loadTimeline in index.html: lamps as (name, t, lat, lng, o, c, canton)."""
     buf = gzip.decompress(open(f"{out_dir}/events.bin.gz", "rb").read())
     n, chunk, lat0, lng0, lat_step, lng_step = struct.unpack_from("<II4d", buf)
     p = 40
@@ -113,19 +150,21 @@ def read_timeline(out_dir):
             out.append(prev)
         return out
     qa, qn, o, c = undelta(col(0)), undelta(col(1)), col(2), col(3)
-    t = buf[p + 8 * n:].decode("ascii")
+    t = buf[p + 8 * n: p + 9 * n].decode("ascii")
+    canton = [CANTON_IDS[k] if k < len(CANTON_IDS) else "" for k in buf[p + 9 * n: p + 10 * n]]
     names = []
     for k in range((n + chunk - 1) // chunk):
         names += json.loads(gzip.decompress(open(f"{out_dir}/names/{k}.json.gz", "rb").read()))
-    return [(names[i], t[i], lat0 + qa[i] * lat_step, lng0 + qn[i] * lng_step, o[i], c[i]) for i in range(n)]
+    return [(names[i], t[i], lat0 + qa[i] * lat_step, lng0 + qn[i] * lng_step, o[i], c[i], canton[i])
+            for i in range(n)]
 
 
 def test_binary_round_trip(tmp_path):
-    lamps = pl.DataFrame({"name": ["X", "Y"], "t": ["A", "G"], "lat": [47.1, 46.9], "lng": [8.1, 7.9],
-                          "o": [10, NONE], "c": [NONE, 50000]})
+    lamps = pl.DataFrame({"name": ["X", "Y"], "t": ["A", "G"], "canton": ["ZH", ""], "lat": [47.1, 46.9],
+                          "lng": [8.1, 7.9], "o": [10, NONE], "c": [NONE, 50000]})
     write_timeline(lamps, str(tmp_path))
     got = sorted(read_timeline(tmp_path))
-    assert [(r[0], r[1], r[4], r[5]) for r in got] == [("X", "A", 10, NONE), ("Y", "G", NONE, 50000)]
+    assert [(r[0], r[1], r[4], r[5], r[6]) for r in got] == [("X", "A", 10, NONE, "ZH"), ("Y", "G", NONE, 50000, "")]
     assert abs(got[0][2] - 47.1) < 1e-9 and abs(got[1][3] - 7.9) < 1e-9   # box corners are exact
 
 
@@ -137,15 +176,16 @@ def test_binary_round_trip_across_chunks(tmp_path):
     rnd = random.Random(1)
     n = build_timeline.NAMES_CHUNK + 1000
     lamps = pl.DataFrame({"name": [f"F{i}" for i in range(n)], "t": [rnd.choice("ABGS") for _ in range(n)],
+                          "canton": [rnd.choice(CANTON_IDS) for _ in range(n)],
                           "lat": [rnd.uniform(45.8, 47.8) for _ in range(n)],
                           "lng": [rnd.uniform(5.9, 10.5) for _ in range(n)],
                           "o": [rnd.randrange(NONE + 1) for _ in range(n)], "c": [rnd.randrange(NONE + 1) for _ in range(n)]})
     write_timeline(lamps, str(tmp_path))
     got = {r[0]: r for r in read_timeline(tmp_path)}
     assert len(got) == n
-    for name, t, lat, lng, o, c in lamps.iter_rows():
+    for name, t, canton, lat, lng, o, c in lamps.iter_rows():
         g = got[name]
-        assert (g[1], g[4], g[5]) == (t, o, c)
+        assert (g[1], g[4], g[5], g[6]) == (t, o, c, canton)
         assert abs(g[2] - lat) < 2.0 / 65535 and abs(g[3] - lng) < 4.7 / 65535
 
 
