@@ -6,9 +6,9 @@ import { strict as assert } from "node:assert";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const block = html.match(/\/\/ <tl-clock>[^\n]*\n([\s\S]*?)\/\/ <\/tl-clock>/);
 assert.ok(block, "index.html has no // <tl-clock> block");
-const { tlBuildClock, tlInterp, tlStepDay, tlScreenTimes, TL_SPLIT_DAY, TL_DAYS_PER_SEC } =
+const { tlBuildClock, tlInterp, tlStepDay, tlScreenTimes, tlStats, TL_SPLIT_DAY, TL_DAYS_PER_SEC } =
     new Function("TL_NONE", "TL_FAR",
-        `${block[1]}; return { tlBuildClock, tlInterp, tlStepDay, tlScreenTimes, TL_SPLIT_DAY, TL_DAYS_PER_SEC };`)(65535, 1e9);
+        `${block[1]}; return { tlBuildClock, tlInterp, tlStepDay, tlScreenTimes, tlStats, TL_SPLIT_DAY, TL_DAYS_PER_SEC };`)(65535, 1e9);
 
 const DAY = (y, m = 1, d = 1) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1883, 0, 1)) / 864e5);
 const lastDay = DAY(2026, 10, 12);
@@ -78,5 +78,19 @@ test("lamps get their opening and closing in screen seconds, so a flash never de
     for (let i = 0; i < 3; i++) assert.ok(Math.abs(out[i] - timeAt(days[i])) < 1e-3, `lamp ${i}`);
     assert.equal(out[3], 1e9);   // no date: never
     assert.ok(out[0] < out[1] && out[1] < out[2]);
+});
+test("counters count only the lamps kept by the legend", () => {
+    const o = Uint16Array.from([3, 3, 10, 65535]);
+    const cl = Uint16Array.from([65535, 12, 65535, 8]);
+    const all = tlStats(o, cl, 14, null);
+    assert.equal(all.cumOpen[15], 3);          // opened by day 14
+    assert.equal(all.cumClose[15], 2);
+    assert.equal(all.cumOpen[4], 2);           // opened by day 3
+    assert.equal(all.weekOpen[0], 2);          // days 0-6
+    assert.equal(all.weekClose[1], 2);         // days 7-13
+    const some = tlStats(o, cl, 14, Uint8Array.from([0, 1, 1, 0]));
+    assert.equal(some.cumOpen[15], 2);
+    assert.equal(some.cumClose[15], 1);
+    assert.equal(some.weekOpen[0], 1);
 });
 process.exit(failures ? 1 : 0);

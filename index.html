@@ -2491,6 +2491,25 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     out[i] = days[i] === TL_NONE ? TL_FAR : tlInterp(clock.clockDay, clock.clockT, days[i]);
                 return out;
             }
+            // cumulative openings and closings per day (index day + 1) and per week, over the
+            // lamps whose keep[i] is set (keep null: all), for the counters and the bars
+            function tlStats(o16, c16, lastDay, keep) {
+                const cumOpen = new Uint32Array(lastDay + 2);
+                const cumClose = new Uint32Array(lastDay + 2);
+                const weeks = Math.floor(lastDay / 7) + 1;
+                const weekOpen = new Uint32Array(weeks);
+                const weekClose = new Uint32Array(weeks);
+                for (let i = 0; i < o16.length; i++) {
+                    if (keep && !keep[i]) continue;
+                    if (o16[i] !== TL_NONE) { cumOpen[o16[i] + 1]++; weekOpen[(o16[i] / 7) | 0]++; }
+                    if (c16[i] !== TL_NONE) { cumClose[c16[i] + 1]++; weekClose[(c16[i] / 7) | 0]++; }
+                }
+                for (let d = 1; d < cumOpen.length; d++) {
+                    cumOpen[d] += cumOpen[d - 1];
+                    cumClose[d] += cumClose[d - 1];
+                }
+                return { cumOpen, cumClose, weekOpen, weekClose };
+            }
             // </tl-clock>
             const TL_FLASH_SEC = 0.6; // an opening flares, then settles
             const TL_FADE_SEC = 1.0; // a closing burns red and goes out
@@ -2615,19 +2634,8 @@ vec3 tl_state() {
                     const rgb = (rgbByCode[code] ??= getColor(T_DECODE[code] || code));
                     rgba.set([rgb[0], rgb[1], rgb[2], 230], 4 * i);
                 }
-                const cumOpen = new Uint32Array(lastDay + 2);
-                const cumClose = new Uint32Array(lastDay + 2);
-                const weeks = Math.floor(lastDay / 7) + 1;
-                const weekOpen = new Uint32Array(weeks);
-                const weekClose = new Uint32Array(weeks);
-                for (let i = 0; i < n; i++) {
-                    if (o16[i] !== TL_NONE) { cumOpen[o16[i] + 1]++; weekOpen[(o16[i] / 7) | 0]++; }
-                    if (c16[i] !== TL_NONE) { cumClose[c16[i] + 1]++; weekClose[(c16[i] / 7) | 0]++; }
-                }
-                for (let d = 1; d < cumOpen.length; d++) {
-                    cumOpen[d] += cumOpen[d - 1];
-                    cumClose[d] += cumClose[d - 1];
-                }
+                // all lamps set the pace of the clock; the counters follow the legend (tlApplyLegend)
+                const { cumOpen, cumClose, weekOpen, weekClose } = tlStats(o16, c16, lastDay, null);
                 // begin at the first lamp
                 let firstDay = 0;
                 while (firstDay < lastDay && cumOpen[firstDay + 1] + cumClose[firstDay + 1] === 0) firstDay++;
@@ -2650,12 +2658,32 @@ vec3 tl_state() {
                 return { n, data, dataNight, o16, c16, t8, cumOpen, cumClose, firstDay, lastDay, weekOpen, weekClose, ...clock };
             }
 
+            // the legend's legal forms apply to the timeline too: hidden forms leave the map,
+            // the counters and the bars (the playback pace stays that of all lamps)
+            function tlApplyLegend() {
+                const on = {};
+                for (const code in T_DECODE) on[code.charCodeAt(0)] = activeLabels.has(T_DECODE[code]) ? 1 : 0;
+                const keep = new Uint8Array(tl.n);
+                const filter = new Float32Array(tl.n);
+                for (let i = 0; i < tl.n; i++) keep[i] = filter[i] = on[tl.t8[i]] ?? 1;
+                Object.assign(tl, tlStats(tl.o16, tl.c16, tl.lastDay, keep));
+                const getFilterValue = { value: filter, size: 1 };
+                tl.data = { length: tl.n, attributes: { ...tl.data.attributes, getFilterValue } };
+                tl.dataNight = { length: tl.n, attributes: { ...tl.dataNight.attributes, getFilterValue } };
+                tl.filterVersion = _filterVersion;
+                tlDrawHist();
+                tlUpdateUi();
+            }
+
             function buildTimelineLayer() {
+                if (tl.filterVersion !== _filterVersion) tlApplyLegend();
                 const z = map ? map.getZoom() : 8;
 
                 const shared = {
                     id: "timeline",
                     data: tl.data,
+                    extensions: [_dataFilter],
+                    filterRange: [1, 1],
                     // only lit lamps have a size, so only they can be picked
                     pickable: true,
                     autoHighlight: false,
