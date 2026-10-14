@@ -14,10 +14,9 @@
         <meta property="og:site_name" content="SwissViz" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:image" content="https://rafapolo.github.io/swissviz/mini.jpg" />
-        <link
-            rel="icon"
-            href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇨🇭</text></svg>"
-        />
+        <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+        <link rel="icon" href="favicon.png" type="image/png" sizes="32x32" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
         <link rel="preload" href="data/BE.json" as="fetch" crossorigin />
         <link rel="preload" href="data/BE_0.json.gz" as="fetch" crossorigin />
         <link rel="preconnect" href="https://unpkg.com" crossorigin />
@@ -26,11 +25,11 @@
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link rel="modulepreload" href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.mjs" crossorigin />
         <link href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css" rel="stylesheet" />
-        <!-- non-blocking: the system font shows until Inter arrives -->
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+        <!-- non-blocking: the system font shows until Inter (and the wordmark's Bricolage) arrives -->
+        <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@300;800&family=Inter:wght@300;400;500;600&family=Martian+Mono:wght@400&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
         <style>
             :root {
-                --bg: #1e2a3e;
+                --bg: #10131a; /* the night ground, under the map before its tiles */
                 /* Night view, from ../brasilume: one dim ember per lamp, stacked
                    additively it climbs through orange and cream to white */
                 --ember-raw: 139, 87, 79;
@@ -48,6 +47,20 @@
                 --white-muted: rgba(255, 255, 255, 0.5);
                 --white-soft: rgba(255, 255, 255, 0.6);
                 --shadow-dark: rgba(0, 0, 0, 0.6);
+                /* Panels, from ../brasilume: smoked warm glass over the map, a hairline
+                   of lamp light for the border; the wordmark glows in the dots' color */
+                --ink-raw: 11, 9, 8;
+                --glass: rgba(var(--ink-raw), 0.6);
+                --hair: rgba(237, 227, 209, 0.14);
+                --dim: #8f8473;
+                --soft: #cfc5b4;
+                --ink: #0b0908;
+                --lamp-raw: 237, 227, 209;
+                --hair-hi: rgba(237, 227, 209, 0.32);
+                --ember: #d9a99f;
+                --mono: "Martian Mono", ui-monospace, monospace;
+                --halo: 0 0 6px rgba(var(--spark-raw), 0.8), 0 0 22px rgba(var(--ember-raw), 0.9), 0 0 48px rgba(var(--ember-raw), 0.7);
+                --aura: 0 0 8px rgba(var(--ember-raw), 0.9), 0 0 22px rgba(var(--ember-raw), 0.65), 0 0 44px rgba(var(--ember-raw), 0.4);
             }
             * {
                 margin: 0;
@@ -89,6 +102,13 @@
                 position: relative;
                 z-index: 0;
                 outline: none;
+                /* hidden until the night map and the first lamps are drawn: the
+                   style's day look with its names never shows */
+                opacity: 0;
+                transition: opacity 0.8s ease;
+            }
+            #map.ready {
+                opacity: 1;
             }
             #map:focus,
             #map canvas:focus,
@@ -185,11 +205,12 @@
             /* Shared panel */
             .panel {
                 z-index: 12;
-                opacity: 0.97;
                 position: absolute;
-                background: var(--bg);
-                border: 1px solid var(--border);
-                border-radius: 6px;
+                background: var(--glass);
+                border: 1px solid var(--hair);
+                border-radius: 4px;
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
                 padding: 14px 16px;
                 font-size: 14px;
                 overflow-y: auto;
@@ -270,50 +291,282 @@
                 padding-bottom: 10px;
                 border-bottom: 1px solid var(--border-subtle);
             }
-            .panel-controls {
-                display: flex;
-                gap: 6px;
-                padding: 10px 0;
-                border-bottom: 1px solid var(--border-subtle);
-                margin-bottom: 10px;
-            }
-            .panel-controls button {
-                flex: 1;
-                background: var(--surface);
-                border: 1px solid var(--border-mid);
-                border-radius: 4px;
-                color: rgba(255, 255, 255, 0.75);
-                font-family: inherit;
-                font-size: 12px;
-                padding: 8px 0;
-                cursor: pointer;
-                transition:
-                    background 0.15s,
-                    color 0.15s;
-                letter-spacing: 0.03em;
-            }
-            .panel-controls button:hover,
-            .panel-controls button:active {
-                background: rgba(255, 255, 255, 0.12);
-                color: rgba(255, 255, 255, 0.9);
-            }
-            .panel-controls button.active {
-                background: rgba(var(--ember-raw), 0.3);
-                border-color: rgba(var(--ember-lit-raw), 0.55);
-                color: var(--lamp);
-                box-shadow: var(--lit);
-            }
             /* Night: the frame and the window corners go to the same black as the map */
             body.night {
-                --corner: #000;
+                --corner: #10131a;
+            }
+
+            /* Left column: the masthead with the canton panel under it */
+            #rail {
+                position: absolute;
+                top: 20px;
+                left: 20px;
+                bottom: 20px;
+                width: 285px;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                pointer-events: none;
+            }
+            #rail > .panel {
+                position: relative;
+                flex: none;
+                pointer-events: auto;
+            }
+            #rail > #canton-panel {
+                flex: 0 1 auto;
+                min-height: 0;
+                max-height: none;
+            }
+
+            /* Masthead, from ../brasilume: the name in light type, one lit letter */
+            .masthead.panel {
+                padding: 14px 16px;
+                text-align: center;
+                overflow: visible;
+                max-height: none;
+            }
+            .wordmark {
+                font-family: "Bricolage Grotesque", "Inter", sans-serif;
+                font-weight: 300;
+                font-size: 44px;
+                line-height: 0.95;
+                letter-spacing: -0.035em;
+                color: var(--dim);
+                text-shadow: var(--aura);
+            }
+            /* the "v" of viz is the one lit lamp in the type */
+            .wordmark .lit {
+                font-weight: 800;
+                color: var(--lamp);
+                text-shadow: var(--halo);
+            }
+            .dek {
+                margin-top: 10px;
+                font-size: 13px;
+                line-height: 1.4;
+                color: var(--dim);
+                text-wrap: balance;
+            }
+            /* short screens: the line goes, the canton list keeps the room */
+            @media (max-height: 860px) {
+                .dek {
+                    display: none;
+                }
+            }
+
+            /* Right column: the legend with the light panel under it */
+            #rail-right {
+                position: absolute;
+                top: 20px;
+                right: 20px;
+                bottom: 20px;
+                width: 285px;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                pointer-events: none;
+            }
+            #rail-right > .panel {
+                position: relative;
+                flex: none;
+                pointer-events: auto;
+            }
+            #rail-right > #legend {
+                flex: 0 1 auto;
+                min-height: 0;
+                max-height: none;
             }
 
             /* Legend — right */
             #legend {
-                top: 20px;
-                right: 20px;
                 min-width: 285px;
                 padding: 14px 16px;
+            }
+
+            /* Light panel, from ../brasilume: the night look in three sliders under
+               a header that folds them; shown while night view is on */
+            #light-panel {
+                padding: 0;
+            }
+            #light-panel[hidden] {
+                display: none !important;
+            }
+            .fold-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                width: 100%;
+                padding: 10px 16px;
+                border: 0;
+                background: none;
+                color: inherit;
+                font: inherit;
+                text-align: left;
+                cursor: pointer;
+            }
+            .fold-head::after {
+                content: "";
+                flex: none;
+                width: 6px;
+                height: 6px;
+                margin-top: -3px;
+                border-right: 1.4px solid var(--dim);
+                border-bottom: 1.4px solid var(--dim);
+                transform: rotate(45deg);
+                transition: transform 160ms;
+            }
+            .fold-head[aria-expanded="true"]::after {
+                margin-top: 3px;
+                transform: rotate(-135deg);
+            }
+            .label {
+                font-family: var(--mono);
+                font-size: 10px;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--dim);
+            }
+            /* its height runs between 0 and its own (one grid row, 0fr to 1fr), so
+               the fold slides instead of jumping; folded, it leaves the tab order */
+            .fold {
+                display: grid;
+                grid-template-rows: 1fr;
+                transition: grid-template-rows 220ms ease;
+            }
+            .fold-in {
+                min-height: 0;
+                overflow: hidden;
+                transition: visibility 0s;
+            }
+            #light-panel.folded .fold {
+                grid-template-rows: 0fr;
+            }
+            #light-panel.folded .fold-in {
+                visibility: hidden;
+                transition: visibility 0s 220ms;
+            }
+            .light-body {
+                padding: 0 16px 10px;
+            }
+            .fold-rule {
+                margin: 0 0 12px;
+                border: 0;
+                border-top: 1px solid var(--hair);
+            }
+            .knob {
+                display: block;
+                margin-bottom: 10px;
+            }
+            .knob span,
+            .light-foot {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                font-family: var(--mono);
+                font-size: 10px;
+                color: var(--dim);
+            }
+            .knob output,
+            .light-foot output {
+                color: var(--lamp);
+                font-variant-numeric: tabular-nums;
+            }
+            /* a hairline track lit in ember up to a small lit thumb; --fill (set from
+               the script) is the lit part for WebKit, Gecko has ::-moz-range-progress.
+               The pseudo-elements stay in twin rules: a browser drops a whole rule
+               over a selector it does not know */
+            .knob input[type="range"] {
+                --fill: 0.5;
+                display: block;
+                width: 100%;
+                height: 14px;
+                margin: 4px 0 0;
+                background: transparent;
+                cursor: pointer;
+                -webkit-appearance: none;
+                appearance: none;
+            }
+            .knob input[type="range"]:disabled {
+                opacity: 0.4;
+                cursor: default;
+            }
+            .knob input[type="range"]::-webkit-slider-runnable-track {
+                height: 2px;
+                border-radius: 1px;
+                background: linear-gradient(to right, var(--ember) calc(var(--fill) * 100%), var(--hair) 0);
+            }
+            .knob input[type="range"]::-moz-range-track {
+                height: 2px;
+                border-radius: 1px;
+                background: var(--hair);
+            }
+            .knob input[type="range"]::-moz-range-progress {
+                height: 2px;
+                border-radius: 1px;
+                background: var(--ember);
+            }
+            .knob input[type="range"]::-webkit-slider-thumb {
+                width: 12px;
+                height: 12px;
+                margin-top: -5px;
+                border: 0;
+                border-radius: 50%;
+                background: var(--lamp);
+                box-shadow: 0 0 6px rgba(var(--spark-raw), 0.8), 0 0 14px rgba(var(--ember-raw), 0.9);
+                -webkit-appearance: none;
+            }
+            .knob input[type="range"]::-moz-range-thumb {
+                width: 12px;
+                height: 12px;
+                border: 0;
+                border-radius: 50%;
+                background: var(--lamp);
+                box-shadow: 0 0 6px rgba(var(--spark-raw), 0.8), 0 0 14px rgba(var(--ember-raw), 0.9);
+            }
+            /* the lock: open while the sliders follow the screen, closed and lit
+               while the look is held by hand */
+            .lock {
+                display: grid;
+                place-items: center;
+                width: 22px;
+                height: 22px;
+                margin: -4px 0 -4px -5px;
+                padding: 0;
+                border: 0;
+                background: none;
+                color: var(--dim);
+                cursor: pointer;
+            }
+            .lock svg {
+                width: 12px;
+                height: 12px;
+                fill: none;
+                stroke: currentColor;
+                stroke-width: 1.2;
+                stroke-linecap: round;
+                overflow: visible;
+            }
+            .lock .shackle {
+                transform-origin: 8px 5.5px;
+                transform: rotate(38deg);
+                transition: transform 160ms;
+            }
+            .lock[aria-pressed="true"] {
+                color: var(--lamp);
+                filter: drop-shadow(0 0 4px rgba(var(--spark-raw), 0.7));
+            }
+            .lock[aria-pressed="true"] rect {
+                fill: currentColor;
+            }
+            .lock[aria-pressed="true"] .shackle {
+                transform: none;
+            }
+            @media (hover: hover) {
+                .lock:hover {
+                    color: var(--lamp);
+                }
             }
             .legend-item {
                 display: flex;
@@ -355,10 +608,7 @@
 
             /* Canton panel — left */
             #canton-panel {
-                top: 20px;
-                left: 20px;
                 min-width: 285px;
-                max-height: calc(100vh - 40px);
             }
             .canton-item {
                 display: flex;
@@ -467,30 +717,13 @@
                 top: 20px;
                 right: 20px;
             }
-
-            /* GitHub repo link (bottom-right) */
-            #github-link {
-                display: flex;
-                position: fixed;
-                bottom: 16px;
+            /* phones only: opens the light sheet */
+            #toggle-light {
+                display: none;
+                top: 74px;
                 right: 16px;
-                width: 36px;
-                height: 36px;
-                background: var(--bg);
-                border: 1px solid var(--border-mid);
-                border-radius: 8px;
-                align-items: center;
-                justify-content: center;
-                z-index: 12;
-                color: rgba(255, 255, 255, 0.5);
-                transition: color 0.15s, border-color 0.15s;
             }
-            #github-link:hover,
-            #github-link:focus-visible {
-                color: #fff;
-                border-color: var(--border-mid);
-            }
-            #github-link svg {
+            #toggle-light svg {
                 width: 18px;
                 height: 18px;
             }
@@ -518,16 +751,62 @@
                 .panel {
                     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
                 }
-                #canton-panel.collapsed {
+                #canton-panel.collapsed,
+                #rail:has(#canton-panel.collapsed) .masthead {
                     transform: translateX(calc(-100% - 20px));
                 }
-                #legend.collapsed {
+                #legend.collapsed,
+                #rail-right:has(#legend.collapsed) #light-panel {
                     transform: translateX(calc(100% + 20px));
                 }
             }
             @media (max-width: 980px) {
-                /* Panels become full-width bottom sheets */
+                /* Glass a phone GPU need not blur every frame: darker, no backdrop-filter */
+                :root {
+                    --glass: rgba(var(--ink-raw), 0.86);
+                }
                 .panel {
+                    -webkit-backdrop-filter: none;
+                    backdrop-filter: none;
+                }
+                /* the rail dissolves: the canton panel is a sheet, the masthead sits under the top bar */
+                #rail,
+                #rail-right {
+                    display: contents;
+                }
+                #toggle-light {
+                    display: flex;
+                }
+                #light-panel .fold-head,
+                #light-panel .fold-rule {
+                    display: none;
+                }
+                #light-panel .fold {
+                    grid-template-rows: 1fr;
+                }
+                #light-panel .fold-in {
+                    visibility: visible;
+                }
+                #light-panel {
+                    padding-top: 20px;
+                }
+                #light-panel .light-body {
+                    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+                }
+                #rail > .masthead.panel {
+                    position: absolute;
+                    top: 74px;
+                    left: 16px;
+                    padding: 8px 12px;
+                }
+                .wordmark {
+                    font-size: 28px;
+                }
+                .dek {
+                    display: none;
+                }
+                /* Panels become full-width bottom sheets */
+                .panel:not(.masthead) {
                     position: fixed !important;
                     top: auto !important;
                     left: 0 !important;
@@ -549,7 +828,7 @@
                     /* drag handle */
                     padding-top: 20px;
                 }
-                .panel::before {
+                .panel:not(.masthead)::before {
                     content: "";
                     display: block;
                     width: 36px;
@@ -1017,24 +1296,582 @@
                 body:has(.panel.open) #timeline {
                     visibility: hidden;
                 }
-                /* map controls and the GitHub button sit above the timeline (--tl-h is
-                   its height, 0 while hidden; set by a ResizeObserver) */
-                #github-link {
-                    bottom: calc(16px + var(--tl-h, 0px));
-                }
+                /* map controls sit above the timeline (--tl-h is its height, 0 while
+                   hidden; set by a ResizeObserver) */
                 .maplibregl-ctrl-bottom-left {
                     bottom: var(--tl-h, 0px);
                 }
             }
+
+            /* ---------- lumen: controls in ../brasilume's look ----------
+               glass and a hairline for every control, pills for the floating
+               buttons, mono labels, the lamp color for what is on */
+            :focus-visible,
+            button:focus-visible,
+            .lang-btn:focus-visible,
+            .legend-item:focus-visible,
+            .canton-item:focus-visible {
+                outline: 1px solid var(--lamp);
+                outline-offset: 2px;
+            }
+            .panel-toggle,
+            .mode-btn {
+                background: var(--glass);
+                border: 1px solid var(--hair);
+                border-radius: 50%;
+                color: var(--soft);
+                box-shadow: none;
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
+                transition:
+                    border-color 160ms,
+                    color 160ms,
+                    background-color 160ms;
+            }
+            @media (hover: hover) {
+                .panel-toggle:hover,
+                .mode-btn:hover {
+                    border-color: var(--hair-hi);
+                    color: var(--lamp);
+                }
+            }
+            .mode-btn.active {
+                background: rgba(var(--ember-raw), 0.3);
+                border-color: rgba(var(--ember-lit-raw), 0.55);
+                color: var(--lamp);
+                box-shadow: var(--lit);
+            }
+            #search-wrapper {
+                background: var(--glass);
+                border: 1px solid var(--hair);
+                border-radius: 22px;
+                padding: 0 16px;
+                box-shadow: none;
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
+            }
+            #search-wrapper:focus-within {
+                border-color: var(--hair-hi);
+            }
+            #search-icon,
+            #search-clear,
+            #search-count {
+                color: var(--dim);
+            }
+            #search-count {
+                font-family: var(--mono);
+                font-size: 9.5px;
+            }
+            #search-input {
+                color: var(--lamp);
+            }
+            #search-input::placeholder {
+                color: var(--dim);
+            }
+            #search-results,
+            #tooltip {
+                background: rgba(var(--ink-raw), 0.92);
+                border: 1px solid var(--hair);
+                border-radius: 4px;
+            }
+            .search-result-item {
+                border-bottom-color: var(--hair);
+            }
+            .search-result-name,
+            #tooltip h3 {
+                color: var(--lamp);
+            }
+            #tooltip p,
+            #tooltip span {
+                color: var(--soft);
+            }
+            .tt-link {
+                color: var(--ember);
+            }
+            /* panel heads: the title in the lamp's color, the rest as labels */
+            .panel-dot {
+                color: var(--ember);
+            }
+            .panel-header h2 {
+                color: var(--lamp);
+            }
+            .panel-subtitle {
+                font-family: var(--mono);
+                font-size: 9.5px;
+                letter-spacing: 0.08em;
+                color: var(--dim);
+                border-bottom-color: var(--hair);
+                margin-bottom: 10px;
+            }
+            /* the legend's select / deselect all: quiet buttons in the panel's glass */
+            .panel-controls {
+                display: flex;
+                gap: 6px;
+                padding-bottom: 10px;
+                margin-bottom: 10px;
+                border-bottom: 1px solid var(--hair);
+            }
+            .panel-controls button {
+                flex: 1;
+                padding: 7px 0;
+                background: rgba(var(--ink-raw), 0.5);
+                border: 1px solid var(--hair);
+                border-radius: 4px;
+                color: var(--soft);
+                font-family: var(--mono);
+                font-size: 9.5px;
+                letter-spacing: 0.04em;
+                cursor: pointer;
+                transition:
+                    border-color 160ms,
+                    color 160ms;
+            }
+            .panel-controls button:hover,
+            .panel-controls button:active {
+                border-color: var(--hair-hi);
+                color: var(--lamp);
+            }
+            .lang-btn {
+                background: none;
+                border: 1px solid var(--hair);
+                border-radius: 2px;
+                color: var(--dim);
+                font-family: var(--mono);
+                font-size: 8.5px;
+                font-weight: 400;
+            }
+            .lang-btn:hover {
+                background: none;
+                border-color: var(--hair-hi);
+                color: var(--lamp);
+            }
+            .lang-btn.active {
+                background: var(--lamp);
+                border-color: var(--lamp);
+                color: var(--ink);
+                box-shadow: var(--lit);
+            }
+            .panel-arrow {
+                color: var(--dim);
+            }
+            .panel-arrow:hover {
+                color: var(--lamp);
+            }
+            .legend-label {
+                color: var(--soft);
+            }
+            .legend-count {
+                color: var(--dim);
+                font-family: var(--mono);
+                font-size: 9.5px;
+            }
+            /* the timeline: the panels' glass, brasilume's ember play button and select */
+            #timeline {
+                opacity: 1;
+                background: var(--glass);
+                border: 1px solid var(--hair);
+                border-radius: 4px;
+                color: var(--soft);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+            }
+            #tl-play {
+                border: 1px solid var(--hair);
+                background: rgba(var(--ember-raw), 0.18);
+                color: var(--lamp);
+                transition:
+                    background-color 160ms,
+                    border-color 160ms;
+            }
+            #tl-play:hover {
+                border-color: var(--hair-hi);
+                background: rgba(var(--ember-raw), 0.4);
+            }
+            #tl-date,
+            .tl-stats b {
+                color: var(--lamp);
+            }
+            #tl-speed {
+                padding: 3px 22px 3px 8px;
+                border: 1px solid var(--hair);
+                border-radius: 4px;
+                background: rgba(var(--ink-raw), 0.5)
+                    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238f8473' stroke-width='1.4'/%3E%3C/svg%3E")
+                    no-repeat right 8px center / 9px 5px;
+                color: var(--lamp);
+                font-family: var(--mono);
+                font-size: 9.5px;
+                cursor: pointer;
+                -webkit-appearance: none;
+                appearance: none;
+            }
+            #tl-speed:hover {
+                border-color: var(--hair-hi);
+            }
+            #tl-speed option {
+                background: var(--ink);
+                color: var(--lamp);
+            }
+            #tl-speed::picker-icon {
+                display: none;
+            }
+            @media (max-width: 980px) {
+                .panel-toggle,
+                .mode-btn,
+                #search-wrapper,
+                #timeline {
+                    -webkit-backdrop-filter: none;
+                    backdrop-filter: none;
+                }
+            }
+
+            /* ---------- canton picker, from ../brasilume's #picker ----------
+               a tile per canton, set roughly where it sits on the map; its glow
+               is the number of companies (log scale), set inline as --glow */
+            #canton-panel {
+                overflow: visible;
+            }
+            #canton-items {
+                display: grid;
+                grid-template-columns: repeat(8, 1fr);
+                gap: 6px;
+                margin: 4px 0 2px;
+                user-select: none;
+                -webkit-user-select: none;
+            }
+            .canton-item {
+                --glow: 0;
+                aspect-ratio: 1;
+                display: grid;
+                place-items: center;
+                margin: 0;
+                padding: 0;
+                gap: 0;
+                border: 1px solid rgba(var(--lamp-raw), 0.07);
+                border-radius: 2px;
+                font-family: var(--mono);
+                font-size: 9.5px;
+                letter-spacing: 0.02em;
+                color: rgba(var(--lamp-raw), calc(0.45 + var(--glow) * 0.55));
+                background: rgba(var(--ember-raw), calc(0.12 + var(--glow) * 0.75));
+                box-shadow: 0 0 calc(var(--glow) * 14px) rgba(var(--ember-raw), calc(var(--glow) * 0.8));
+                transition:
+                    background-color 160ms,
+                    border-color 160ms,
+                    color 160ms;
+            }
+            .canton-item.inactive {
+                opacity: 1;
+            }
+            .canton-item:hover,
+            .canton-item:active {
+                background: rgba(var(--ember-raw), calc(0.12 + var(--glow) * 0.75));
+            }
+            @media (hover: hover) {
+                .canton-item:hover {
+                    border-color: var(--hair-hi);
+                    color: var(--lamp);
+                }
+            }
+
+            /* the name and the count live in the peek; the badge is the tile's face */
+            #canton-items .canton-badge {
+                all: unset;
+            }
+            .canton-item .canton-name,
+            .canton-item .canton-count {
+                display: none;
+            }
+            /* loading: the tile breathes until its lamps are in (no other loading
+               notice: the picker shows which cantons are still on their way) */
+            .canton-item:has(.canton-spinner) {
+                animation: tile-load 1.1s ease-in-out infinite alternate;
+            }
+            @keyframes tile-load {
+                to {
+                    opacity: 0.45;
+                }
+            }
+            /* pops up right under the picker */
+            .peek {
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: calc(100% + 8px);
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                padding: 8px 10px 10px;
+                background: rgba(var(--ink-raw), 0.92);
+                border: 1px solid var(--hair);
+                border-radius: 4px;
+                pointer-events: none;
+            }
+            .peek[hidden] {
+                display: none;
+            }
+            .peek strong {
+                font-family: "Bricolage Grotesque", "Inter", sans-serif;
+                font-weight: 800;
+                font-size: 15px;
+                color: var(--lamp);
+            }
+            .peek span {
+                font-family: var(--mono);
+                font-weight: 300;
+                font-size: 10px;
+                color: var(--dim);
+            }
+            @media (max-width: 980px) {
+                /* in the sheet the peek is a line over the tiles: the country until
+                   a tile is tapped, then that canton */
+                .peek {
+                    position: static;
+                    margin-bottom: 10px;
+                }
+                #canton-panel {
+                    overflow-y: auto !important;
+                }
+                #canton-items {
+                    max-width: 300px;
+                    margin: 0 auto;
+                }
+            }
+
+            /* ---------- chips, from ../brasilume: tilt, names, about ---------- */
+            /* bottom right, where the GitHub button was */
+            .chips {
+                position: fixed;
+                right: 20px;
+                bottom: 20px;
+                z-index: 12;
+                display: flex;
+                gap: 6px;
+            }
+            .chip {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                height: 28px;
+                padding: 0 11px;
+                border: 1px solid var(--hair);
+                border-radius: 14px;
+                background: var(--glass);
+                color: var(--lamp);
+                font-family: var(--mono);
+                font-size: 9px;
+                letter-spacing: 0.04em;
+                cursor: pointer;
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
+                transition: border-color 160ms;
+            }
+            @media (hover: hover) {
+                .chip:hover {
+                    border-color: var(--hair-hi);
+                }
+            }
+            /* an icon before the word: a plane, tilted or flat, a pin for the names
+               and a ringed question mark */
+            #tilt::before {
+                content: "";
+                width: 11px;
+                height: 7px;
+                border: 1.2px solid currentColor;
+                border-radius: 1px;
+                transition: transform 160ms;
+            }
+            #tilt[aria-pressed="true"]::before {
+                transform: skewX(-24deg);
+            }
+            #names::before {
+                content: "";
+                width: 7px;
+                height: 7px;
+                margin: 0 1px 2px;
+                border: 1.2px solid currentColor;
+                border-radius: 50% 50% 50% 0;
+                transform: rotate(-45deg);
+            }
+            #names[aria-pressed="true"] {
+                border-color: var(--hair-hi);
+            }
+            #names[aria-pressed="true"]::before {
+                background: currentColor;
+            }
+            #about-open::before {
+                content: "?";
+                display: grid;
+                place-items: center;
+                width: 12px;
+                height: 12px;
+                border: 1.2px solid currentColor;
+                border-radius: 50%;
+                font-size: 8px;
+                line-height: 1;
+                letter-spacing: 0;
+            }
+            @media (max-width: 980px) {
+                /* phones: icons only, above the timeline */
+                .chips {
+                    right: 16px;
+                    bottom: calc(16px + env(safe-area-inset-bottom) + var(--tl-h, 0px));
+                }
+                .chip {
+                    width: 40px;
+                    height: 40px;
+                    background: rgba(var(--ink-raw), 0.86);
+                    padding: 0;
+                    border-radius: 50%;
+                    -webkit-backdrop-filter: none;
+                    backdrop-filter: none;
+                }
+                .chip-text {
+                    display: none;
+                }
+            }
+
+            /* the about dialog */
+            .about {
+                max-width: 520px;
+                width: calc(100vw - 40px);
+                max-height: calc(100dvh - 40px);
+                margin: auto;
+                padding: 28px 28px 22px;
+                background: var(--ink);
+                color: var(--lamp);
+                border: 1px solid var(--hair);
+                border-radius: 4px;
+                scrollbar-width: thin;
+                scrollbar-color: var(--hair-hi) transparent;
+            }
+            .about::backdrop {
+                background: rgba(var(--ink-raw), 0.7);
+            }
+            .about h2 {
+                margin: 0 0 14px;
+                font-family: "Bricolage Grotesque", "Inter", sans-serif;
+                font-weight: 800;
+                font-size: 26px;
+                letter-spacing: -0.02em;
+            }
+            .about p {
+                margin: 0 0 12px;
+                font-size: 14px;
+                line-height: 1.55;
+                color: var(--soft);
+            }
+            .about a {
+                color: var(--ember);
+            }
+            .about .fine {
+                margin-top: 18px;
+                font-family: var(--mono);
+                font-weight: 300;
+                font-size: 10px;
+                line-height: 1.7;
+                color: var(--dim);
+            }
+            .about .close {
+                position: absolute;
+                top: 10px;
+                right: 12px;
+                border: 0;
+                background: none;
+                font-size: 22px;
+                color: var(--dim);
+                cursor: pointer;
+            }
+
+            #dock {
+                display: none;
+            }
+            @media (max-width: 980px) {
+                /* the top: one row, the name, cantons, the search and the legend */
+                #rail > .masthead.panel {
+                    top: 16px;
+                    left: 16px;
+                    width: 100px;
+                    height: 44px;
+                    padding: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .wordmark {
+                    font-size: 22px;
+                }
+                #toggle-canton {
+                    top: 16px;
+                    left: 124px;
+                }
+                #toggle-legend {
+                    top: 16px;
+                    right: 16px;
+                }
+                #search-bar {
+                    top: 16px;
+                    left: 176px;
+                    right: 68px;
+                }
+                /* the bottom: the view's buttons in one glass bar, centered */
+                #dock {
+                    display: flex;
+                    position: fixed;
+                    left: 50%;
+                    bottom: calc(16px + env(safe-area-inset-bottom) + var(--tl-h, 0px));
+                    transform: translateX(-50%);
+                    z-index: 13;
+                    gap: 2px;
+                    padding: 4px;
+                    background: rgba(var(--ink-raw), 0.86);
+                    border: 1px solid var(--hair);
+                    border-radius: 24px;
+                }
+                #dock > * {
+                    position: static;
+                    flex: none;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 38px;
+                    height: 38px;
+                    padding: 0;
+                    border: 0;
+                    border-radius: 50%;
+                    background: none;
+                    box-shadow: none;
+                    color: var(--soft);
+                    font-size: 16px;
+                }
+                #dock > [aria-expanded="true"],
+                #dock > #names[aria-pressed="true"] {
+                    background: rgba(var(--lamp-raw), 0.1);
+                    color: var(--lamp);
+                }
+                #dock > .mode-btn.active {
+                    background: rgba(var(--ember-raw), 0.35);
+                    color: var(--lamp);
+                    box-shadow: var(--lit);
+                }
+                .chips {
+                    display: none;
+                }
+                /* the sheets keep their last rows clear of the bar */
+                #canton-panel,
+                #legend,
+                #light-panel {
+                    padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+                }
+                .maplibregl-ctrl-bottom-left,
+                .maplibregl-ctrl-bottom-right {
+                    bottom: calc(72px + var(--tl-h, 0px)) !important;
+                }
+            }
         </style>
     </head>
-    <body>
-        <h1 class="sr-only">SwissViz — Swiss Companies Map</h1>
-
-        <div id="loading-screen" role="status" aria-live="polite" aria-label="Loading map data">
-            <div class="spinner" aria-hidden="true"></div>
-            <span class="loading-label" id="loading-label"></span>
-        </div>
+    <body class="night">
 
         <div
             id="map"
@@ -1046,6 +1883,10 @@
 
         <div id="search-bar" role="search" aria-label="Search Swiss companies">
             <div id="search-row">
+                <!-- the two modes of the map, one each side of the search: night view and the timeline -->
+                <button id="btn-night-view" class="mode-btn active" aria-pressed="true" aria-label="Night view" data-i18n-aria="nightView">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 15.5v-1.8l-7.5-4.7V4.2a1.5 1.5 0 0 0-3 0V9L3 13.7v1.8l7.5-2.3v4.9l-2 1.5v1.4l3.5-1 3.5 1v-1.4l-2-1.5v-4.9z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                </button>
                 <div id="search-wrapper">
                     <span id="search-icon" aria-hidden="true">⌕</span>
                     <label for="search-input" class="sr-only">Search companies</label>
@@ -1064,10 +1905,6 @@
                     <span id="search-count" aria-live="polite" aria-atomic="true"></span>
                     <button id="search-clear" aria-label="Clear search">✕</button>
                 </div>
-                <!-- the two modes of the map, next to the search: night view and the timeline -->
-                <button id="btn-night-view" class="mode-btn" aria-pressed="false" aria-label="Night view" data-i18n-aria="nightView">
-                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-                </button>
                 <button id="btn-timeline" class="mode-btn" aria-pressed="false" aria-controls="timeline" aria-label="Timeline" data-i18n-aria="timeline">
                     <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                 </button>
@@ -1082,12 +1919,15 @@
 
         <button class="panel-toggle" id="toggle-canton" aria-label="Toggle Cantons panel" data-i18n-aria="toggleCantons" aria-expanded="true" aria-controls="canton-panel"><span aria-hidden="true">⌖</span></button>
         <button class="panel-toggle" id="toggle-legend" aria-label="Toggle Legend panel" data-i18n-aria="toggleLegend" aria-expanded="true" aria-controls="legend"><span aria-hidden="true">⊟</span></button>
+        <button class="panel-toggle" id="toggle-light" aria-label="Light" data-i18n-aria="lightTitle" aria-expanded="false" aria-controls="light-panel">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5" fill="currentColor"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
 
-        <a id="github-link" href="https://github.com/rafapolo/swissviz" target="_blank" rel="noopener noreferrer" aria-label="View source on GitHub">
-            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
-            </svg>
-        </a>
+        <div id="rail">
+        <header class="masthead panel">
+            <h1 class="wordmark" aria-label="SwissViz — Swiss Companies Map">swiss<span class="lit">v</span>iz</h1>
+            <p class="dek" data-i18n="mastheadDek">Every dot is one of 750,000+ Swiss companies, placed at its address.</p>
+        </header>
 
         <div id="canton-panel" class="panel" aria-label="Cantons filter panel">
             <div class="panel-header">
@@ -1096,13 +1936,15 @@
                 <button class="panel-arrow" id="collapse-canton" aria-label="Collapse panel" data-i18n-aria="collapse"><span aria-hidden="true">‹</span></button>
             </div>
             <div class="panel-subtitle" id="canton-subtitle" data-i18n="cantonsSubtitle">Select regions</div>
-            <div class="panel-controls">
-                <button id="btn-canton-all" data-i18n="selectAll">Select all</button>
-                <button id="btn-canton-none" data-i18n="deselectAll">Deselect all</button>
+            <div id="canton-peek" class="peek" hidden>
+                <strong id="peek-name"></strong>
+                <span id="peek-stats"></span>
             </div>
             <div id="canton-items" role="group" aria-labelledby="canton-subtitle"></div>
         </div>
+        </div>
 
+        <div id="rail-right">
         <div id="legend" class="panel" aria-label="Legend filter panel">
             <div class="panel-header">
                 <span class="panel-dot" aria-hidden="true">⊟</span>
@@ -1121,6 +1963,35 @@
                 <button id="btn-deselect-all" data-i18n="deselectAll">Deselect all</button>
             </div>
             <div id="legend-items" role="group" aria-labelledby="legend-subtitle"></div>
+        </div>
+
+        <section id="light-panel" class="light-panel panel" aria-labelledby="light-label">
+            <button type="button" id="light-head" class="fold-head" aria-expanded="true" aria-controls="light-body">
+                <span class="label" id="light-label" data-i18n="lightTitle">Light</span>
+            </button>
+            <div class="fold"><div class="fold-in">
+                <div id="light-body" class="light-body">
+                    <hr class="fold-rule" />
+                    <label class="knob">
+                        <span><span data-i18n="lightBrightness">brightness</span> <output id="knob-light-out"></output></span>
+                        <input type="range" id="knob-light" min="0" max="1" step="0.001" value="0.5" />
+                    </label>
+                    <label class="knob">
+                        <span><span data-i18n="lightSize">size</span> <output id="knob-size-out"></output></span>
+                        <input type="range" id="knob-size" min="0.1" max="2.5" step="0.01" value="0.5" />
+                    </label>
+                    <div class="light-foot">
+                        <button type="button" id="knob-lock" class="lock" aria-pressed="false" data-i18n-aria="lightAuto" aria-label="Automatic light">
+                            <svg viewBox="0 0 12 12" aria-hidden="true">
+                                <rect x="2" y="5.5" width="8" height="5.5" rx="1" />
+                                <path class="shackle" d="M4 5.5V3.6a2 2 0 0 1 4 0v1.9" />
+                            </svg>
+                        </button>
+                        <span>zoom <output id="zoomval">–</output></span>
+                    </div>
+                </div>
+            </div></div>
+        </section>
         </div>
 
         <div id="timeline" role="region" aria-labelledby="tl-date" hidden>
@@ -1150,6 +2021,28 @@
 
 
         <!-- defer keeps it ahead of the module below (both run in document order) without blocking parsing -->
+        <!-- bottom right: the view's chips and about -->
+        <div class="chips">
+            <button type="button" id="tilt" class="chip" aria-pressed="false"><span class="chip-text" data-i18n="tiltOff">top view</span></button>
+            <button type="button" id="names" class="chip" aria-pressed="false"><span class="chip-text" data-i18n="names">names</span></button>
+            <button type="button" id="about-open" class="chip" aria-haspopup="dialog"><span class="chip-text" data-i18n="about">about</span></button>
+        </div>
+        <!-- phones: the view's buttons gather here, at the bottom (placeDock) -->
+        <nav id="dock" aria-label="Map controls"></nav>
+
+        <dialog id="about" class="about" aria-labelledby="about-title">
+            <form method="dialog"><button class="close" aria-label="Close" data-i18n-aria="close">×</button></form>
+            <h2 id="about-title" data-i18n="aboutTitle">How it was made</h2>
+            <p data-i18n="aboutDots"></p>
+            <p data-i18n="aboutTimeline"></p>
+            <p data-i18n="aboutLight"></p>
+            <p class="fine">
+                <span data-i18n="aboutData"></span>
+                <a href="https://github.com/rafapolo/swissviz" target="_blank" rel="noopener" data-i18n="aboutCode">Code</a> ·
+                <a href="https://extrapolo.com" target="_blank" rel="noopener">extrapolo.com</a>
+            </p>
+        </dialog>
+
         <script defer src="https://unpkg.com/deck.gl@9.4.0/dist.min.js"></script>
         <script type="module">
             // MapLibre v6 ships ESM only
@@ -1192,6 +2085,7 @@
                     results: "Treffer",
                     cantons: "Kantone",
                     cantonsSubtitle: "Regionen wählen",
+                    mastheadDek: "Jeder Punkt ist eines von über 750 000 Schweizer Unternehmen, an seiner Adresse.",
                     company: "Firma",
                     companies: "Firmen",
                     more: "weitere",
@@ -1199,9 +2093,26 @@
                     retry: "Erneut versuchen",
                     loadingCanton: "{name} wird geladen…",
                     mapUpdated: "Karte aktualisiert: {n} Firmen angezeigt",
+                    peekCompanies: "{n} Firmen",
                     toggleCantons: "Kantone ein-/ausblenden",
                     toggleLegend: "Legende ein-/ausblenden",
+                    lightTitle: "Licht",
+                    lightBrightness: "Helligkeit",
+                    lightSize: "Größe",
+                    lightAuto: "Automatisches Licht: folgt dem Bildschirm. Klicken zum Sperren",
+                    lightLocked: "Gesperrt: das Licht bleibt so. Klicken, damit es wieder der Karte folgt",
                     collapse: "Einklappen",
+                    country: "Schweiz",
+                    tiltOn: "geneigt",
+                    tiltOff: "von oben",
+                    names: "Namen",
+                    about: "Info",
+                    aboutTitle: "Wie es gemacht ist",
+                    aboutDots: "Jeder Punkt ist eine Adresse im Schweizer Handelsregister mit mindestens einer Firma, aus opendata.swiss und nach ihrer Adresse auf die Karte gesetzt. Mehrere Firmen an einer Adresse teilen sich einen Punkt.",
+                    aboutTimeline: "Die Zeitleiste zündet jede Firma bei ihrem Eintrag ins Register an und löscht sie bei der Löschung: SHAB-Einträge und -Löschungen seit 2018, Daten der kantonalen Register zurück bis 1883. Vor 2018 steht eine Lampe an der heutigen Adresse der Firma.",
+                    aboutLight: "Das Licht ist additiv: wo sich viele Punkte stapeln, sättigt die Farbe bis zum Weiß.",
+                    aboutData: "Daten: opendata.swiss, Zefix, SHAB, LINDAS, swisstopo. Karte: OpenFreeMap, OpenStreetMap, MapLibre, deck.gl.",
+                    aboutCode: "Code",
                     close: "Schliessen",
                     openInZefix: "Im Handelsregister (Zefix) öffnen",
                     labels: {
@@ -1249,6 +2160,7 @@
                     results: "results",
                     cantons: "Cantons",
                     cantonsSubtitle: "Select regions",
+                    mastheadDek: "Every dot is one of 750,000+ Swiss companies, placed at its address.",
                     company: "company",
                     companies: "companies",
                     more: "more",
@@ -1256,9 +2168,26 @@
                     retry: "Retry",
                     loadingCanton: "Loading {name}…",
                     mapUpdated: "Map updated: {n} companies shown",
+                    peekCompanies: "{n} companies",
                     toggleCantons: "Toggle Cantons panel",
                     toggleLegend: "Toggle Legend panel",
+                    lightTitle: "Light",
+                    lightBrightness: "brightness",
+                    lightSize: "size",
+                    lightAuto: "Automatic light: follows what is on screen. Click to lock",
+                    lightLocked: "Locked: the light stays as it is. Click to let it follow the map again",
                     collapse: "Collapse panel",
+                    country: "Switzerland",
+                    tiltOn: "tilted",
+                    tiltOff: "top view",
+                    names: "names",
+                    about: "about",
+                    aboutTitle: "How it was made",
+                    aboutDots: "Every dot is an address in the Swiss commercial register with at least one company, from opendata.swiss, placed on the map by its address. Several companies at one address share a dot.",
+                    aboutTimeline: "The timeline lights each company at its entry in the register and puts it out at its deletion: SHAB entries and deletions since 2018, cantonal register dates back to 1883. Before 2018 a lamp sits at the company\u2019s current address.",
+                    aboutLight: "The light is additive: where many dots stack up, the color saturates toward white.",
+                    aboutData: "Data: opendata.swiss, Zefix, SHAB, LINDAS, swisstopo. Map: OpenFreeMap, OpenStreetMap, MapLibre, deck.gl.",
+                    aboutCode: "Code",
                     close: "Close",
                     openInZefix: "Open in the commercial register (Zefix)",
                     labels: {
@@ -1304,6 +2233,7 @@
                     results: "résultats",
                     cantons: "Cantons",
                     cantonsSubtitle: "Choisir les régions",
+                    mastheadDek: "Chaque point est l’une des plus de 750 000 entreprises suisses, à son adresse.",
                     company: "entreprise",
                     companies: "entreprises",
                     more: "de plus",
@@ -1311,9 +2241,26 @@
                     retry: "Réessayer",
                     loadingCanton: "Chargement de {name}…",
                     mapUpdated: "Carte mise à jour : {n} entreprises affichées",
+                    peekCompanies: "{n} entreprises",
                     toggleCantons: "Afficher/masquer les cantons",
                     toggleLegend: "Afficher/masquer la légende",
+                    lightTitle: "Lumière",
+                    lightBrightness: "luminosité",
+                    lightSize: "taille",
+                    lightAuto: "Lumière automatique : suit ce qui est à l’écran. Cliquer pour verrouiller",
+                    lightLocked: "Verrouillée : la lumière reste telle quelle. Cliquer pour qu’elle suive à nouveau la carte",
                     collapse: "Replier",
+                    country: "Suisse",
+                    tiltOn: "incliné",
+                    tiltOff: "vu de haut",
+                    names: "noms",
+                    about: "à propos",
+                    aboutTitle: "Comment c’est fait",
+                    aboutDots: "Chaque point est une adresse du registre du commerce suisse avec au moins une entreprise, issue d’opendata.swiss et placée sur la carte par son adresse. Plusieurs entreprises à la même adresse partagent un point.",
+                    aboutTimeline: "La ligne du temps allume chaque entreprise à son inscription au registre et l’éteint à sa radiation : inscriptions et radiations FOSC depuis 2018, dates des registres cantonaux jusqu’en 1883. Avant 2018, une lampe se trouve à l’adresse actuelle de l’entreprise.",
+                    aboutLight: "La lumière est additive : là où beaucoup de points s’empilent, la couleur sature jusqu’au blanc.",
+                    aboutData: "Données : opendata.swiss, Zefix, FOSC, LINDAS, swisstopo. Carte : OpenFreeMap, OpenStreetMap, MapLibre, deck.gl.",
+                    aboutCode: "Code",
                     close: "Fermer",
                     openInZefix: "Ouvrir dans le registre du commerce (Zefix)",
                     labels: {
@@ -1358,6 +2305,7 @@
                     results: "risultati",
                     cantons: "Cantoni",
                     cantonsSubtitle: "Scegli le regioni",
+                    mastheadDek: "Ogni punto è una delle oltre 750 000 aziende svizzere, al suo indirizzo.",
                     company: "azienda",
                     companies: "aziende",
                     more: "altre",
@@ -1365,9 +2313,26 @@
                     retry: "Riprova",
                     loadingCanton: "Caricamento di {name}…",
                     mapUpdated: "Mappa aggiornata: {n} aziende visualizzate",
+                    peekCompanies: "{n} aziende",
                     toggleCantons: "Mostra/nascondi i cantoni",
                     toggleLegend: "Mostra/nascondi la legenda",
+                    lightTitle: "Luce",
+                    lightBrightness: "luminosità",
+                    lightSize: "dimensione",
+                    lightAuto: "Luce automatica: segue ciò che è sullo schermo. Clicca per bloccare",
+                    lightLocked: "Bloccata: la luce resta così. Clicca perché segua di nuovo la mappa",
                     collapse: "Comprimi",
+                    country: "Svizzera",
+                    tiltOn: "inclinato",
+                    tiltOff: "dall’alto",
+                    names: "nomi",
+                    about: "info",
+                    aboutTitle: "Come è fatto",
+                    aboutDots: "Ogni punto è un indirizzo del registro di commercio svizzero con almeno un’azienda, da opendata.swiss, posto sulla mappa in base al suo indirizzo. Più aziende allo stesso indirizzo condividono un punto.",
+                    aboutTimeline: "La linea del tempo accende ogni azienda alla sua iscrizione nel registro e la spegne alla cancellazione: iscrizioni e cancellazioni FUSC dal 2018, date dei registri cantonali fino al 1883. Prima del 2018 una luce sta all’indirizzo attuale dell’azienda.",
+                    aboutLight: "La luce è additiva: dove molti punti si sovrappongono, il colore satura fino al bianco.",
+                    aboutData: "Dati: opendata.swiss, Zefix, FUSC, LINDAS, swisstopo. Mappa: OpenFreeMap, OpenStreetMap, MapLibre, deck.gl.",
+                    aboutCode: "Codice",
                     close: "Chiudi",
                     openInZefix: "Apri nel registro di commercio (Zefix)",
                     labels: {
@@ -1422,7 +2387,7 @@
                 document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
                 document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
                     el.setAttribute("aria-label", t(el.dataset.i18nAria));
-                    if (el.classList.contains("mode-btn")) el.title = t(el.dataset.i18nAria);
+                    if (el.classList.contains("mode-btn") || el.classList.contains("lock")) el.title = t(el.dataset.i18nAria);
                 });
                 const input = document.getElementById("search-input");
                 input.placeholder = t(searchReady ? "searchReady" : _searchWorker ? "searchLoading" : "searchPlaceholder");
@@ -1641,7 +2606,17 @@
             const activeCantons = new Set();
             let displayTotal = 0;
             const BERN = { lng: 7.44, lat: 46.95 };
-            let nightView = false;
+            const SWISS_BOUNDS = [[5.956, 45.818], [10.492, 47.808]];
+            // closest zoom: past it the lamps only spread apart
+            const MAX_ZOOM = 15;
+            // keep the country clear of the side panels (desktop) or the top bar (phones)
+            function framePadding() {
+                if (window.innerWidth > 980) return { top: 80, bottom: 40, left: 325, right: 325 };
+                return { top: 76, bottom: 80, left: 16, right: 16 };
+            }
+            // the map is always the night one; nightView is its colors: ember lamps
+            // (default) or the legal forms' own, lit the same way
+            let nightView = true;
 
             // ── Night view ─────────────────────────────────────────────────────────
             // The light model comes from ../brasilume. Every company address is one
@@ -1651,6 +2626,8 @@
             const NIGHT_RGB = [139, 87, 79];
             // shown in the frame around the window while night view is on
             const NIGHT_UI_RGB = [217, 169, 159];
+            // legal-form colors as lamps: scaled so their light sits near the ember's
+            const LAMP_TONE = 0.55;
             // lamp radius in CSS px at size 1; auto scales it
             const NIGHT_RADIUS = 1;
             const LIGHT_MIN = 0.001;
@@ -1685,10 +2662,12 @@
             }
             const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-            // Light and size always follow auto (below), so there are no knobs.
-            // Twinkle is fixed, well above brasilume's 0.3 default.
+            // Light and size follow auto (below) and show in the light panel's
+            // sliders; dragging one locks the look. Twinkle is fixed, well above
+            // brasilume's 0.3 default.
             const NIGHT_TWINKLE = 0.7;
             const night = { light: 0.2, size: 0.5 };
+            let knobsLocked = false;
 
             // Shader: brasilume's fragment math, injected into deck's scatterplot.
             // - premultiplied output, rgb * min(1, light * coverage), blended ONE + ONE,
@@ -1905,12 +2884,12 @@ in float night_seed;
             let autoGoal = null, autoTimer = 0, autoLast = 0, autoFrame = 0, autoThen = 0;
 
             function autoSoon() {
-                if (!nightView || autoTimer) return;
+                if (knobsLocked || autoTimer) return;
                 autoTimer = setTimeout(autoNow, Math.max(0, AUTO_EVERY - (performance.now() - autoLast)));
             }
             function autoNow() {
                 autoTimer = 0;
-                if (!nightView) return;
+                if (knobsLocked) return;
                 const look = autoLook();
                 autoLast = performance.now();
                 if (!look) return;
@@ -1923,7 +2902,7 @@ in float night_seed;
             // new lamps on screen (a filter, a canton): the look is theirs from the
             // first frame; eased, a filter taken off would flash white
             function autoSnap() {
-                if (!nightView) return;
+                if (knobsLocked) return;
                 const look = autoLook();
                 autoLast = performance.now();
                 if (!look) return;
@@ -1931,10 +2910,11 @@ in float night_seed;
                 autoGoal = look;
                 night.light = look.light;
                 night.size = look.size;
+                showKnobs();
             }
             function autoEase(now) {
                 autoFrame = 0;
-                if (!nightView || !autoGoal) return;
+                if (knobsLocked || !autoGoal) return;
                 const k = 1 - Math.exp(-Math.min(100, now - autoThen) / AUTO_EASE);
                 autoThen = now;
                 let far = false;
@@ -1945,12 +2925,114 @@ in float night_seed;
                     night[name] = next;
                 }
                 redrawLayer();
+                showKnobs();
                 if (far) autoFrame = requestAnimationFrame(autoEase);
             }
             function autoStop() {
                 cancelAnimationFrame(autoFrame);
                 autoFrame = 0;
             }
+            // ── Light panel ──────────────────────────────────────────────────────────
+            // From ../brasilume: the sliders are readouts and controls at once. Auto
+            // writes light and size into them as the map moves; dragging one closes
+            // the lock and holds the look at every zoom, opening it hands them back
+            // to auto. Light runs on a log scale: auto's values span three decades.
+            const lightToPos = (v) => Math.log(v / LIGHT_MIN) / Math.log(LIGHT_MAX / LIGHT_MIN);
+            const posToLight = (p) => LIGHT_MIN * Math.pow(LIGHT_MAX / LIGHT_MIN, p);
+            function setKnob(id, pos, text) {
+                const el = document.getElementById(id);
+                el.value = pos;
+                // WebKit has no pseudo-element for the filled part of the track
+                el.style.setProperty("--fill", ((el.value - el.min) / (el.max - el.min)).toFixed(4));
+                document.getElementById(id + "-out").textContent = text;
+            }
+            function showKnobs() {
+                setKnob("knob-light", lightToPos(night.light), night.light.toFixed(night.light < 0.1 ? 3 : 2));
+                setKnob("knob-size", night.size, night.size.toFixed(2));
+                if (map) document.getElementById("zoomval").textContent = map.getZoom().toFixed(2);
+            }
+            function setLocked(on) {
+                knobsLocked = on;
+                const lock = document.getElementById("knob-lock");
+                lock.setAttribute("aria-pressed", on ? "true" : "false");
+                lock.dataset.i18nAria = on ? "lightLocked" : "lightAuto";
+                lock.setAttribute("aria-label", t(lock.dataset.i18nAria));
+                lock.title = t(lock.dataset.i18nAria);
+            }
+            function initLightPanel() {
+                const panel = document.getElementById("light-panel");
+                const head = document.getElementById("light-head");
+                head.addEventListener("click", () => {
+                    panel.classList.toggle("folded");
+                    head.setAttribute("aria-expanded", panel.classList.contains("folded") ? "false" : "true");
+                });
+                for (const [id, name, read] of [
+                    ["knob-light", "light", posToLight],
+                    ["knob-size", "size", Number],
+                ]) {
+                    document.getElementById(id).addEventListener("input", (e) => {
+                        night[name] = read(+e.target.value);
+                        autoStop();
+                        clearTimeout(autoTimer);
+                        autoTimer = 0;
+                        setLocked(true);
+                        showKnobs();
+                        redrawLayer();
+                    });
+                }
+                document.getElementById("knob-lock").addEventListener("click", () => {
+                    setLocked(!knobsLocked);
+                    // unlocked, the sliders go back to auto right away
+                    if (!knobsLocked) autoNow();
+                });
+                setLocked(false);
+                showKnobs();
+            }
+
+            // ── Chips, from ../brasilume: tilt, names, about ─────────────────────────
+            const TILT = 50;
+            // the basemap's own place names, put back over the night map in its dim tone
+            const NAME_LAYERS = ["place_village", "place_town", "place_city", "place_city_large"];
+            let tilted = false;
+            let names = false;
+            function setTilted(on) {
+                tilted = on;
+                const btn = document.getElementById("tilt");
+                btn.setAttribute("aria-pressed", on ? "true" : "false");
+                const label = btn.querySelector(".chip-text");
+                label.dataset.i18n = on ? "tiltOn" : "tiltOff";
+                label.textContent = t(label.dataset.i18n);
+            }
+            function showNames() {
+                if (!styleReady) return;
+                for (const id of NAME_LAYERS) {
+                    if (!map.getLayer(id)) continue;
+                    map.setLayoutProperty(id, "visibility", names ? "visible" : "none");
+                    if (!names) continue;
+                    map.setPaintProperty(id, "text-color", id.startsWith("place_city") ? "#cfc5b4" : "#8f8473");
+                    map.setPaintProperty(id, "text-halo-color", NIGHT_EARTH);
+                    map.setPaintProperty(id, "text-halo-width", 1.2);
+                }
+            }
+            function initChips() {
+                setTilted(false);
+                document.getElementById("tilt").addEventListener("click", () => {
+                    setTilted(!tilted);
+                    map.easeTo({ pitch: tilted ? TILT : 0, bearing: tilted ? map.getBearing() : 0, duration: reduceMotion ? 0 : 900 });
+                });
+                // a pitch made by hand (right drag, two fingers) sets the chip too
+                map.on("pitchend", () => { if (tilted !== map.getPitch() > 1) setTilted(!tilted); });
+                document.getElementById("names").addEventListener("click", () => {
+                    names = !names;
+                    document.getElementById("names").setAttribute("aria-pressed", names ? "true" : "false");
+                    showNames();
+                });
+                const about = document.getElementById("about");
+                document.getElementById("about-open").addEventListener("click", () => about.showModal());
+                // a click on the backdrop closes it too
+                about.addEventListener("click", (e) => { if (e.target === about) about.close(); });
+            }
+
             // Twinkle keeps the map repainting, so while the camera rests it asks
             // for a frame only every TWINKLE_MS (it drifts over seconds, 20 fps
             // reads the same) and stops when the tab is hidden; off under reduced
@@ -1959,7 +3041,7 @@ in float night_seed;
             let twinkleTimer = 0;
             function twinkleOn() {
                 // the timeline paints its own frames
-                return nightView && !timelineOn && !reduceMotion && !document.hidden;
+                return !timelineOn && !reduceMotion && !document.hidden;
             }
             function twinkleLoop() {
                 clearTimeout(twinkleTimer);
@@ -1974,7 +3056,10 @@ in float night_seed;
             // neutral on black, with lakes and rivers kept as a faint navy so the
             // land still reads; every other style layer is hidden. The day look is
             // saved and put back on the way out.
-            const NIGHT_WATER = "#0d1626";
+            // the ground from a plane at night: not black, a dark slate, the lakes darker
+            // still; lamps add on top of it
+            const NIGHT_EARTH = "#10131a";
+            const NIGHT_WATER = "#0a0e17";
             const WATER_PAINT = { water: "fill-color", waterway: "line-color" };
             let dayStyle = null;
             let styleReady = false;
@@ -1996,7 +3081,7 @@ in float night_seed;
                                 .map(([id, prop]) => [id, map.getPaintProperty(id, prop)]),
                         ),
                     };
-                    map.setPaintProperty("background", "background-color", "#000");
+                    map.setPaintProperty("background", "background-color", NIGHT_EARTH);
                     for (const l of layers) {
                         if (l.type === "background") continue;
                         if (WATER_PAINT[l.id]) map.setPaintProperty(l.id, WATER_PAINT[l.id], NIGHT_WATER);
@@ -2155,7 +3240,6 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 if (!el) return;
                 el.classList.toggle("active", on);
                 el.classList.toggle("inactive", !on);
-                el.setAttribute("aria-checked", on ? "true" : "false");
             }
 
             async function gunzipJson(url) {
@@ -2344,60 +3428,41 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         return true;
                     },
                 };
-                if (nightView) {
-                    const z = map ? map.getZoom() : 12;
-                    return new NightLayer({
-                        ...shared,
-                        id: "companies-night",
-                        getFillColor: [...NIGHT_RGB, 255],
-                        updateTriggers: { getFilterValue: [_filterVersion] },
-                        getRadius: 1,
-                        radiusUnits: "pixels",
-                        radiusScale: NIGHT_RADIUS * Math.max(night.size, 0.1),
-                        radiusMinPixels: 0,
-                        radiusMaxPixels: 100,
-                        // the light is the shader's gain, not the layer opacity
-                        light: night.light,
-                        twinkle: reduceMotion ? 0 : NIGHT_TWINKLE,
-                        // seconds, wrapped so sin() keeps its float32 precision
-                        time: (performance.now() / 1000) % 3600,
-                        // twinkle cell: ~2 CSS px of longitude at this zoom
-                        cell: (2 * 360) / (512 * Math.pow(2, z)),
-                        peak: 1 + (CLOSE_PEAK - 1) * closeness(z),
-                        parameters: {
-                            depthWriteEnabled: false,
-                            depthCompare: "always",
-                            blend: true,
-                            blendColorOperation: "add",
-                            blendColorSrcFactor: "one",
-                            blendColorDstFactor: "one",
-                            blendAlphaOperation: "add",
-                            blendAlphaSrcFactor: "one",
-                            blendAlphaDstFactor: "one",
-                        },
-                    });
-                }
-                return new deck.ScatterplotLayer({
+                const z = map ? map.getZoom() : 12;
+                return new NightLayer({
                     ...shared,
-                    id: "companies",
-                    getFillColor: (d) => {
-                        const rgb = pointRgb(d);
-                        return [rgb[0], rgb[1], rgb[2], 230];
-                    },
-                    updateTriggers: {
-                        getFillColor: [labelMask],
-                        getFilterValue: [_filterVersion],
-                    },
-                    getRadius: 18,
-                    radiusScale: 1,
-                    radiusMinPixels: RADIUS_MIN,
-                    radiusMaxPixels: RADIUS_MAX,
-                    opacity: 1,
+                    id: "companies-night",
+                    getFillColor: nightView
+                        ? [...NIGHT_RGB, 255]
+                        : (d) => {
+                              // the forms' colors turned down to about an ember's light
+                              const c = pointRgb(d);
+                              return [c[0] * LAMP_TONE, c[1] * LAMP_TONE, c[2] * LAMP_TONE, 255];
+                          },
+                    updateTriggers: { getFillColor: [nightView, labelMask], getFilterValue: [_filterVersion] },
+                    getRadius: 1,
+                    radiusUnits: "pixels",
+                    radiusScale: NIGHT_RADIUS * Math.max(night.size, 0.1),
+                    radiusMinPixels: 0,
+                    radiusMaxPixels: 100,
+                    // the light is the shader's gain, not the layer opacity
+                    light: night.light,
+                    twinkle: reduceMotion ? 0 : NIGHT_TWINKLE,
+                    // seconds, wrapped so sin() keeps its float32 precision
+                    time: (performance.now() / 1000) % 3600,
+                    // twinkle cell: ~2 CSS px of longitude at this zoom
+                    cell: (2 * 360) / (512 * Math.pow(2, z)),
+                    peak: 1 + (CLOSE_PEAK - 1) * closeness(z),
                     parameters: {
-                        depthTest: false,
+                        depthWriteEnabled: false,
+                        depthCompare: "always",
                         blend: true,
-                        blendFunc: [770, 1],
-                        blendEquation: 32774,
+                        blendColorOperation: "add",
+                        blendColorSrcFactor: "one",
+                        blendColorDstFactor: "one",
+                        blendAlphaOperation: "add",
+                        blendAlphaSrcFactor: "one",
+                        blendAlphaDstFactor: "one",
                     },
                 });
             }
@@ -2738,7 +3803,7 @@ vec3 tl_state() {
                     flash: tlPlaying || tlMoving ? TL_FLASH_SEC * tlSpeed : 0,
                     fade: tlPlaying || tlMoving ? TL_FADE_SEC * tlSpeed : 0,
                 };
-                if (nightView) {
+                {
                     // no auto exposure here: it reads the company layer, and
                     // the lit timeline lamps change every frame. The zoom curve
                     // is tuned on a similar density.
@@ -2804,11 +3869,12 @@ vec3 tl_state() {
                 if (_ttPinned && !opts.pin && !touch) return;
                 if (info.index == null || info.index < 0 || !tl) { hideTooltip(); return; }
                 _ttPinned = !!opts.pin && !touch;
+                // touch: the card is a bottom sheet too, so it takes the place of an open panel
+                if (touch) closeSheets();
                 tt.classList.toggle("pinned", _ttPinned);
                 const place = () => {
                     if (touch) return;
-                    tt.style.left = Math.max(10, Math.min(info.x + 15, window.innerWidth - tt.offsetWidth - 10)) + "px";
-                    tt.style.top = Math.max(10, Math.min(info.y + 15, window.innerHeight - tt.offsetHeight - 10)) + "px";
+                    placeTooltip(tt, info);
                 };
                 if (_ttObject === `tl:${info.index}` && !opts.pin && !touch) { place(); return; }
                 _ttObject = `tl:${info.index}`;
@@ -3063,14 +4129,14 @@ vec3 tl_state() {
                 const h = new URLSearchParams(location.hash.slice(1));
                 const st = {};
                 const z = parseFloat(h.get("z"));
-                if (z >= 6 && z <= 18) st.zoom = z;
+                // a deeper link opens at the closest zoom allowed
+                if (z >= 6) st.zoom = Math.min(z, MAX_ZOOM);
                 const ll = (h.get("ll") || "").split(",").map(Number);
                 if (ll.length === 2 && ll.every(Number.isFinite)) st.center = [ll[1], ll[0]];
                 const c = (h.get("c") || "").split(",").filter((id) => _cantonById.has(id));
                 if (h.has("c")) st.cantons = c;
                 const off = (h.get("off") || "").split(",").filter((i) => /^\d+$/.test(i)).map((i) => colorAssignments[+i]?.label).filter(Boolean);
                 if (off.length) st.labelsOff = off;
-                st.night = h.get("night") === "1";
                 // tl=YYYY-MM-DD; a bare number is an old link: days since 2018-01-01
                 const tlq = h.get("tl") || "";
                 if (/^\d{4}-\d{2}-\d{2}$/.test(tlq)) {
@@ -3090,10 +4156,8 @@ vec3 tl_state() {
                     const h = new URLSearchParams();
                     h.set("z", map.getZoom().toFixed(2));
                     h.set("ll", `${c.lat.toFixed(4)},${c.lng.toFixed(4)}`);
-                    h.set("c", CANTONS.filter((k) => activeCantons.has(k.id)).map((k) => k.id).join(","));
                     const off = colorAssignments.flatMap((a, i) => (activeLabels.has(a.label) ? [] : [i]));
                     if (off.length) h.set("off", off.join(","));
-                    if (nightView) h.set("night", "1");
                     if (timelineOn) h.set("tl", tlIsoDay(tlDay));
                     // URLSearchParams escapes the commas; they are safe in a fragment
                     history.replaceState(null, "", location.pathname + location.search + "#" + h.toString().replace(/%2C/g, ","));
@@ -3107,8 +4171,6 @@ vec3 tl_state() {
             function boot() {
                 buildLegend();
                 applyLang(initialLang());
-                const firstName = _cantonById.get((urlState.cantons ?? ["BE"])[0])?.name ?? "";
-                document.getElementById("loading-label").textContent = tf("loadingCanton", { name: firstName });
                 // legal forms switched off in a shared link
                 for (const lbl of urlState.labelsOff ?? []) {
                     activeLabels.delete(lbl);
@@ -3119,6 +4181,21 @@ vec3 tl_state() {
 
                 // Build canton list
                 const cantonEl = document.getElementById("canton-items");
+                // the peek: the hovered tile's name and its number of companies
+                const peek = document.getElementById("canton-peek");
+                function setPeek(name, total) {
+                    document.getElementById("peek-name").textContent = name;
+                    // the whole register, whatever the filters or the view
+                    document.getElementById("peek-stats").textContent = tf("peekCompanies", { n: total.toLocaleString(numLocale()) });
+                    peek.hidden = false;
+                }
+                function showPeek(div, canton) {
+                    setPeek(canton.name, +div.dataset.total);
+                }
+                // phones keep the line (the country first); a mouse only shows it on hover
+                const peekCountry = () => setPeek(t("country"), Object.values(cantonCounts).reduce((a, b) => a + b, 0));
+                cantonEl.addEventListener("pointerleave", () => { if (!_touchMQ.matches) peek.hidden = true; });
+                cantonEl.addEventListener("focusout", () => { if (!_touchMQ.matches) peek.hidden = true; });
 
                 // counts:begin — generated by scripts/canton_counts.py
                 const cantonCounts = {
@@ -3150,6 +4227,16 @@ vec3 tl_state() {
                     ZH: 133003,
                 };
                 // counts:end
+                // the picker's tiles, [column, row] on an 8 × 5 grid shaped like the country
+                const CANTON_TILES = {
+                    BS: [3, 1], SH: [6, 1],
+                    JU: [2, 2], BL: [3, 2], SO: [4, 2], AG: [5, 2], ZH: [6, 2], TG: [7, 2], AR: [8, 2],
+                    NE: [2, 3], BE: [3, 3], LU: [4, 3], ZG: [5, 3], SZ: [6, 3], SG: [7, 3], AI: [8, 3],
+                    VD: [1, 4], FR: [2, 4], OW: [4, 4], NW: [5, 4], UR: [6, 4], GL: [7, 4], GR: [8, 4],
+                    GE: [1, 5], VS: [3, 5], TI: [6, 5],
+                };
+                const _countLog = Object.values(cantonCounts).map(Math.log);
+                const _logMin = Math.min(..._countLog), _logMax = Math.max(..._countLog);
                 CANTONS.forEach((canton) => {
                     const isActive = activeCantons.has(canton.id);
                     const cnt = cantonCounts[canton.id] || 0;
@@ -3158,27 +4245,23 @@ vec3 tl_state() {
                         "canton-item " + (isActive ? "active" : "inactive");
                     div.dataset.id = canton.id;
                     div.dataset.total = cnt;
-                    div.setAttribute("role", "checkbox");
+                    div.setAttribute("role", "button");
                     div.setAttribute("tabindex", "0");
-                    div.setAttribute("aria-checked", isActive ? "true" : "false");
                     div.setAttribute("aria-label", `${canton.name} (${canton.id})`);
                     div.innerHTML = `
           <span class="canton-badge" aria-hidden="true">${canton.id}</span>
           <span class="canton-name">${canton.name}</span>
           <span class="canton-count">${cnt > 0 ? "(" + cnt.toLocaleString(numLocale()) + ")" : ""}</span>`;
+                    const [col, row] = CANTON_TILES[canton.id];
+                    div.style.gridColumn = col;
+                    div.style.gridRow = row;
+                    div.style.setProperty("--glow", cnt ? ((Math.log(cnt) - _logMin) / (_logMax - _logMin)).toFixed(3) : 0);
+                    div.addEventListener("pointerenter", () => showPeek(div, canton));
+                    div.addEventListener("focus", () => showPeek(div, canton));
                     cantonEl.appendChild(div);
 
-                    async function toggleCanton() {
-                        if (activeCantons.has(canton.id)) {
-                            setCantonActive(canton.id, false);
-                            revealCanton(canton);
-                        } else {
-                            setCantonActive(canton.id, true);
-                            revealCanton(canton);
-                            await loadCantonData(canton);
-                        }
-                        refreshLayer();
-                    }
+                    // every canton stays on: a tile only takes the map there
+                    const toggleCanton = () => revealCanton(canton);
 
                     div.addEventListener("click", toggleCanton);
                     div.addEventListener("keydown", (e) => {
@@ -3188,15 +4271,18 @@ vec3 tl_state() {
                         }
                     });
                 });
+                if (_touchMQ.matches) peekCountry();
 
                 // Map — MapLibre + OpenFreeMap (open-source OSM vector tiles, no API key, no rate limit)
                 map = new maplibregl.Map({
                     container: "map",
                     style: "https://tiles.openfreemap.org/styles/dark",
-                    center: urlState.center ?? [BERN.lng, BERN.lat],
-                    zoom: urlState.zoom ?? 11,
+                    // a shared link's view, else the whole country between the panels
+                    ...(urlState.center
+                        ? { center: urlState.center, zoom: urlState.zoom ?? 11 }
+                        : { bounds: SWISS_BOUNDS, fitBoundsOptions: { padding: framePadding() } }),
                     minZoom: 6,
-                    maxZoom: 18,
+                    maxZoom: MAX_ZOOM,
                     pitch: 0,
                     bearing: 0,
                     antialias: true,
@@ -3212,9 +4298,10 @@ vec3 tl_state() {
 
                 // start the first cantons (Bern, or the shared link's) now, in parallel
                 // with the style and tiles
-                const startCantons = urlState.cantons ?? ["BE"];
-                startCantons.forEach((id) => setCantonActive(id, true));
-                const firstCanton = Promise.all(startCantons.map((id) => loadCantonData(_cantonById.get(id))));
+                // every canton is on: each is drawn as soon as it lands, the
+                // loading pill goes with the first
+                CANTONS.forEach((c) => setCantonActive(c.id, true));
+                const firstCanton = Promise.any(CANTONS.map((c) => loadCantonData(c).then((d) => (refreshLayerSoon(), d))));
 
                 map.on("load", async () => {
                     // Tint the OpenFreeMap base layers to match the app's dark-navy palette (--bg)
@@ -3228,8 +4315,9 @@ vec3 tl_state() {
                         }
                     }
                     styleReady = true;
-                    // toggled on before the style loaded
-                    if (nightView) setNightBasemap(true);
+                    // the night map is the only one
+                    setNightBasemap(true);
+                    showNames();
 
                     map.addControl(
                         new maplibregl.AttributionControl({
@@ -3249,17 +4337,16 @@ vec3 tl_state() {
 
                     await firstCanton;
                     refreshLayer();
-                    if (urlState.night && !nightView) document.getElementById("btn-night-view").click();
+                    // fade in when the tiles and the lamps are on screen (or soon anyway)
+                    const reveal = () => document.getElementById("map").classList.add("ready");
+                    map.once("idle", reveal);
+                    setTimeout(reveal, 4000);
                     if (urlState.timelineDay != null) setTimeline(true, urlState.timelineDay);
-
-                    const ls = document.getElementById("loading-screen");
-                    ls.classList.add("hidden");
-                    setTimeout(() => ls.remove(), 450);
                 });
 
                 map.on("move", () => {
-                    if (!nightView) return;
                     autoSoon();
+                    document.getElementById("zoomval").textContent = map.getZoom().toFixed(2);
                     // the twinkle cell follows the zoom
                     redrawLayer();
                 });
@@ -3310,49 +4397,40 @@ vec3 tl_state() {
                     });
 
                 initTimelineUi();
+                initLightPanel();
+                initChips();
 
                 document
                     .getElementById("btn-night-view")
                     .addEventListener("click", () => {
+                        // lit: night view, the ember lamps; off: the legal forms' colors
                         nightView = !nightView;
                         const btn = document.getElementById("btn-night-view");
                         btn.classList.toggle("active", nightView);
                         btn.setAttribute("aria-pressed", nightView ? "true" : "false");
-                        document.body.classList.toggle("night", nightView);
-                        setNightBasemap(nightView);
-                        if (nightView && !autoGoal) {
-                            // the zoom curve stands in until the first look lands
-                            Object.assign(night, zoomCurve(map.getZoom()));
-                        }
-                        if (!nightView) {
-                            autoStop();
-                            clearTimeout(autoTimer);
-                            autoTimer = 0;
-                        }
-                        refreshLayer();
-                        twinkleLoop();
-                    });
-
-                // ── Canton all / none ──────────────────────────────────────────────
-                document
-                    .getElementById("btn-canton-all")
-                    .addEventListener("click", () => {
-                        // mark everything at once (each item spins while it loads)
-                        // and draw each canton as soon as it arrives
-                        CANTONS.forEach((c) => setCantonActive(c.id, true));
-                        refreshLayer();
-                        CANTONS.forEach((c) => loadCantonData(c).then(refreshLayerSoon));
-                    });
-
-                document
-                    .getElementById("btn-canton-none")
-                    .addEventListener("click", () => {
-                        CANTONS.forEach((c) => setCantonActive(c.id, false));
                         refreshLayer();
                     });
             }
 
             // ── Tooltip helper (shared by hover + tap) ─────────────────────────────
+            // The card sits by the cursor, on whichever side has room, and between
+            // the two panel columns when they are open, never over them.
+            function placeTooltip(tt, info) {
+                const w = tt.offsetWidth, h = tt.offsetHeight;
+                let lo = 10, hi = window.innerWidth - 10;
+                const left = document.getElementById("canton-panel"), right = document.getElementById("legend");
+                if (window.innerWidth > 980) {
+                    if (!left.classList.contains("collapsed")) lo = Math.max(lo, left.getBoundingClientRect().right + 8);
+                    if (!right.classList.contains("collapsed")) hi = Math.min(hi, right.getBoundingClientRect().left - 8);
+                }
+                let x = info.x + 15;
+                if (x + w > hi) x = info.x - 15 - w;
+                x = Math.max(lo, Math.min(x, hi - w));
+                let y = info.y + 15;
+                if (y + h > window.innerHeight - 10) y = info.y - 15 - h;
+                tt.style.left = Math.max(10, Math.min(x, window.innerWidth - w - 10)) + "px";
+                tt.style.top = Math.max(10, Math.min(y, window.innerHeight - h - 10)) + "px";
+            }
             let _ttObject = null, _ttVersion = -1, _ttPinned = false;
             function hideTooltip() {
                 const tt = document.getElementById("tooltip");
@@ -3375,11 +4453,12 @@ vec3 tl_state() {
                 }
                 // touch already shows a closable bottom sheet, so it never pins
                 _ttPinned = !!opts.pin && !touch;
+                // touch: the card is a bottom sheet too, so it takes the place of an open panel
+                if (touch) closeSheets();
                 tt.classList.toggle("pinned", _ttPinned);
                 // same point under the cursor and same filters: just follow the mouse
                 if (info.object === _ttObject && _ttVersion === _filterVersion && !touch && !opts.pin) {
-                    tt.style.left = Math.max(10, Math.min(info.x + 15, window.innerWidth - tt.offsetWidth - 10)) + "px";
-                    tt.style.top = Math.max(10, Math.min(info.y + 15, window.innerHeight - tt.offsetHeight - 10)) + "px";
+                    placeTooltip(tt, info);
                     return;
                 }
                 _ttObject = info.object;
@@ -3425,14 +4504,48 @@ vec3 tl_state() {
         ${rows}${more}`;
                 // clamp with the real size now that the content is in
                 if (!touch) {
-                    tt.style.left =
-                        Math.max(10, Math.min(info.x + 15, window.innerWidth - tt.offsetWidth - 10)) + "px";
-                    tt.style.top =
-                        Math.max(10, Math.min(info.y + 15, window.innerHeight - tt.offsetHeight - 10)) + "px";
+                    placeTooltip(tt, info);
                 }
             }
 
+            // ── Dock ───────────────────────────────────────────────────────────────
+            // phones: the view's buttons gather in one bar at the bottom; on wider
+            // screens each goes back where it was (moving keeps their listeners)
+            const DOCK_IDS = ["btn-night-view", "toggle-light", "btn-timeline", "tilt", "names", "about-open"];
+            const _dockHome = new Map(DOCK_IDS.map((id) => {
+                const el = document.getElementById(id);
+                return [id, { parent: el.parentNode, next: el.nextSibling }];
+            }));
+            const _dockMQ = window.matchMedia("(max-width: 980px)");
+            function placeDock() {
+                const dock = document.getElementById("dock");
+                for (const id of DOCK_IDS) {
+                    const el = document.getElementById(id);
+                    if (_dockMQ.matches) dock.appendChild(el);
+                    else {
+                        const home = _dockHome.get(id);
+                        home.parent.insertBefore(el, home.next?.parentNode === home.parent ? home.next : null);
+                    }
+                }
+                // the toggles say what their panel is doing in this layout: a sheet is
+                // shut until opened, a desktop panel open unless collapsed
+                for (const [b, p] of [["toggle-canton", "canton-panel"], ["toggle-legend", "legend"]]) {
+                    const panel = document.getElementById(p);
+                    const open = _dockMQ.matches ? panel.classList.contains("open") : !panel.classList.contains("collapsed");
+                    document.getElementById(b).setAttribute("aria-expanded", open ? "true" : "false");
+                }
+            }
+            _dockMQ.addEventListener("change", placeDock);
+            placeDock();
+
             // ── Panel toggles ──────────────────────────────────────────────────────
+            // phones: one bottom sheet at a time, the company card among them
+            function closeSheets() {
+                for (const [p, b] of [["canton-panel", "toggle-canton"], ["legend", "toggle-legend"], ["light-panel", "toggle-light"]]) {
+                    document.getElementById(p).classList.remove("open");
+                    document.getElementById(b).setAttribute("aria-expanded", "false");
+                }
+            }
             document
                 .getElementById("toggle-canton")
                 .addEventListener("click", () => {
@@ -3442,10 +4555,13 @@ vec3 tl_state() {
                         panel.classList.toggle("collapsed");
                         btn.setAttribute("aria-expanded", panel.classList.contains("collapsed") ? "false" : "true");
                     } else {
+                        hideTooltip();
                         panel.classList.toggle("open");
                         btn.setAttribute("aria-expanded", panel.classList.contains("open") ? "true" : "false");
                         document.getElementById("legend").classList.remove("open");
                         document.getElementById("toggle-legend").setAttribute("aria-expanded", "false");
+                        document.getElementById("light-panel").classList.remove("open");
+                        document.getElementById("toggle-light").setAttribute("aria-expanded", "false");
                     }
                 });
             document
@@ -3457,10 +4573,25 @@ vec3 tl_state() {
                         panel.classList.toggle("collapsed");
                         btn.setAttribute("aria-expanded", panel.classList.contains("collapsed") ? "false" : "true");
                     } else {
+                        hideTooltip();
                         panel.classList.toggle("open");
                         btn.setAttribute("aria-expanded", panel.classList.contains("open") ? "true" : "false");
                         document.getElementById("canton-panel").classList.remove("open");
                         document.getElementById("toggle-canton").setAttribute("aria-expanded", "false");
+                        document.getElementById("light-panel").classList.remove("open");
+                        document.getElementById("toggle-light").setAttribute("aria-expanded", "false");
+                    }
+                });
+            document
+                .getElementById("toggle-light")
+                .addEventListener("click", () => {
+                    const panel = document.getElementById("light-panel");
+                    hideTooltip();
+                    panel.classList.toggle("open");
+                    document.getElementById("toggle-light").setAttribute("aria-expanded", panel.classList.contains("open") ? "true" : "false");
+                    for (const [p, b] of [["canton-panel", "toggle-canton"], ["legend", "toggle-legend"]]) {
+                        document.getElementById(p).classList.remove("open");
+                        document.getElementById(b).setAttribute("aria-expanded", "false");
                     }
                 });
 
@@ -3479,6 +4610,7 @@ vec3 tl_state() {
                 if (e.target.id === "map" || e.target.classList.contains("maplibregl-canvas")) {
                     document.getElementById("canton-panel").classList.remove("open");
                     document.getElementById("legend").classList.remove("open");
+                    document.getElementById("light-panel").classList.remove("open");
                 }
             });
 

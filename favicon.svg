@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- One lit point on the night: a crisp warm dot inside a short orange halo. -->
+  <defs>
+    <radialGradient id="glow" cx="32" cy="32" r="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff1dc"/>
+      <stop offset="0.3" stop-color="#ffc28a"/>
+      <stop offset="0.5" stop-color="#ff8f3a"/>
+      <stop offset="0.54" stop-color="#e8682a" stop-opacity="0.45"/>
+      <stop offset="0.75" stop-color="#c24e1c" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#8b3a14" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="12" fill="#000"/>
+  <circle cx="32" cy="32" r="26" fill="url(#glow)"/>
+</svg>

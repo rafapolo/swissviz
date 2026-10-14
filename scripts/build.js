@@ -45,6 +45,7 @@ copyFileSync(join(ROOT, "sw.js"), join(DIST, "sw.js"));
 cpSync(join(ROOT, "data"), join(DIST, "data"), { recursive: true });
 copyFileSync(join(ROOT, "mini.jpg"), join(DIST, "mini.jpg"));
 copyFileSync(join(ROOT, "sample2.jpg"), join(DIST, "sample2.jpg"));
+for (const icon of ["favicon.svg", "favicon.png", "apple-touch-icon.png"]) copyFileSync(join(ROOT, icon), join(DIST, icon));
 
 // ── 4. Report sizes ───────────────────────────────────────────────────────────
 const srcSize  = statSync(join(ROOT, "index.html")).size;
