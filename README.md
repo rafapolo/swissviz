@@ -79,6 +79,9 @@ For those curious about how it works under the hood:
 - A **service worker** caches data files after the first visit so the map loads fast on repeat visits
 - CDN scripts are deferred, fonts load without blocking, and Bern's data is preloaded so the map is interactive as fast as possible
 - Canton totals shown before a canton is loaded are generated from the data with `python3 scripts/canton_counts.py`
+- The **timeline** (`data/timeline/`) has one lamp per company life: SHAB new entries and deletions since 2018, plus today's companies (LINDAS, placed by the swisstopo address register) lit from their cantonal register entry date back to 1883. `events.bin.gz` (3.9 MB) holds positions on a uint16 grid along a Morton curve, delta-coded and split into byte planes; names come in 65 regional chunks of ~180 kB, fetched on hover
+- Caveats: before 2018 a lamp sits at the company's **current** address; companies deleted before 2018 are missing; the normal map and the timeline still use different sources (see `tasks/cobertura-dados.md`), so some points shift when switching
+- The `'98` next to a company name is its entry year (`scripts/canton_years.py`): cantonal register, else SHAB, else estimate; known for ~90% of companies
 - The map renders entirely in your browser using [deck.gl](https://deck.gl) and [MapLibre GL](https://maplibre.org/)
 - Keyboard navigation, ARIA labels, and color contrast meet WCAG AA accessibility standards
 - The whole thing is a single HTML file + data files, hosted for free on GitHub Pages

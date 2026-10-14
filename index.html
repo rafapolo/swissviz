@@ -303,11 +303,6 @@
                 color: var(--lamp);
                 box-shadow: var(--lit);
             }
-            #night-view-controls {
-                border-top: 1px solid var(--border-subtle);
-                border-bottom: none;
-                margin-bottom: 0;
-            }
             /* Night: the frame and the window corners go to the same black as the map */
             body.night {
                 --corner: #000;
@@ -575,7 +570,7 @@
                     display: block;
                 }
                 .maplibregl-ctrl-bottom-right {
-                    bottom: 16px !important;
+                    bottom: calc(16px + var(--tl-h, 0px)) !important;
                     right: 16px !important;
                 }
             }
@@ -661,9 +656,45 @@
                 left: 50%;
                 transform: translateX(-50%);
                 z-index: 14;
-                width: 400px;
+                width: 504px; /* the search box plus the two mode buttons */
                 /* stay clear of both 285px panels (+ their 20px offsets) */
                 max-width: calc(100vw - 660px);
+            }
+            #search-row {
+                display: flex;
+                gap: 8px;
+            }
+            #search-row #search-wrapper {
+                flex: 1;
+                min-width: 0;
+            }
+            /* night view and timeline: square like the panel toggles, lit like the lamps when on */
+            .mode-btn {
+                flex: none;
+                width: 44px;
+                height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: var(--bg);
+                border: 1px solid var(--border-mid);
+                border-radius: 8px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+                color: rgba(255, 255, 255, 0.85);
+                cursor: pointer;
+                transition:
+                    border-color 0.15s,
+                    color 0.15s;
+            }
+            .mode-btn:hover {
+                border-color: rgba(255, 255, 255, 0.25);
+                color: #fff;
+            }
+            .mode-btn.active {
+                background: rgba(var(--ember-raw), 0.3);
+                border-color: rgba(var(--ember-lit-raw), 0.55);
+                color: var(--lamp);
+                box-shadow: var(--lit);
             }
             #search-wrapper {
                 display: flex;
@@ -838,6 +869,163 @@
                 white-space: nowrap;
                 border: 0;
             }
+            /* Timeline — bottom center: SHAB openings and closings since 2018 */
+            #timeline {
+                position: fixed;
+                left: 50%;
+                bottom: 20px;
+                transform: translateX(-50%);
+                z-index: 14;
+                width: 640px;
+                max-width: calc(100vw - 660px);
+                min-width: 320px;
+                /* same surface as the canton and legend panels */
+                opacity: 0.97;
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                padding: 10px 14px 12px;
+                color: rgba(255, 255, 255, 0.85);
+                font-size: 12px;
+            }
+            #timeline[hidden] {
+                display: none;
+            }
+            .tl-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            #tl-play {
+                width: 32px;
+                height: 32px;
+                flex: none;
+                border-radius: 50%;
+                border: 1px solid var(--border-mid);
+                background: var(--surface);
+                color: var(--lamp);
+                font-size: 13px;
+                cursor: pointer;
+            }
+            #tl-play:hover {
+                background: rgba(255, 255, 255, 0.12);
+            }
+            #tl-date {
+                font-size: 18px;
+                font-weight: 500;
+                font-variant-numeric: tabular-nums;
+                min-width: 6.5em;
+                color: #fff;
+            }
+            .tl-stats {
+                display: flex;
+                gap: 14px;
+                margin-left: auto;
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
+            .tl-stats b {
+                font-weight: 600;
+                color: #fff;
+            }
+            .tl-open {
+                color: rgb(var(--spark-raw));
+            }
+            .tl-close {
+                color: #ff6b4a;
+            }
+            #tl-speed {
+                background: var(--surface);
+                border: 1px solid var(--border-mid);
+                border-radius: 4px;
+                color: inherit;
+                font: inherit;
+                padding: 3px 4px;
+            }
+            .tl-track {
+                position: relative;
+                height: 64px;
+                margin-top: 8px;
+            }
+            #tl-hist {
+                position: absolute;
+                inset: 0 0 14px 0;
+                width: 100%;
+                height: calc(100% - 14px);
+            }
+            #tl-cursor {
+                position: absolute;
+                top: 0;
+                bottom: 14px;
+                width: 1px;
+                background: #fff;
+                pointer-events: none;
+            }
+            #tl-range {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                width: 100%;
+                margin: 0;
+                /* the progress takes the colour of the lamps */
+                accent-color: rgb(var(--spark-raw));
+            }
+            .tl-source {
+                margin-top: 4px;
+                font-size: 10px;
+                color: var(--white-muted);
+            }
+            @media (max-width: 980px) {
+                #timeline {
+                    left: 8px;
+                    right: 8px;
+                    bottom: calc(8px + env(safe-area-inset-bottom));
+                    width: auto;
+                    max-width: none;
+                    min-width: 0;
+                    transform: none;
+                    padding: 8px 12px 10px;
+                }
+                /* play, date and speed on top; the three counters get a line of their own */
+                .tl-row {
+                    flex-wrap: wrap;
+                    row-gap: 4px;
+                }
+                #tl-date {
+                    flex: 1;
+                    min-width: 0;
+                    font-size: 16px;
+                }
+                .tl-stats {
+                    order: 3;
+                    flex-basis: 100%;
+                    margin-left: 0;
+                    justify-content: space-between;
+                    font-size: 11px;
+                }
+                .tl-track {
+                    height: 52px;
+                    margin-top: 6px;
+                }
+                /* the source line carries the pre-2018 caveat: it wraps rather than being cut */
+                /* an open sheet covers the timeline, not the reverse: the company card
+                   goes on top, and the panels (slightly translucent) hide it */
+                #tooltip {
+                    z-index: 15;
+                }
+                body:has(.panel.open) #timeline {
+                    visibility: hidden;
+                }
+                /* map controls and the GitHub button sit above the timeline (--tl-h is
+                   its height, 0 while hidden; set by a ResizeObserver) */
+                #github-link {
+                    bottom: calc(16px + var(--tl-h, 0px));
+                }
+                .maplibregl-ctrl-bottom-left {
+                    bottom: var(--tl-h, 0px);
+                }
+            }
         </style>
     </head>
     <body>
@@ -857,23 +1045,32 @@
         <div id="sr-status" aria-live="polite" aria-atomic="true" class="sr-only"></div>
 
         <div id="search-bar" role="search" aria-label="Search Swiss companies">
-            <div id="search-wrapper">
-                <span id="search-icon" aria-hidden="true">⌕</span>
-                <label for="search-input" class="sr-only">Search companies</label>
-                <input
-                    id="search-input"
-                    type="text"
-                    placeholder="Search companies…"
-                    autocomplete="off"
-                    spellcheck="false"
-                    aria-autocomplete="list"
-                    aria-controls="search-results"
-                    aria-haspopup="listbox"
-                    aria-expanded="false"
-                    role="combobox"
-                />
-                <span id="search-count" aria-live="polite" aria-atomic="true"></span>
-                <button id="search-clear" aria-label="Clear search">✕</button>
+            <div id="search-row">
+                <div id="search-wrapper">
+                    <span id="search-icon" aria-hidden="true">⌕</span>
+                    <label for="search-input" class="sr-only">Search companies</label>
+                    <input
+                        id="search-input"
+                        type="text"
+                        placeholder="Search companies…"
+                        autocomplete="off"
+                        spellcheck="false"
+                        aria-autocomplete="list"
+                        aria-controls="search-results"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        role="combobox"
+                    />
+                    <span id="search-count" aria-live="polite" aria-atomic="true"></span>
+                    <button id="search-clear" aria-label="Clear search">✕</button>
+                </div>
+                <!-- the two modes of the map, next to the search: night view and the timeline -->
+                <button id="btn-night-view" class="mode-btn" aria-pressed="false" aria-label="Night view" data-i18n-aria="nightView">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                </button>
+                <button id="btn-timeline" class="mode-btn" aria-pressed="false" aria-controls="timeline" aria-label="Timeline" data-i18n-aria="timeline">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                </button>
             </div>
             <div id="search-results" role="listbox" aria-label="Search results"></div>
         </div>
@@ -924,9 +1121,30 @@
                 <button id="btn-deselect-all" data-i18n="deselectAll">Deselect all</button>
             </div>
             <div id="legend-items" role="group" aria-labelledby="legend-subtitle"></div>
-            <div class="panel-controls" id="night-view-controls">
-                <button id="btn-night-view" aria-pressed="false" data-i18n="nightView">Night view</button>
+        </div>
+
+        <div id="timeline" role="region" aria-labelledby="tl-date" hidden>
+            <div class="tl-row">
+                <button id="tl-play" aria-label="Play" data-i18n-aria="tlPlay"><span aria-hidden="true">▶</span></button>
+                <span id="tl-date" aria-live="off">1883</span>
+                <select id="tl-speed" aria-label="Speed" data-i18n-aria="tlSpeed">
+                    <option value="0.25">¼×</option>
+                    <option value="0.5">½×</option>
+                    <option value="1" selected>1×</option>
+                    <option value="2">2×</option>
+                </select>
+                <div class="tl-stats">
+                    <span class="tl-open"><span data-i18n="tlOpened">Opened</span> <b id="tl-opened">0</b></span>
+                    <span class="tl-close"><span data-i18n="tlClosed">Closed</span> <b id="tl-closed">0</b></span>
+                    <span><span data-i18n="tlNet">Net</span> <b id="tl-net">0</b></span>
+                </div>
             </div>
+            <div class="tl-track">
+                <canvas id="tl-hist" aria-hidden="true"></canvas>
+                <div id="tl-cursor"></div>
+                <input id="tl-range" type="range" min="0" max="1" step="1" value="0" aria-label="Date" data-i18n-aria="tlDate" />
+            </div>
+            <div class="tl-source" data-i18n="tlSource">Before 2018: entry dates from the cantonal commercial registers, for companies that exist today or were deleted since; from 2018: new entries and deletions in the SHAB.</div>
         </div>
 
 
@@ -953,6 +1171,18 @@
                     selectAll: "Alle wählen",
                     deselectAll: "Keine",
                     nightView: "Nachtansicht",
+                    timeline: "Zeitachse",
+                    tlPlay: "Abspielen",
+                    tlPause: "Pause",
+                    tlSpeed: "Tempo",
+                    tlDate: "Datum",
+                    tlOpened: "Gegründet",
+                    tlEntered: "Eingetragen",
+                    tlDeleted: "Gelöscht",
+                    tlClosed: "Gelöscht",
+                    tlNet: "Saldo",
+                    tlLoading: "Zeitachse wird geladen…",
+                    tlSource: "Vor 2018: Eintragungsdaten aus den kantonalen Handelsregistern, für heute bestehende oder seither gelöschte Unternehmen; ab 2018: Neueintragungen und Löschungen im SHAB.",
                     searchPlaceholder: "Firmen suchen…",
                     searchLoading: "Suchindex wird geladen…",
                     searchReady: "760'000 Firmen durchsuchen…",
@@ -998,6 +1228,18 @@
                     selectAll: "Select all",
                     deselectAll: "Deselect all",
                     nightView: "Night view",
+                    timeline: "Timeline",
+                    tlPlay: "Play",
+                    tlPause: "Pause",
+                    tlSpeed: "Speed",
+                    tlDate: "Date",
+                    tlOpened: "Opened",
+                    tlEntered: "Entered",
+                    tlDeleted: "Deleted",
+                    tlClosed: "Closed",
+                    tlNet: "Net",
+                    tlLoading: "Loading timeline…",
+                    tlSource: "Before 2018: entry dates from the cantonal commercial registers, for companies that exist today or were deleted since; from 2018: new entries and deletions in the SHAB.",
                     searchPlaceholder: "Search companies…",
                     searchLoading: "Loading search index…",
                     searchReady: "Search 760k companies…",
@@ -1041,6 +1283,18 @@
                     selectAll: "Tout cocher",
                     deselectAll: "Tout décocher",
                     nightView: "Vue de nuit",
+                    timeline: "Chronologie",
+                    tlPlay: "Lire",
+                    tlPause: "Pause",
+                    tlSpeed: "Vitesse",
+                    tlDate: "Date",
+                    tlOpened: "Créées",
+                    tlEntered: "Inscrite le",
+                    tlDeleted: "Radiée le",
+                    tlClosed: "Radiées",
+                    tlNet: "Solde",
+                    tlLoading: "Chargement de la chronologie…",
+                    tlSource: "Avant 2018 : dates d’inscription des registres cantonaux du commerce, pour les entreprises existant aujourd’hui ou radiées depuis ; dès 2018 : inscriptions et radiations dans la FOSC.",
                     searchPlaceholder: "Rechercher des entreprises…",
                     searchLoading: "Chargement de l’index…",
                     searchReady: "Rechercher parmi 760 000 entreprises…",
@@ -1083,6 +1337,18 @@
                     selectAll: "Seleziona tutti",
                     deselectAll: "Nessuno",
                     nightView: "Vista notturna",
+                    timeline: "Cronologia",
+                    tlPlay: "Riproduci",
+                    tlPause: "Pausa",
+                    tlSpeed: "Velocità",
+                    tlDate: "Data",
+                    tlOpened: "Iscritte",
+                    tlEntered: "Iscritta il",
+                    tlDeleted: "Cancellata il",
+                    tlClosed: "Cancellate",
+                    tlNet: "Saldo",
+                    tlLoading: "Caricamento cronologia…",
+                    tlSource: "Prima del 2018: date d’iscrizione dai registri di commercio cantonali, per le imprese esistenti oggi o cancellate da allora; dal 2018: iscrizioni e cancellazioni nel FUSC.",
                     searchPlaceholder: "Cerca aziende…",
                     searchLoading: "Caricamento dell’indice…",
                     searchReady: "Cerca tra 760 000 aziende…",
@@ -1154,7 +1420,10 @@
                     });
                 // static UI: data-i18n → text, data-i18n-aria → aria-label
                 document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
-                document.querySelectorAll("[data-i18n-aria]").forEach((el) => el.setAttribute("aria-label", t(el.dataset.i18nAria)));
+                document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
+                    el.setAttribute("aria-label", t(el.dataset.i18nAria));
+                    if (el.classList.contains("mode-btn")) el.title = t(el.dataset.i18nAria);
+                });
                 const input = document.getElementById("search-input");
                 input.placeholder = t(searchReady ? "searchReady" : _searchWorker ? "searchLoading" : "searchPlaceholder");
                 document.getElementById("legend-subtitle").textContent =
@@ -1689,7 +1958,8 @@ in float night_seed;
             const TWINKLE_MS = 50;
             let twinkleTimer = 0;
             function twinkleOn() {
-                return nightView && !reduceMotion && !document.hidden;
+                // the timeline paints its own frames
+                return nightView && !timelineOn && !reduceMotion && !document.hidden;
             }
             function twinkleLoop() {
                 clearTimeout(twinkleTimer);
@@ -1778,7 +2048,7 @@ const _cCache=new Map(),_lCache=new Map();
 const LB=new Map(C.map((a,i)=>[a.label,1<<i]));
 function gc(rf){if(_cCache.has(rf))return _cCache.get(rf);const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey)){const v=h2r(a.hex);_cCache.set(rf,v);return v;}}const f=h2r('#1a1a30');_cCache.set(rf,f);return f;}
 function gl(rf){if(_lCache.has(rf))return _lCache.get(rf);const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey)){_lCache.set(rf,a.label);return a.label;}}_lCache.set(rf,rf);return rf;}
-function parse(col,canton){const m=new Map(),n=col.n.length;for(let i=0;i<n;i++){const tRaw=col.t[i]||'',rf=(T[tRaw]||tRaw).trim();if(!rf)continue;const lat=col.lat[i],lng=col.lng[i];if(!lat||!lng)continue;const k=Math.round(lat*1e5)*1000000+Math.round(lng*1e5),label=gl(rf),co={name:col.n[i]||'',rechtsform:rf,label};if(!m.has(k))m.set(k,{position:[lng,lat],canton,companies:[],rechtsform:rf,label,color:gc(rf),mask:0});const p=m.get(k);p.companies.push(co);p.mask|=LB.get(label)||0;}return[...m.values()];}
+function parse(col,canton){const m=new Map(),n=col.n.length;for(let i=0;i<n;i++){const tRaw=col.t[i]||'',rf=(T[tRaw]||tRaw).trim();if(!rf)continue;const lat=col.lat[i],lng=col.lng[i];if(!lat||!lng)continue;const k=Math.round(lat*1e5)*1000000+Math.round(lng*1e5),label=gl(rf),co={name:col.n[i]||'',rechtsform:rf,label,year:col.y?col.y[i]:0};if(!m.has(k))m.set(k,{position:[lng,lat],canton,companies:[],rechtsform:rf,label,color:gc(rf),mask:0});const p=m.get(k);p.companies.push(co);p.mask|=LB.get(label)||0;}return[...m.values()];}
 self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col,cantonId)});
 `;
             const _parseWorker = new Worker(URL.createObjectURL(new Blob([_workerSrc], { type: "application/javascript" })));
@@ -1837,11 +2107,14 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     const el = _cantonCountEls.get(id);
                     if (el) el.textContent = `(${cnt.toLocaleString(numLocale())})`;
                 }
-                document.querySelectorAll(".legend-item").forEach((el) => {
-                    const label = el.dataset.label;
-                    el.querySelector(".legend-count").textContent =
-                        `(${(counts[label] || 0).toLocaleString(numLocale())})`;
-                });
+                // while a canton loads the counts are partial: the legend spins like the canton
+                if (_cantonLoads.size) showLegendSpinners();
+                else
+                    document.querySelectorAll(".legend-item").forEach((el) => {
+                        const label = el.dataset.label;
+                        el.querySelector(".legend-count").textContent =
+                            `(${(counts[label] || 0).toLocaleString(numLocale())})`;
+                    });
                 document.body.style.setProperty(
                     "--frame-color",
                     shown ? `rgb(${Math.round(r / shown)}, ${Math.round(g / shown)}, ${Math.round(bl / shown)})` : "transparent",
@@ -1922,6 +2195,8 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     t: chunks.flatMap((c) => c.t),
                     lat: chunks.flatMap((c) => c.lat),
                     lng: chunks.flatMap((c) => c.lng),
+                    // entry year, 0 = unknown (scripts/canton_years.py)
+                    y: chunks.flatMap((c) => c.y ?? new Array(c.n.length).fill(0)),
                 };
             }
 
@@ -1955,6 +2230,12 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             // one in-flight promise per canton, so fast re-clicks don't fetch twice;
             // a failed load is forgotten so the next click retries it
             const _cantonLoads = new Map();
+            function showLegendSpinners() {
+                document.querySelectorAll(".legend-count").forEach((el) => {
+                    if (!el.firstElementChild)
+                        el.innerHTML = '<span class="canton-spinner" role="status" aria-label="Loading"></span>';
+                });
+            }
             function loadCantonData(canton) {
                 if (cantonData[canton.id]) return Promise.resolve(cantonData[canton.id]);
                 if (_cantonLoads.has(canton.id)) return _cantonLoads.get(canton.id);
@@ -1965,6 +2246,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 if (countEl)
                     countEl.innerHTML =
                         '<span class="canton-spinner" role="status" aria-label="Loading"></span>';
+                showLegendSpinners();
 
                 const p = (async () => {
                     try {
@@ -1986,6 +2268,8 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         return [];
                     } finally {
                         _cantonLoads.delete(canton.id);
+                        // the last load done: the legend shows real counts again
+                        if (!_cantonLoads.size && map) updateLegendCounts();
                     }
                 })();
                 _cantonLoads.set(canton.id, p);
@@ -2121,14 +2405,14 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             // cheap redraw for props that don't change what is shown: twinkle, auto
             // exposure, zoom
             function redrawLayer() {
-                if (overlay) overlay.setProps({ layers: [buildLayer()] });
+                if (overlay) overlay.setProps({ layers: currentLayers() });
             }
 
             function refreshLayer() {
                 if (!overlay) return;
                 _filterVersion++;
                 autoSnap();
-                overlay.setProps({ layers: [buildLayer()] });
+                overlay.setProps({ layers: currentLayers() });
                 displayTotal = 0;
                 for (const id of activeCantons) displayTotal += cantonTotals[id] || 0;
                 document.getElementById("legend-subtitle").textContent =
@@ -2148,6 +2432,630 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 requestAnimationFrame(() => { _refreshQueued = false; refreshLayer(); });
             }
 
+            // ── Timeline: companies opening and closing, from the SHAB ─────────────
+            // data/timeline/events.bin.gz (scripts/build_timeline.py): one lamp per
+            // company life, with the day it opened and the day it closed (65535 = unknown),
+            // sorted along a Morton curve with delta-coded positions. The lamps are uploaded
+            // once; the shader works out from `day` whether each is dark, flashing
+            // open, lit, or burning out, so a frame only changes one uniform.
+            // days count from 1883, when the commercial registers start; before
+            // 2018 only the entry date of companies alive today (or closed since) is known
+            const TL_EPOCH = Date.UTC(1883, 0, 1);
+            // the service worker caches data files for good: bump on every rebuild
+            const TL_VERSION = 7;
+            const TL_RANGE_STEPS = 10000; // slider resolution over the whole screen time
+            const TL_NONE = 65535;
+            const TL_FAR = 1e9; // a day that never comes
+            // <tl-clock> screen time ↔ day (tested by scripts/test_tl_clock.mjs)
+            const TL_DAYS_PER_SEC = 365 / 7; // 1× from 2018: a year in ~7 s
+            const TL_SPLIT_DAY = 49308; // 2018-01-01
+            const TL_HIST_SEC = 45; // 1883–2018 at 1×
+            const TL_MIN_YEAR_SEC = 1 / 8; // at most 8 years a second
+            const TL_MAX_YEAR_SEC = 2; // at least a year every 2 s
+            // Before 2018 every year lasts a time proportional to its openings, so a
+            // second lights about as many lamps in 1900 as in 2000, within the bounds
+            // above; from 2018 on, a constant pace. Returns the knots of a piecewise
+            // linear map: clockT[i] seconds at 1× ↔ clockDay[i].
+            function tlBuildClock(cumOpen, firstDay, lastDay) {
+                const t = [0], d = [firstDay];
+                const split = Math.min(TL_SPLIT_DAY, lastDay);
+                if (firstDay < split) {
+                    const yearDay = (y) => Math.round((Date.UTC(y, 0, 1) - Date.UTC(1883, 0, 1)) / 864e5);
+                    const y0 = 1883 + Math.floor(firstDay / 365.25);
+                    const knots = [firstDay];
+                    for (let y = y0 + 1; yearDay(y) < split; y++) if (yearDay(y) > firstDay) knots.push(yearDay(y));
+                    knots.push(split);
+                    const opens = knots.slice(1).map((k, i) => cumOpen[k] - cumOpen[knots[i]]);
+                    const total = opens.reduce((a, b) => a + b, 0) || 1;
+                    // share of its calendar year each span covers: the first and last may be partial
+                    const span = knots.slice(1).map((k, i) => {
+                        const y = 1883 + Math.floor(knots[i] / 365.2425);
+                        const y1 = yearDay(y) > knots[i] ? y - 1 : yearDay(y + 1) <= knots[i] ? y + 1 : y;
+                        return (k - knots[i]) / (yearDay(y1 + 1) - yearDay(y1));
+                    });
+                    const lo = (k) => TL_MIN_YEAR_SEC * span[k], hi = (k) => TL_MAX_YEAR_SEC * span[k];
+                    const clamp = (s, k) => Math.min(hi(k), Math.max(lo(k), s));
+                    let dur = opens.map((o, k) => clamp((o / total) * TL_HIST_SEC, k));
+                    // one pass: stretch the years that hit no bound so the whole stays near the target
+                    const free = dur.map((s, k) => s > lo(k) * 1.0001 && s < hi(k) * 0.9999);
+                    const fixed = dur.reduce((a, s, k) => a + (free[k] ? 0 : s), 0);
+                    const loose = dur.reduce((a, s, k) => a + (free[k] ? s : 0), 0);
+                    if (loose > 0 && TL_HIST_SEC > fixed) {
+                        const f = (TL_HIST_SEC - fixed) / loose;
+                        dur = dur.map((s, k) => (free[k] ? clamp(s * f, k) : s));
+                    }
+                    for (let k = 0; k < dur.length; k++) { t.push(t[t.length - 1] + dur[k]); d.push(knots[k + 1]); }
+                }
+                if (lastDay > d[d.length - 1]) {
+                    t.push(t[t.length - 1] + (lastDay - d[d.length - 1]) / TL_DAYS_PER_SEC);
+                    d.push(lastDay);
+                }
+                return { clockT: Float64Array.from(t), clockDay: Float64Array.from(d), tMax: t[t.length - 1] };
+            }
+            // y at x on the polyline (xs ascending), clamped at both ends
+            function tlInterp(xs, ys, x) {
+                const n = xs.length;
+                if (x <= xs[0]) return ys[0];
+                if (x >= xs[n - 1]) return ys[n - 1];
+                let lo = 0, hi = n - 1;
+                while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] <= x) lo = m; else hi = m; }
+                return ys[lo] + ((x - xs[lo]) / (xs[hi] - xs[lo])) * (ys[hi] - ys[lo]);
+            }
+            // the next (dir 1) or previous (dir -1) step from day for the arrow keys:
+            // 1 January before 2018, a week from 2018 on
+            function tlStepDay(day, dir) {
+                const yearDay = (y) => Math.round((Date.UTC(y, 0, 1) - Date.UTC(1883, 0, 1)) / 864e5);
+                if (dir > 0 ? day < TL_SPLIT_DAY : day <= TL_SPLIT_DAY) {
+                    const y = new Date(Date.UTC(1883, 0, 1) + day * 864e5).getUTCFullYear();
+                    return dir > 0 ? yearDay(y + 1) : yearDay(day > yearDay(y) ? y : y - 1);
+                }
+                const w = Math.floor((day - TL_SPLIT_DAY) / 7);
+                return TL_SPLIT_DAY + 7 * (dir > 0 ? w + 1 : (day - TL_SPLIT_DAY) % 7 ? w : w - 1);
+            }
+            // each lamp's day (uint16, TL_NONE = never) as seconds of screen time at 1×:
+            // the shader compares these with the screen clock, so a flash lasts the
+            // same in every era and never starts again when the pace changes
+            function tlScreenTimes(days, clock) {
+                const out = new Float32Array(days.length);
+                for (let i = 0; i < days.length; i++)
+                    out[i] = days[i] === TL_NONE ? TL_FAR : tlInterp(clock.clockDay, clock.clockT, days[i]);
+                return out;
+            }
+            // cumulative openings and closings per day (index day + 1) and per week, over the
+            // lamps whose keep[i] is set (keep null: all), for the counters and the bars
+            function tlStats(o16, c16, lastDay, keep) {
+                const cumOpen = new Uint32Array(lastDay + 2);
+                const cumClose = new Uint32Array(lastDay + 2);
+                const weeks = Math.floor(lastDay / 7) + 1;
+                const weekOpen = new Uint32Array(weeks);
+                const weekClose = new Uint32Array(weeks);
+                for (let i = 0; i < o16.length; i++) {
+                    if (keep && !keep[i]) continue;
+                    if (o16[i] !== TL_NONE) { cumOpen[o16[i] + 1]++; weekOpen[(o16[i] / 7) | 0]++; }
+                    if (c16[i] !== TL_NONE) { cumClose[c16[i] + 1]++; weekClose[(c16[i] / 7) | 0]++; }
+                }
+                for (let d = 1; d < cumOpen.length; d++) {
+                    cumOpen[d] += cumOpen[d - 1];
+                    cumClose[d] += cumClose[d - 1];
+                }
+                return { cumOpen, cumClose, weekOpen, weekClose };
+            }
+            // </tl-clock>
+            const TL_FLASH_SEC = 0.6; // an opening flares, then settles
+            const TL_FADE_SEC = 1.0; // a closing burns red and goes out
+            const TL_CLOSE_RGB = [255, 80, 40];
+            let timelineOn = false;
+            let tl = null; // { n, data, cumOpen, cumClose, lastDay, weekOpen, weekClose }
+            let tlLoading = null;
+            let tlDay = 0;
+            let tlT = 0; // seconds of screen time at 1× since the start; tlDay follows from it
+            // the white flash of an opening and the red glow of a closing only show while
+            // the timeline moves (playing, or the slider being dragged or stepped); at rest
+            // every lamp is plain lit or gone
+            let tlMoving = false;
+            let tlIdle = 0;
+            const TL_STILL_MS = 150; // the slider counts as still after this long without a move
+            function tlSettle() {
+                clearTimeout(tlIdle);
+                if (!tlMoving) return;
+                tlMoving = false;
+                if (timelineOn) redrawLayer();
+            }
+            function tlNudge() {
+                tlMoving = true;
+                clearTimeout(tlIdle);
+                tlIdle = setTimeout(tlSettle, TL_STILL_MS);
+            }
+            const tlDayAt = (t) => tlInterp(tl.clockT, tl.clockDay, t);
+            const tlTimeAt = (day) => tlInterp(tl.clockDay, tl.clockT, day);
+            let tlPlaying = false;
+            let tlSpeed = 1;
+            let tlFrame = 0;
+            let tlLastT = 0;
+
+            const TL_UNIFORMS = `
+layout(std140) uniform tlUniforms {
+  float day;
+  float flash;
+  float fade;
+  float night;
+} tl;
+`;
+            const tlModule = {
+                name: "tl",
+                vs: `${TL_UNIFORMS}
+in float instanceOpen;
+in float instanceClose;
+// x: shown (0/1), y: opening flash 1 → 0, z: closing glow 1 → 0
+vec3 tl_state() {
+  float ao = tl.day - instanceOpen;
+  float ac = tl.day - instanceClose;
+  float fo = ao >= 0.0 && ao < tl.flash ? 1.0 - ao / tl.flash : 0.0;
+  float fc = ac >= 0.0 && ac < tl.fade ? 1.0 - ac / tl.fade : 0.0;
+  float lit = ao >= 0.0 && ac < 0.0 ? 1.0 : 0.0;
+  return vec3(max(lit, step(1e-4, fc)), fo, fc);
+}
+`,
+                uniformTypes: { day: "f32", flash: "f32", fade: "f32", night: "f32" },
+                getUniforms: (p) => p,
+                inject: {
+                    "vs:DECKGL_FILTER_SIZE": `
+  vec3 tls = tl_state();
+  size *= tls.x * (1.0 + 2.2 * tls.y * tls.y + 0.8 * tls.z);
+`,
+                    "vs:DECKGL_FILTER_COLOR": `
+  vec3 tlc = tl_state();
+  vec3 spark = tl.night > 0.5 ? vec3(1.0, 0.92, 0.8) : vec3(1.0);
+  color.rgb = mix(color.rgb, spark, tlc.y);
+  if (tlc.z > 0.0) color.rgb = vec3(${TL_CLOSE_RGB.map((v) => (v / 255).toFixed(3)).join(", ")});
+  float boost = tl.night > 0.5 ? 6.0 : 1.0;
+  color.a = tlc.z > 0.0 ? tlc.z * (tl.night > 0.5 ? 4.0 : 1.0) : color.a * (1.0 + boost * tlc.y);
+  color.a *= tlc.x;
+`,
+                },
+            };
+            // same mixin on the day and the night layer
+            const withTimeline = (Base, name) => {
+                class L extends Base {
+                    getShaders() {
+                        const shaders = super.getShaders();
+                        return { ...shaders, modules: [...shaders.modules, tlModule] };
+                    }
+                    initializeState() {
+                        super.initializeState();
+                        this.getAttributeManager().addInstanced({
+                            instanceOpen: { size: 1, accessor: "getOpen", defaultValue: TL_FAR },
+                            instanceClose: { size: 1, accessor: "getClose", defaultValue: TL_FAR },
+                        });
+                    }
+                    draw(opts) {
+                        const { day, flash, fade, night } = this.props;
+                        this.setShaderModuleProps({ tl: { day, flash, fade, night } });
+                        super.draw(opts);
+                    }
+                }
+                L.layerName = name;
+                L.defaultProps = { ...Base.defaultProps, day: 0, flash: 30, fade: 50, night: 0 };
+                return L;
+            };
+            const TimelineLayer = withTimeline(deck.ScatterplotLayer, "TimelineLayer");
+            const TimelineNightLayer = withTimeline(NightLayer, "TimelineNightLayer");
+
+            async function loadTimeline() {
+                const res = await fetch(`data/timeline/events.bin.gz?v=${TL_VERSION}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const buf = await new Response(res.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+                // header: n, names per chunk, then the uint16 grid (origin and step) of the positions
+                const dv = new DataView(buf);
+                const n = dv.getUint32(0, true);
+                tlNamesChunk = dv.getUint32(4, true);
+                const lat0 = dv.getFloat64(8, true), lng0 = dv.getFloat64(16, true);
+                const latStep = dv.getFloat64(24, true), lngStep = dv.getFloat64(32, true);
+                // each uint16 column is stored as its low-byte plane, then its high-byte plane
+                const bytes = new Uint8Array(buf, 40);
+                const col = (k) => {
+                    const out = new Uint16Array(n), lo = 2 * n * k, hi = lo + n;
+                    for (let i = 0; i < n; i++) out[i] = bytes[lo + i] | (bytes[hi + i] << 8);
+                    return out;
+                };
+                const dLat = col(0), dLng = col(1), o16 = col(2), c16 = col(3);
+                const t8 = new Uint8Array(buf, 40 + 8 * n, n);
+                const pos = new Float32Array(2 * n);
+                const rgba = new Uint8Array(4 * n);
+                const rgbByCode = {};
+                let lastDay = 0, qa = 0, qn = 0;
+                for (let i = 0; i < n; i++) {
+                    // positions: zigzag deltas from the previous lamp, modulo 2^16
+                    qa = (qa + ((dLat[i] >>> 1) ^ -(dLat[i] & 1))) & 0xffff;
+                    qn = (qn + ((dLng[i] >>> 1) ^ -(dLng[i] & 1))) & 0xffff;
+                    pos[2 * i] = lng0 + qn * lngStep;
+                    pos[2 * i + 1] = lat0 + qa * latStep;
+                    if (o16[i] !== TL_NONE && o16[i] > lastDay) lastDay = o16[i];
+                    if (c16[i] !== TL_NONE && c16[i] > lastDay) lastDay = c16[i];
+                    const code = String.fromCharCode(t8[i]);
+                    const rgb = (rgbByCode[code] ??= getColor(T_DECODE[code] || code));
+                    rgba.set([rgb[0], rgb[1], rgb[2], 230], 4 * i);
+                }
+                // all lamps set the pace of the clock; the counters follow the legend (tlApplyLegend)
+                const { cumOpen, cumClose, weekOpen, weekClose } = tlStats(o16, c16, lastDay, null);
+                // begin at the first lamp
+                let firstDay = 0;
+                while (firstDay < lastDay && cumOpen[firstDay + 1] + cumClose[firstDay + 1] === 0) firstDay++;
+                const clock = tlBuildClock(cumOpen, firstDay, lastDay);
+                const open = tlScreenTimes(o16, clock);
+                const close = tlScreenTimes(c16, clock);
+                const data = {
+                    length: n,
+                    attributes: {
+                        getPosition: { value: pos, size: 2 },
+                        getFillColor: { value: rgba, size: 4, normalized: true },
+                        getOpen: { value: open, size: 1 },
+                        getClose: { value: close, size: 1 },
+                    },
+                };
+                // night view: the same lamps without the colour per legal form, so the layer's
+                // single warm night colour applies (binary attributes win over accessors)
+                const { getFillColor, ...nightAttributes } = data.attributes;
+                const dataNight = { length: n, attributes: nightAttributes };
+                return { n, data, dataNight, o16, c16, t8, cumOpen, cumClose, firstDay, lastDay, weekOpen, weekClose, ...clock };
+            }
+
+            // the legend's legal forms apply to the timeline too: hidden forms leave the map,
+            // the counters and the bars (the playback pace stays that of all lamps)
+            function tlApplyLegend() {
+                const on = {};
+                for (const code in T_DECODE) on[code.charCodeAt(0)] = activeLabels.has(T_DECODE[code]) ? 1 : 0;
+                const keep = new Uint8Array(tl.n);
+                const filter = new Float32Array(tl.n);
+                for (let i = 0; i < tl.n; i++) keep[i] = filter[i] = on[tl.t8[i]] ?? 1;
+                Object.assign(tl, tlStats(tl.o16, tl.c16, tl.lastDay, keep));
+                const getFilterValue = { value: filter, size: 1 };
+                tl.data = { length: tl.n, attributes: { ...tl.data.attributes, getFilterValue } };
+                tl.dataNight = { length: tl.n, attributes: { ...tl.dataNight.attributes, getFilterValue } };
+                tl.filterVersion = _filterVersion;
+                tlDrawHist();
+                tlUpdateUi();
+            }
+
+            function buildTimelineLayer() {
+                if (tl.filterVersion !== _filterVersion) tlApplyLegend();
+                const z = map ? map.getZoom() : 8;
+
+                const shared = {
+                    id: "timeline",
+                    data: tl.data,
+                    extensions: [_dataFilter],
+                    filterRange: [1, 1],
+                    // only lit lamps have a size, so only they can be picked
+                    pickable: true,
+                    autoHighlight: false,
+                    onHover: (info) => { if (!_touchMQ.matches) tlShowCard(info); },
+                    onClick: (info) => { tlShowCard(info, { pin: !_touchMQ.matches }); return true; },
+                    stroked: false,
+                    // lamps carry their times in screen seconds: compare with the screen clock
+                    day: tlT,
+                    // the same wall-clock length at every speed; none at rest
+                    flash: tlPlaying || tlMoving ? TL_FLASH_SEC * tlSpeed : 0,
+                    fade: tlPlaying || tlMoving ? TL_FADE_SEC * tlSpeed : 0,
+                };
+                if (nightView) {
+                    // no auto exposure here: it reads the company layer, and
+                    // the lit timeline lamps change every frame. The zoom curve
+                    // is tuned on a similar density.
+                    const look = zoomCurve(z);
+                    return new TimelineNightLayer({
+                        ...shared,
+                        id: "timeline-night",
+                        data: tl.dataNight,
+                        night: 1,
+                        getFillColor: [...NIGHT_RGB, 255],
+                        getRadius: 1,
+                        radiusUnits: "pixels",
+                        radiusScale: NIGHT_RADIUS * Math.max(look.size, 0.5) * (1 + (CLOSE_SIZE_MIN - 1) * closeness(z)),
+                        radiusMinPixels: 0,
+                        radiusMaxPixels: 100,
+                        light: look.light * (z >= AUTO_CLOSE_ZOOM ? AUTO_CLOSE_BOOST : 1),
+                        twinkle: 0,
+                        time: 0,
+                        cell: 1,
+                        peak: 1 + (CLOSE_PEAK - 1) * closeness(z),
+                        parameters: {
+                            depthWriteEnabled: false,
+                            depthCompare: "always",
+                            blend: true,
+                            blendColorOperation: "add",
+                            blendColorSrcFactor: "one",
+                            blendColorDstFactor: "one",
+                            blendAlphaOperation: "add",
+                            blendAlphaSrcFactor: "one",
+                            blendAlphaDstFactor: "one",
+                        },
+                    });
+                }
+                return new TimelineLayer({
+                    ...shared,
+                    getRadius: 18,
+                    radiusScale: 1,
+                    radiusMinPixels: RADIUS_MIN,
+                    radiusMaxPixels: RADIUS_MAX,
+                    parameters: {
+                        depthTest: false,
+                        blend: true,
+                        blendFunc: [770, 1],
+                        blendEquation: 32774,
+                    },
+                });
+            }
+
+            // names come in chunks of tlNamesChunk lamps (~180 kB each, one region of the map),
+            // a chunk fetched on the first hover or tap over one of its lamps
+            let tlNamesChunk = 16384;
+            const tlNames = new Map(); // chunk → names
+            const tlNamesLoading = new Map(); // chunk → promise
+            async function tlLoadNames(k) {
+                const res = await fetch(`data/timeline/names/${k}.json.gz?v=${TL_VERSION}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return JSON.parse(await new Response(res.body.pipeThrough(new DecompressionStream("gzip"))).text());
+            }
+            // the card of one lamp: name, legal form, entry and deletion dates
+            function tlShowCard(info, opts = {}) {
+                const tt = document.getElementById("tooltip");
+                const touch = _touchMQ.matches;
+                if (_ttPinned && !opts.pin && !touch) return;
+                if (info.index == null || info.index < 0 || !tl) { hideTooltip(); return; }
+                _ttPinned = !!opts.pin && !touch;
+                tt.classList.toggle("pinned", _ttPinned);
+                const place = () => {
+                    if (touch) return;
+                    tt.style.left = Math.max(10, Math.min(info.x + 15, window.innerWidth - tt.offsetWidth - 10)) + "px";
+                    tt.style.top = Math.max(10, Math.min(info.y + 15, window.innerHeight - tt.offsetHeight - 10)) + "px";
+                };
+                if (_ttObject === `tl:${info.index}` && !opts.pin && !touch) { place(); return; }
+                _ttObject = `tl:${info.index}`;
+                const i = info.index;
+                const label = T_DECODE[String.fromCharCode(tl.t8[i])] || "";
+                const hex = _labelToHex.get(label) ?? "#888";
+                const day = (d) => (d === TL_NONE ? "" : new Date(TL_EPOCH + d * 864e5).toLocaleDateString(numLocale(), {
+                    year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }));
+                const chunk = Math.floor(i / tlNamesChunk);
+                const names = tlNames.get(chunk);
+                const name = names ? names[i % tlNamesChunk] : "…";
+                const zefix = `https://www.zefix.ch/${currentLang}/search/entity/list?mainSearch=`;
+                const link = names ? `<a class="tt-link" href="${zefix + encodeURIComponent(name)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t("openInZefix"))}" aria-label="${escapeHtml(t("openInZefix"))}">↗</a>` : "";
+                const dates = [
+                    tl.o16[i] !== TL_NONE ? `${escapeHtml(t("tlEntered"))} ${day(tl.o16[i])}` : "",
+                    tl.c16[i] !== TL_NONE ? `<span style="color:#ff6b4a">${escapeHtml(t("tlDeleted"))} ${day(tl.c16[i])}</span>` : "",
+                ].filter(Boolean).join(" · ");
+                tt.style.display = touch ? "flex" : "block";
+                const ttContent = document.getElementById("tooltip-content");
+                ttContent.scrollTop = 0;
+                ttContent.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:${hex}"></span>
+          <span style="color:#fff;font-weight:500;font-size:13px">${escapeHtml(name)}</span>${link}
+        </div>
+        <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:3px">${escapeHtml(labelText(label))}</div>
+        <div style="color:rgba(255,255,255,0.6);font-size:12px;margin-top:3px">${dates}</div>`;
+                place();
+                if (!names) {
+                    if (!tlNamesLoading.has(chunk)) tlNamesLoading.set(chunk, tlLoadNames(chunk));
+                    tlNamesLoading.get(chunk).then((loaded) => {
+                        tlNames.set(chunk, loaded);
+                        if (_ttObject === `tl:${i}`) { _ttObject = null; tlShowCard(info, { pin: _ttPinned }); }
+                    }).catch((e) => { console.error("timeline names", e); tlNamesLoading.delete(chunk); });
+                }
+            }
+
+            // the companies of today, or the timeline in their place
+            function currentLayers() {
+                return timelineOn && tl ? [buildTimelineLayer()] : [buildLayer()];
+            }
+
+            // before 2018 years fly by: show the year only
+            function tlDateText(day) {
+                const date = new Date(TL_EPOCH + Math.floor(day) * 864e5);
+                if (day < TL_SPLIT_DAY) return String(date.getUTCFullYear());
+                return date.toLocaleDateString(numLocale(), { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+            }
+            const tlIsoDay = (day) => new Date(TL_EPOCH + Math.floor(day) * 864e5).toISOString().slice(0, 10);
+            function tlUpdateUi() {
+                if (!tl) return;
+                const d = clamp(Math.floor(tlDay), 0, tl.lastDay);
+                const o = tl.cumOpen[d + 1], c = tl.cumClose[d + 1];
+                const loc = numLocale();
+                document.getElementById("tl-date").textContent = tlDateText(d);
+                document.getElementById("tl-opened").textContent = o.toLocaleString(loc);
+                document.getElementById("tl-closed").textContent = c.toLocaleString(loc);
+                document.getElementById("tl-net").textContent = (o >= c ? "+" : "−") + Math.abs(o - c).toLocaleString(loc);
+                const range = document.getElementById("tl-range");
+                const f = clamp(tlT / tl.tMax, 0, 1);
+                const v = Math.round(f * TL_RANGE_STEPS);
+                if (+range.value !== v) range.value = v;
+                range.setAttribute("aria-valuetext", tlDateText(d));
+                document.getElementById("tl-cursor").style.left = `calc(${(f * 100).toFixed(3)}% + ${(8 - 16 * f).toFixed(1)}px)`;
+            }
+            // bars on the screen-time axis, like the slider: one per year before 2018
+            // (openings only), one per week after (openings up, closings down); each
+            // part has its own vertical scale
+            function tlDrawHist() {
+                const cv = document.getElementById("tl-hist");
+                const w = cv.clientWidth, h = cv.clientHeight;
+                if (!tl || !w) return;
+                const dpr = window.devicePixelRatio || 1;
+                cv.width = w * dpr;
+                cv.height = h * dpr;
+                const g = cv.getContext("2d");
+                g.scale(dpr, dpr);
+                const top = 11, mid = top + (h - top) * 0.6, up = mid - top, down = h - mid;
+                const X = (day) => 8 + (tlTimeAt(day) / tl.tMax) * (w - 16);
+                const css = getComputedStyle(document.documentElement);
+                const spark = `rgb(${css.getPropertyValue("--spark-raw")})`;
+                const yearDay = (y) => Math.round((Date.UTC(y, 0, 1) - TL_EPOCH) / 864e5);
+                const split = Math.min(TL_SPLIT_DAY, tl.lastDay);
+                // years before 2018
+                const y0 = new Date(TL_EPOCH + tl.firstDay * 864e5).getUTCFullYear();
+                const years = [];
+                for (let y = y0; yearDay(y) < split; y++) {
+                    const a = Math.max(yearDay(y), tl.firstDay), b = Math.min(yearDay(y + 1), split);
+                    years.push([a, b, tl.cumOpen[b] - tl.cumOpen[a]]);
+                }
+                const maxYear = Math.max(1, ...years.map((v) => v[2]));
+                g.fillStyle = spark;
+                for (const [a, b, o] of years) {
+                    const x = X(a), bh = (o / maxYear) * up;
+                    g.fillRect(x, mid - bh, Math.max(1, X(b) - x - 0.5), bh);
+                }
+                // weeks from 2018
+                const w0 = Math.ceil(split / 7), w1 = tl.weekOpen.length;
+                let maxWeek = 1;
+                for (let i = w0; i < w1; i++) maxWeek = Math.max(maxWeek, tl.weekOpen[i], tl.weekClose[i]);
+                for (let i = w0; i < w1; i++) {
+                    const x = X(i * 7), bw = Math.max(1, X(Math.min(tl.lastDay, i * 7 + 7)) - x - 0.5);
+                    const bo = (tl.weekOpen[i] / maxWeek) * up, bc = Math.min(down, (tl.weekClose[i] / maxWeek) * up);
+                    g.fillStyle = spark;
+                    g.fillRect(x, mid - bo, bw, bo);
+                    g.fillStyle = "#ff6b4a";
+                    g.fillRect(x, mid, bw, bc);
+                }
+                // year ticks: a few landmarks before 2018, every year after; no overlapping labels
+                g.fillStyle = "rgba(255,255,255,0.45)";
+                g.font = "9px Inter, sans-serif";
+                const lastYear = new Date(TL_EPOCH + tl.lastDay * 864e5).getUTCFullYear();
+                const ticks = [1900, 1950, 1980, 2000, 2010, 2018];
+                for (let y = 2019; y <= lastYear; y++) ticks.push(y);
+                let prev = -Infinity;
+                for (const y of ticks) {
+                    const d = yearDay(y);
+                    if (d < tl.firstDay || d > tl.lastDay) continue;
+                    const x = X(d);
+                    if (x - prev < 28) continue;
+                    prev = x;
+                    g.fillRect(x, 0, 1, top - 2);
+                    g.fillText(String(y), x + 3, 8);
+                }
+            }
+
+            function tlSetPlaying(on) {
+                tlPlaying = on && !!tl;
+                const btn = document.getElementById("tl-play");
+                btn.firstElementChild.textContent = tlPlaying ? "❚❚" : "▶";
+                btn.setAttribute("aria-label", t(tlPlaying ? "tlPause" : "tlPlay"));
+                btn.dataset.i18nAria = tlPlaying ? "tlPause" : "tlPlay";
+                cancelAnimationFrame(tlFrame);
+                if (tlPlaying) {
+                    if (tlT >= tl.tMax) { tlT = 0; tlDay = tl.firstDay; }
+                    tlLastT = performance.now();
+                    tlFrame = requestAnimationFrame(tlTick);
+                } else {
+                    // stopped: the flashes go at once
+                    if (tl && timelineOn) redrawLayer();
+                    updateUrl();
+                }
+            }
+            function tlTick(now) {
+                // clamp the step so a frame after a hidden tab doesn't skip a year
+                const dt = Math.min(0.1, (now - tlLastT) / 1000);
+                tlLastT = now;
+                tlT += dt * tlSpeed;
+                tlDay = tlT <= tl.tMax ? tlDayAt(tlT) : tl.lastDay + (tlT - tl.tMax) * TL_DAYS_PER_SEC;
+                if (tlT >= tl.tMax + TL_FADE_SEC) {
+                    tlT = tl.tMax;
+                    tlDay = tl.lastDay;
+                    redrawLayer();
+                    tlUpdateUi();
+                    tlSetPlaying(false);
+                    return;
+                }
+                redrawLayer();
+                tlUpdateUi();
+                tlFrame = requestAnimationFrame(tlTick);
+            }
+
+            async function setTimeline(on, day) {
+                timelineOn = on;
+                const btn = document.getElementById("btn-timeline");
+                btn.classList.toggle("active", on);
+                btn.setAttribute("aria-pressed", on ? "true" : "false");
+                document.getElementById("timeline").hidden = !on;
+                if (!on) {
+                    tlSetPlaying(false);
+                    refreshLayer();
+                    twinkleLoop();
+                    return;
+                }
+                twinkleLoop();
+                if (!tl) {
+                    document.getElementById("tl-date").textContent = t("tlLoading");
+                    try {
+                        tl = await (tlLoading ??= loadTimeline());
+                    } catch (e) {
+                        console.error("timeline", e);
+                        tlLoading = null;
+                        document.getElementById("tl-date").textContent = "—";
+                        return;
+                    }
+                    if (!timelineOn) return;
+                    const range = document.getElementById("tl-range");
+                    range.min = 0;
+                    range.max = TL_RANGE_STEPS;
+                }
+                // reopened after being played or moved: stay where it was, without restarting
+                const resume = day == null && tlT > 0;
+                if (!resume) {
+                    tlDay = day != null ? clamp(day, tl.firstDay, tl.lastDay) : tl.firstDay;
+                    tlT = tlTimeAt(tlDay);
+                }
+                tlDrawHist();
+                tlUpdateUi();
+                refreshLayer();
+                if (day == null && !resume && !reduceMotion) tlSetPlaying(true);
+            }
+
+            function initTimelineUi() {
+                document.getElementById("btn-timeline").addEventListener("click", () => setTimeline(!timelineOn));
+                document.getElementById("tl-play").addEventListener("click", () => tlSetPlaying(!tlPlaying));
+                document.getElementById("tl-speed").addEventListener("change", (e) => { tlSpeed = +e.target.value; redrawLayer(); });
+                const range = document.getElementById("tl-range");
+                range.addEventListener("input", () => {
+                    if (!tl) return;
+                    tlSetPlaying(false);
+                    tlT = (+range.value / TL_RANGE_STEPS) * tl.tMax;
+                    tlDay = tlDayAt(tlT);
+                    tlNudge();
+                    redrawLayer();
+                    tlUpdateUi();
+                });
+                range.addEventListener("change", updateUrl);
+                // released: the flashes go at once
+                range.addEventListener("change", tlSettle);
+                range.addEventListener("pointerup", tlSettle);
+                range.addEventListener("keyup", tlSettle);
+                // arrows move a year before 2018 and a week after, however compressed the slider is there
+                range.addEventListener("keydown", (e) => {
+                    const dir = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
+                    if (!dir || !tl) return;
+                    e.preventDefault();
+                    tlSetPlaying(false);
+                    tlDay = clamp(tlStepDay(Math.floor(tlDay), dir), tl.firstDay, tl.lastDay);
+                    tlT = tlTimeAt(tlDay);
+                    tlNudge();
+                    redrawLayer();
+                    tlUpdateUi();
+                    updateUrl();
+                });
+                window.addEventListener("resize", () => { if (timelineOn) tlDrawHist(); });
+                // publish the bar's footprint so the bottom controls can clear it on phones
+                new ResizeObserver(([entry]) => {
+                    const r = entry.target.getBoundingClientRect();
+                    const h = r.height ? innerHeight - r.top : 0;
+                    document.documentElement.style.setProperty("--tl-h", `${Math.round(h)}px`);
+                }).observe(document.getElementById("timeline"));
+                // space toggles play while the timeline has focus
+                document.getElementById("timeline").addEventListener("keydown", (e) => {
+                    if (e.key === " " && e.target.id !== "tl-play") { e.preventDefault(); tlSetPlaying(!tlPlaying); }
+                });
+            }
+
             // ── Shareable state in the URL hash ──────────────────────────────────
             // #z=11.5&ll=46.95,7.44&c=BE,ZH&off=3,7&night=1
             // (off = indexes into colorAssignments of legal forms switched off)
@@ -2163,6 +3071,12 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 const off = (h.get("off") || "").split(",").filter((i) => /^\d+$/.test(i)).map((i) => colorAssignments[+i]?.label).filter(Boolean);
                 if (off.length) st.labelsOff = off;
                 st.night = h.get("night") === "1";
+                // tl=YYYY-MM-DD; a bare number is an old link: days since 2018-01-01
+                const tlq = h.get("tl") || "";
+                if (/^\d{4}-\d{2}-\d{2}$/.test(tlq)) {
+                    const ms = Date.parse(`${tlq}T00:00:00Z`);
+                    if (Number.isFinite(ms) && ms >= TL_EPOCH) st.timelineDay = Math.round((ms - TL_EPOCH) / 864e5);
+                } else if (/^\d+$/.test(tlq)) st.timelineDay = TL_SPLIT_DAY + +tlq;
                 return st;
             }
             const urlState = readUrlState();
@@ -2180,6 +3094,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     const off = colorAssignments.flatMap((a, i) => (activeLabels.has(a.label) ? [] : [i]));
                     if (off.length) h.set("off", off.join(","));
                     if (nightView) h.set("night", "1");
+                    if (timelineOn) h.set("tl", tlIsoDay(tlDay));
                     // URLSearchParams escapes the commas; they are safe in a fragment
                     history.replaceState(null, "", location.pathname + location.search + "#" + h.toString().replace(/%2C/g, ","));
                 }, 250);
@@ -2290,7 +3205,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 });
 
                 overlay = new deck.MapLibreOverlay({
-                    layers: [buildLayer()],
+                    layers: currentLayers(),
                     // a click that hits no company closes a pinned card
                     onClick: (info) => { if (!info.object && _ttPinned) hideTooltip(); },
                 });
@@ -2335,6 +3250,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     await firstCanton;
                     refreshLayer();
                     if (urlState.night && !nightView) document.getElementById("btn-night-view").click();
+                    if (urlState.timelineDay != null) setTimeline(true, urlState.timelineDay);
 
                     const ls = document.getElementById("loading-screen");
                     ls.classList.add("hidden");
@@ -2392,6 +3308,8 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                             .forEach((el) => { el.classList.add("inactive"); el.setAttribute("aria-checked", "false"); });
                         refreshLayer();
                     });
+
+                initTimelineUi();
 
                 document
                     .getElementById("btn-night-view")
@@ -2485,7 +3403,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
         <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:8px;padding-top:8px">
           <div style="display:flex;align-items:center;gap:6px">
             <span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:${hex}"></span>
-            <span style="color:#fff;font-weight:500;font-size:13px">${escapeHtml(c.name)}</span>
+            <span style="color:#fff;font-weight:500;font-size:13px">${escapeHtml(c.name)}${c.year ? ` <span style="color:rgba(255,255,255,0.4);font-weight:400" title="${c.year}">'${String(c.year % 100).padStart(2, "0")}</span>` : ""}</span>
             <a class="tt-link" href="${zefix + encodeURIComponent(c.name)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t("openInZefix"))}" aria-label="${escapeHtml(t("openInZefix"))}">↗</a>
           </div>
           <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:3px">${escapeHtml(labelText(c.label))}</div>
