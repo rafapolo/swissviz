@@ -2091,11 +2091,14 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     const el = _cantonCountEls.get(id);
                     if (el) el.textContent = `(${cnt.toLocaleString(numLocale())})`;
                 }
-                document.querySelectorAll(".legend-item").forEach((el) => {
-                    const label = el.dataset.label;
-                    el.querySelector(".legend-count").textContent =
-                        `(${(counts[label] || 0).toLocaleString(numLocale())})`;
-                });
+                // while a canton loads the counts are partial: the legend spins like the canton
+                if (_cantonLoads.size) showLegendSpinners();
+                else
+                    document.querySelectorAll(".legend-item").forEach((el) => {
+                        const label = el.dataset.label;
+                        el.querySelector(".legend-count").textContent =
+                            `(${(counts[label] || 0).toLocaleString(numLocale())})`;
+                    });
                 document.body.style.setProperty(
                     "--frame-color",
                     shown ? `rgb(${Math.round(r / shown)}, ${Math.round(g / shown)}, ${Math.round(bl / shown)})` : "transparent",
@@ -2211,6 +2214,12 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             // one in-flight promise per canton, so fast re-clicks don't fetch twice;
             // a failed load is forgotten so the next click retries it
             const _cantonLoads = new Map();
+            function showLegendSpinners() {
+                document.querySelectorAll(".legend-count").forEach((el) => {
+                    if (!el.firstElementChild)
+                        el.innerHTML = '<span class="canton-spinner" role="status" aria-label="Loading"></span>';
+                });
+            }
             function loadCantonData(canton) {
                 if (cantonData[canton.id]) return Promise.resolve(cantonData[canton.id]);
                 if (_cantonLoads.has(canton.id)) return _cantonLoads.get(canton.id);
@@ -2221,6 +2230,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 if (countEl)
                     countEl.innerHTML =
                         '<span class="canton-spinner" role="status" aria-label="Loading"></span>';
+                showLegendSpinners();
 
                 const p = (async () => {
                     try {
@@ -2242,6 +2252,8 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         return [];
                     } finally {
                         _cantonLoads.delete(canton.id);
+                        // the last load done: the legend shows real counts again
+                        if (!_cantonLoads.size && map) updateLegendCounts();
                     }
                 })();
                 _cantonLoads.set(canton.id, p);
