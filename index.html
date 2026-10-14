@@ -31,6 +31,14 @@
         <style>
             :root {
                 --bg: #1e2a3e;
+                /* Night view, from ../brasilume: one dim ember per lamp, stacked
+                   additively it climbs through orange and cream to white */
+                --ember-raw: 139, 87, 79;
+                --ember-lit-raw: 217, 169, 159;
+                --spark-raw: 255, 214, 170;
+                --lamp: #ede3d1;
+                --lit: 0 0 8px rgba(var(--spark-raw), 0.35), 0 0 22px rgba(var(--ember-raw), 0.6);
+                --corner: #151b24;
                 --accent: #6c8eff;
                 --border: rgba(255, 255, 255, 0.07);
                 --border-subtle: rgba(255, 255, 255, 0.06);
@@ -66,7 +74,7 @@
                    (~26pt on macOS 26), so they need a larger radius or they get clipped */
                 border-radius: 14px 14px 28px 28px;
                 /* fill the corners outside the curve so the viewport itself reads as rounded */
-                box-shadow: 0 0 0 28px #151b24;
+                box-shadow: 0 0 0 28px var(--corner);
                 pointer-events: none;
                 z-index: 9999;
                 transition: border-color 0.4s;
@@ -187,13 +195,21 @@
                 overflow-y: auto;
                 max-height: calc(100vh - 40px);
             }
-            .panel::-webkit-scrollbar {
+            /* the company card scrolls like the panels: #tooltip itself when pinned on
+               desktop, #tooltip-content in the touch bottom sheet */
+            .panel::-webkit-scrollbar,
+            #tooltip::-webkit-scrollbar,
+            #tooltip-content::-webkit-scrollbar {
                 width: 3px;
             }
-            .panel::-webkit-scrollbar-track {
+            .panel::-webkit-scrollbar-track,
+            #tooltip::-webkit-scrollbar-track,
+            #tooltip-content::-webkit-scrollbar-track {
                 background: transparent;
             }
-            .panel::-webkit-scrollbar-thumb {
+            .panel::-webkit-scrollbar-thumb,
+            #tooltip::-webkit-scrollbar-thumb,
+            #tooltip-content::-webkit-scrollbar-thumb {
                 background: var(--border-mid);
                 border-radius: 3px;
             }
@@ -282,34 +298,19 @@
                 color: rgba(255, 255, 255, 0.9);
             }
             .panel-controls button.active {
-                background: rgba(255, 203, 153, 0.18);
-                border-color: rgba(255, 203, 153, 0.5);
-                color: rgb(255, 203, 153);
+                background: rgba(var(--ember-raw), 0.3);
+                border-color: rgba(var(--ember-lit-raw), 0.55);
+                color: var(--lamp);
+                box-shadow: var(--lit);
             }
             #night-view-controls {
                 border-top: 1px solid var(--border-subtle);
                 border-bottom: none;
                 margin-bottom: 0;
             }
-            #night-intensity-row {
-                max-height: 0;
-                opacity: 0;
-                overflow: hidden;
-                padding: 0;
-                transition:
-                    max-height 0.3s ease,
-                    opacity 0.25s ease,
-                    padding 0.3s ease;
-            }
-            #night-intensity-row.visible {
-                max-height: 60px;
-                opacity: 1;
-                padding: 10px 0 14px;
-            }
-            #night-intensity-row input[type="range"] {
-                width: 100%;
-                accent-color: rgba(255, 197, 143, 0.9);
-                cursor: pointer;
+            /* Night: the frame and the window corners go to the same black as the map */
+            body.night {
+                --corner: #000;
             }
 
             /* Legend — right */
@@ -589,17 +590,25 @@
                     max-width: none;
                     max-height: 45vh;
                     padding: 14px 16px 0;
-                    border-radius: 12px 12px 0 0;
+                    border-radius: 16px 16px 0 0;
                     border-bottom: none;
                     pointer-events: auto;
                     flex-direction: column;
                 }
                 #tooltip-content {
                     overflow-y: auto;
-                    overscroll-behavior: contain;
-                    -webkit-overflow-scrolling: touch;
                     padding-bottom: calc(14px + env(safe-area-inset-bottom));
                     min-height: 0;
+                }
+                /* the card sheet and the panel sheets scroll alike: the list stays put
+                   at its ends instead of dragging the map or page, momentum on iOS, and
+                   the same thin bar where ::-webkit-scrollbar is ignored */
+                .panel,
+                #tooltip-content {
+                    overscroll-behavior: contain;
+                    -webkit-overflow-scrolling: touch;
+                    scrollbar-width: thin;
+                    scrollbar-color: var(--border-mid) transparent;
                 }
                 #tooltip-close {
                     display: block;
@@ -917,17 +926,6 @@
             <div id="legend-items" role="group" aria-labelledby="legend-subtitle"></div>
             <div class="panel-controls" id="night-view-controls">
                 <button id="btn-night-view" aria-pressed="false" data-i18n="nightView">Night view</button>
-            </div>
-            <div id="night-intensity-row">
-                <label for="night-intensity" class="sr-only">Night view intensity</label>
-                <input
-                    type="range"
-                    id="night-intensity"
-                    min="1"
-                    max="100"
-                    value="50"
-                    aria-label="Night view intensity"
-                />
             </div>
         </div>
 
@@ -1375,27 +1373,375 @@
             let displayTotal = 0;
             const BERN = { lng: 7.44, lat: 46.95 };
             let nightView = false;
-            let anchorIntensity = 50;
-            let anchorZoom = 12;
-            const nightColor = [255, 197, 143];
-            function effectiveIntensity() {
-                const z = map.getZoom();
-                if (z <= anchorZoom) {
-                    if (anchorZoom <= 6) return anchorIntensity;
-                    const t = Math.max(0, (z - 6) / (anchorZoom - 6));
-                    return Math.max(
-                        1,
-                        Math.round(1 + (anchorIntensity - 1) * t),
-                    );
-                } else {
-                    if (anchorZoom >= 16) return anchorIntensity;
-                    const t = Math.min(1, (z - anchorZoom) / (16 - anchorZoom));
-                    return Math.min(
-                        100,
-                        Math.round(
-                            anchorIntensity + (100 - anchorIntensity) * t,
+
+            // ── Night view ─────────────────────────────────────────────────────────
+            // The light model comes from ../brasilume. Every company address is one
+            // dim ember lamp, [139,87,79], blended additively on black: lamps stacked
+            // on one pixel sum their light, red clips first, then green, then blue,
+            // so density alone draws the ramp ember → orange → cream → white.
+            const NIGHT_RGB = [139, 87, 79];
+            // shown in the frame around the window while night view is on
+            const NIGHT_UI_RGB = [217, 169, 159];
+            // lamp radius in CSS px at size 1; auto scales it
+            const NIGHT_RADIUS = 1;
+            const LIGHT_MIN = 0.001;
+            const LIGHT_MAX = 2.5;
+            const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+            // Light and size by absolute zoom, a stand-in until the first auto look
+            // lands. Tuned on Brazilian density; auto (below) adapts to the screen.
+            // Light is interpolated geometrically (density falls 4x per zoom level),
+            // size linearly.
+            const ZOOM_KEYS = [
+                { z: 6, light: 0.25, size: 0.6 },
+                { z: 8, light: 0.06, size: 0.5 },
+                { z: 10, light: 0.2, size: 0.4 },
+                { z: 13, light: 2.0, size: 0.35 },
+                { z: 15, light: 2.5, size: 0.35 },
+            ];
+            function zoomCurve(z) {
+                const k = ZOOM_KEYS;
+                if (z <= k[0].z) return { light: k[0].light, size: k[0].size };
+                for (let i = 1; i < k.length; i++) {
+                    if (z <= k[i].z) {
+                        const t = (z - k[i - 1].z) / (k[i].z - k[i - 1].z);
+                        return {
+                            light: k[i - 1].light * Math.pow(k[i].light / k[i - 1].light, t),
+                            size: k[i - 1].size + (k[i].size - k[i - 1].size) * t,
+                        };
+                    }
+                }
+                const last = k[k.length - 1];
+                return { light: last.light, size: last.size };
+            }
+            const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+            // Light and size always follow auto (below), so there are no knobs.
+            // Twinkle is fixed, well above brasilume's 0.3 default.
+            const NIGHT_TWINKLE = 0.7;
+            const night = { light: 0.2, size: 0.5 };
+
+            // Shader: brasilume's fragment math, injected into deck's scatterplot.
+            // - premultiplied output, rgb * min(1, light * coverage), blended ONE + ONE,
+            //   so light is a float gain that can pass 1 (it sharpens the antialiased
+            //   edge) instead of an 8-bit vertex alpha capped at 1;
+            // - dither: the framebuffer has 8 bits a channel and every blend rounds, so
+            //   thousands of dim lamps would round their channels apart (red up, green
+            //   and blue down) and sum to pure red or yellow at the edges. Rounding at
+            //   random, by the fraction, keeps each channel right on average;
+            // - twinkle: the light drifts by up to `twinkle` of itself, on a phase and
+            //   pace per ground cell ~2 px wide, not per dot: lamps stacked on one
+            //   pixel would otherwise average their twinkles away.
+            const NIGHT_UNIFORMS = `
+layout(std140) uniform nightUniforms {
+  float light;
+  float twinkle;
+  float time;
+  float cell;
+  float peak;
+} night;
+`;
+            const nightModule = {
+                name: "night",
+                vs: `${NIGHT_UNIFORMS}
+out float night_tw;
+out float night_seed;
+float night_hash(vec2 p) {
+  vec3 q = fract(vec3(p.xyx) * 0.1031);
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.x + q.y) * q.z);
+}
+`,
+                fs: `${NIGHT_UNIFORMS}
+in float night_tw;
+in float night_seed;
+`,
+                uniformTypes: { light: "f32", twinkle: "f32", time: "f32", cell: "f32", peak: "f32" },
+                getUniforms: (p) => p,
+                inject: {
+                    "vs:DECKGL_FILTER_COLOR": `
+  night_tw = 1.0;
+  if (night.twinkle > 0.0) {
+    vec2 cell = floor(geometry.worldPosition.xy / night.cell);
+    float h = night_hash(cell);
+    float g = night_hash(cell + 71.3);
+    float w = 2.5 + 4.0 * g;
+    night_tw += night.twinkle * sin(night.time * w + 6.2832 * h) * (0.7 + 0.3 * sin(night.time * w * 0.31 + 6.2832 * g));
+  }
+  night_seed = night_hash(geometry.worldPosition.xy * 16384.0);
+`,
+                    // default order: runs before picking's (99), which overwrites the
+                    // color in the picking pass, so hover keeps working
+                    "fs:DECKGL_FILTER_COLOR": `
+  vec3 c = min(color.rgb * min(night.peak, night.light * color.a) * night_tw, 1.0);
+  float u = fract(sin(dot(gl_FragCoord.xy + night_seed * 977.0, vec2(12.9898, 78.233))) * 43758.5453);
+  c = floor(c * 255.0 + u) / 255.0;
+  color = vec4(c, max(c.r, max(c.g, c.b)));
+`,
+                },
+            };
+
+            class NightLayer extends deck.ScatterplotLayer {
+                getShaders() {
+                    const shaders = super.getShaders();
+                    return { ...shaders, modules: [...shaders.modules, nightModule] };
+                }
+                draw(opts) {
+                    const { light, twinkle, time, cell, peak } = this.props;
+                    this.setShaderModuleProps({ night: { light, twinkle, time, cell, peak } });
+                    super.draw(opts);
+                }
+            }
+            NightLayer.layerName = "NightLayer";
+            NightLayer.defaultProps = { light: 1, twinkle: 0, time: 0, cell: 1, peak: 1 };
+
+            // Auto: the look for what the screen holds right now, not for the zoom,
+            // so a filter (legal forms, cantons) or a sparse canton keeps its light.
+            // The lamps in frame are binned into cells AUTO_CELL px wide, and from
+            // how many pile into each lit cell:
+            //   size   grows with the gap between lit cells, so a sparse view gets
+            //          lamps that can be seen and a packed one keeps them apart;
+            //   light  the lower of two: the lit cells at AUTO_MEAN of white on
+            //          average (what bounds a close view), and no more than
+            //          AUTO_WHITE of them burnt to white (what bounds a far one,
+            //          where a few towns hold most of the lamps).
+            const AUTO_CELL = 2;
+            const AUTO_CELLS = 1 << 21;
+            const AUTO_MEAN = 0.7;
+            const AUTO_WHITE = 0.2;
+            // Switzerland is far sparser than a Brazilian metro: from street level
+            // in, lone lamps would be specks of dim ember. So past CLOSE_FROM the
+            // largest size grows, and so does `peak`, how far one lamp alone may
+            // climb past the ember (red clips near 1.8, so it turns a warm
+            // street-lamp orange), both reached at CLOSE_TO.
+            const AUTO_SIZE_MAX = 0.75;
+            const CLOSE_FROM = 12;
+            const CLOSE_TO = 16.5;
+            const CLOSE_SIZE_MIN = 1.3;
+            const CLOSE_SIZE_MAX = 1.9;
+            const CLOSE_PEAK = 2.2;
+            const closeness = (z) => clamp((z - CLOSE_FROM) / (CLOSE_TO - CLOSE_FROM), 0, 1);
+            // close in, the streets read better lit up
+            const AUTO_CLOSE_ZOOM = 11;
+            const AUTO_CLOSE_BOOST = 2.5;
+            // the lit cells by lamp count, as a histogram: one bin per count up to
+            // AUTO_EXACT, then AUTO_STEPS bins per doubling
+            const AUTO_EXACT = 64;
+            const AUTO_STEPS = 8;
+            const AUTO_BINS = AUTO_EXACT + 28 * AUTO_STEPS;
+            let autoGrid = new Uint32Array(0);
+            let autoLit = new Uint32Array(0);
+            const autoCells = new Float64Array(AUTO_BINS);
+            const autoPoints = new Float64Array(AUTO_BINS);
+            // visible lamps in Web Mercator [0..1], filled by syncVisibleXY()
+            let visibleXY = new Float64Array(0);
+            const mercX = (lng) => (lng + 180) / 360;
+            const mercY = (lat) => {
+                const s = Math.sin((lat * Math.PI) / 180);
+                return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI);
+            };
+
+            function autoStats() {
+                syncVisibleXY();
+                const n = visibleXY.length / 2;
+                if (!n || !map) return null;
+                const b = map.getBounds();
+                const x0 = mercX(b.getWest()), x1 = mercX(b.getEast());
+                const y0 = mercY(b.getNorth()), y1 = mercY(b.getSouth());
+                const world = 512 * Math.pow(2, map.getZoom());
+                // under tilt the frame's box outgrows the screen: wider cells then
+                const cell = Math.max(AUTO_CELL / world, Math.sqrt(((x1 - x0) * (y1 - y0)) / AUTO_CELLS));
+                const w = Math.ceil((x1 - x0) / cell), h = Math.ceil((y1 - y0) / cell), size = w * h;
+                if (!(w > 0 && h > 0)) return null;
+                if (autoGrid.length < size) {
+                    autoGrid = new Uint32Array(size);
+                    autoLit = new Uint32Array(size);
+                }
+                const grid = autoGrid, touched = autoLit, per = 1 / cell, P = visibleXY;
+                let lit = 0;
+                for (let i = 0; i < n; i++) {
+                    const x = P[i * 2], y = P[i * 2 + 1];
+                    if (x < x0 || x >= x1 || y < y0 || y >= y1) continue;
+                    const at = (((y - y0) * per) | 0) * w + (((x - x0) * per) | 0);
+                    if (!grid[at]) touched[lit++] = at;
+                    grid[at]++;
+                }
+                autoCells.fill(0);
+                autoPoints.fill(0);
+                for (let k = 0; k < lit; k++) {
+                    const v = grid[touched[k]];
+                    grid[touched[k]] = 0;
+                    const bin = v < AUTO_EXACT ? v : Math.min(AUTO_BINS - 1, AUTO_EXACT + ((Math.log2(v / AUTO_EXACT) * AUTO_STEPS) | 0));
+                    autoCells[bin]++;
+                    autoPoints[bin] += v;
+                }
+                if (!lit) return null;
+                // gap: the usual distance between lit cells, in pixels
+                return { lit, px: cell * world, gap: (cell * world) / Math.sqrt(lit / size) };
+            }
+
+            function autoLook() {
+                const s = autoStats();
+                if (!s) return null;
+                const near = closeness(map.getZoom());
+                const sizeMin = 0.35 + (CLOSE_SIZE_MIN - 0.35) * near;
+                const sizeMax = AUTO_SIZE_MAX + (CLOSE_SIZE_MAX - AUTO_SIZE_MAX) * near;
+                const size = clamp(0.3 + 0.025 * s.gap, sizeMin, sizeMax);
+                // what one lamp adds to its cell: a dot under a pixel wide covers
+                // part of it, a wide one spills onto the cells around
+                const R = NIGHT_RADIUS * size, area = Math.PI * R * R;
+                const cover = area <= 1 ? area : Math.max(1, area / (s.px * s.px));
+                const mean = (light) => {
+                    let sum = 0;
+                    for (let i = 0; i < AUTO_BINS; i++) {
+                        if (autoCells[i]) sum += autoCells[i] * Math.min(1, (autoPoints[i] / autoCells[i]) * light * cover);
+                    }
+                    return sum / s.lit;
+                };
+                let lo = LIGHT_MIN, hi = LIGHT_MAX;
+                for (let step = 0; step < 24; step++) {
+                    const mid = Math.sqrt(lo * hi);
+                    if (mean(mid) < AUTO_MEAN) lo = mid;
+                    else hi = mid;
+                }
+                // the cell AUTO_WHITE from the top, interpolated inside its bin so
+                // the light doesn't jump when a bin of 3 gives way to one of 2
+                const rank = s.lit * (1 - AUTO_WHITE);
+                let seen = 0, burnt = 1, below = 1;
+                for (let k = 0; k < AUTO_BINS; k++) {
+                    if (!autoCells[k]) continue;
+                    const here = autoPoints[k] / autoCells[k];
+                    if (seen + autoCells[k] > rank) {
+                        burnt = below + (here - below) * ((rank - seen) / autoCells[k]);
+                        break;
+                    }
+                    seen += autoCells[k];
+                    burnt = below = here;
+                }
+                const close = clamp((map.getZoom() - AUTO_CLOSE_ZOOM) / 2, 0, 1);
+                // close in, at least enough light for a lone lamp to reach its peak
+                const light = clamp(
+                    Math.max(Math.min(lo, 1 / (burnt * cover)) * (1 + close * (AUTO_CLOSE_BOOST - 1)), CLOSE_PEAK * near),
+                    LIGHT_MIN,
+                    LIGHT_MAX,
+                );
+                return { light, size };
+            }
+
+            // Walking the lamps is too slow for every frame of a zoom, so the look
+            // is taken at most every AUTO_EVERY ms and the drawn light eases to it, as
+            // ratios, with an AUTO_EASE ms time constant.
+            const AUTO_EVERY = 200;
+            const AUTO_EASE = 200;
+            let autoGoal = null, autoTimer = 0, autoLast = 0, autoFrame = 0, autoThen = 0;
+
+            function autoSoon() {
+                if (!nightView || autoTimer) return;
+                autoTimer = setTimeout(autoNow, Math.max(0, AUTO_EVERY - (performance.now() - autoLast)));
+            }
+            function autoNow() {
+                autoTimer = 0;
+                if (!nightView) return;
+                const look = autoLook();
+                autoLast = performance.now();
+                if (!look) return;
+                autoGoal = look;
+                if (!autoFrame) {
+                    autoThen = performance.now();
+                    autoFrame = requestAnimationFrame(autoEase);
+                }
+            }
+            // new lamps on screen (a filter, a canton): the look is theirs from the
+            // first frame; eased, a filter taken off would flash white
+            function autoSnap() {
+                if (!nightView) return;
+                const look = autoLook();
+                autoLast = performance.now();
+                if (!look) return;
+                autoStop();
+                autoGoal = look;
+                night.light = look.light;
+                night.size = look.size;
+            }
+            function autoEase(now) {
+                autoFrame = 0;
+                if (!nightView || !autoGoal) return;
+                const k = 1 - Math.exp(-Math.min(100, now - autoThen) / AUTO_EASE);
+                autoThen = now;
+                let far = false;
+                for (const name of ["light", "size"]) {
+                    const v = night[name], g = autoGoal[name];
+                    const next = reduceMotion || Math.abs(g - v) < 0.004 ? g : v * Math.pow(g / v, k);
+                    if (next !== g) far = true;
+                    night[name] = next;
+                }
+                redrawLayer();
+                if (far) autoFrame = requestAnimationFrame(autoEase);
+            }
+            function autoStop() {
+                cancelAnimationFrame(autoFrame);
+                autoFrame = 0;
+            }
+            // Twinkle keeps the map repainting, so while the camera rests it asks
+            // for a frame only every TWINKLE_MS (it drifts over seconds, 20 fps
+            // reads the same) and stops when the tab is hidden; off under reduced
+            // motion.
+            const TWINKLE_MS = 50;
+            let twinkleTimer = 0;
+            function twinkleOn() {
+                return nightView && !reduceMotion && !document.hidden;
+            }
+            function twinkleLoop() {
+                clearTimeout(twinkleTimer);
+                twinkleTimer = 0;
+                if (!twinkleOn()) return;
+                redrawLayer();
+                twinkleTimer = setTimeout(twinkleLoop, TWINKLE_MS);
+            }
+            document.addEventListener("visibilitychange", twinkleLoop);
+
+            // Night basemap: black under the lamps, since additive light is only
+            // neutral on black, with lakes and rivers kept as a faint navy so the
+            // land still reads; every other style layer is hidden. The day look is
+            // saved and put back on the way out.
+            const NIGHT_WATER = "#0d1626";
+            const WATER_PAINT = { water: "fill-color", waterway: "line-color" };
+            let dayStyle = null;
+            let styleReady = false;
+            function setNightBasemap(on) {
+                // not isStyleLoaded(): that stays false while any tile loads, and a
+                // toggle mid-zoom would leave the day map black. styleReady waits
+                // for the day tint, so the saved day look is the real one.
+                if (!styleReady) return;
+                const layers = map.getStyle().layers;
+                if (on) {
+                    dayStyle = {
+                        background: map.getPaintProperty("background", "background-color"),
+                        visibility: Object.fromEntries(
+                            layers.map((l) => [l.id, map.getLayoutProperty(l.id, "visibility") ?? "visible"]),
                         ),
-                    );
+                        water: Object.fromEntries(
+                            Object.entries(WATER_PAINT)
+                                .filter(([id]) => map.getLayer(id))
+                                .map(([id, prop]) => [id, map.getPaintProperty(id, prop)]),
+                        ),
+                    };
+                    map.setPaintProperty("background", "background-color", "#000");
+                    for (const l of layers) {
+                        if (l.type === "background") continue;
+                        if (WATER_PAINT[l.id]) map.setPaintProperty(l.id, WATER_PAINT[l.id], NIGHT_WATER);
+                        else map.setLayoutProperty(l.id, "visibility", "none");
+                    }
+                } else if (dayStyle) {
+                    map.setPaintProperty("background", "background-color", dayStyle.background);
+                    for (const [id, color] of Object.entries(dayStyle.water)) {
+                        map.setPaintProperty(id, WATER_PAINT[id], color);
+                    }
+                    for (const l of layers) {
+                        const v = dayStyle.visibility[l.id];
+                        if (v) map.setLayoutProperty(l.id, "visibility", v);
+                    }
+                    dayStyle = null;
                 }
             }
             const cantonData = {}; // id → point array
@@ -1480,7 +1826,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                                 counts[lbl] = (counts[lbl] || 0) + 1;
                             }
                             if (!(d.mask & labelMask)) continue;
-                            const rgb = nightView ? nightColor : pointRgb(d);
+                            const rgb = nightView ? NIGHT_UI_RGB : pointRgb(d);
                             r += rgb[0]; g += rgb[1]; bl += rgb[2]; shown++;
                         }
                     }
@@ -1671,6 +2017,24 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 colorAssignments.forEach((a, i) => { if (activeLabels.has(a.label)) m |= 1 << i; });
                 return m;
             }
+            // The filter runs on the GPU, but auto exposure needs the shown lamps on
+            // the CPU too: their Mercator positions, redone only when the points or
+            // the filters change
+            let _visibleKey = "";
+            function syncVisibleXY() {
+                syncAllPoints();
+                const key = _allPointsKey + "|" + _filterVersion;
+                if (key === _visibleKey) return;
+                _visibleKey = key;
+                const labelMask = activeLabelMask();
+                const xy = [];
+                for (let i = 0; i < allPoints.length; i++) {
+                    const d = allPoints[i];
+                    if (!activeCantons.has(d.canton) || !(d.mask & labelMask)) continue;
+                    xy.push(mercX(d.position[0]), mercY(d.position[1]));
+                }
+                visibleXY = Float64Array.from(xy);
+            }
             const _dataFilter = new deck.DataFilterExtension({ filterSize: 1 });
             const _touchMQ = window.matchMedia("(hover: none)");
             let _filterVersion = 0; // bumped on every canton/legend change
@@ -1678,37 +2042,14 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             function buildLayer() {
                 syncAllPoints();
                 const labelMask = activeLabelMask();
-                return new deck.ScatterplotLayer({
-                    id: "companies",
+                const shared = {
                     data: allPoints,
                     getPosition: (d) => d.position,
-                    // alpha is constant per mode; night intensity rides on the layer
-                    // opacity so zooming never recomputes per-point colors
-                    getFillColor: (d) => {
-                        if (nightView) return [...nightColor, 255];
-                        const rgb = pointRgb(d);
-                        return [rgb[0], rgb[1], rgb[2], 230];
-                    },
                     getFilterValue: (d) => (activeCantons.has(d.canton) && d.mask & labelMask ? 1 : 0),
                     filterRange: [1, 1],
                     extensions: [_dataFilter],
-                    updateTriggers: {
-                        getFillColor: [nightView, labelMask],
-                        getFilterValue: [_filterVersion],
-                    },
-                    getRadius: 18,
-                    radiusScale: 1,
-                    radiusMinPixels: nightView ? RADIUS_MIN * 0.9 : RADIUS_MIN,
-                    radiusMaxPixels: nightView ? RADIUS_MAX * 0.9 : RADIUS_MAX,
                     pickable: true,
-                    opacity: nightView ? effectiveIntensity() / 100 : 1,
                     stroked: false,
-                    parameters: {
-                        depthTest: false,
-                        blend: true,
-                        blendFunc: [770, 1],
-                        blendEquation: 32774,
-                    },
                     onHover: (info) => {
                         if (_touchMQ.matches) return;
                         showTooltip(info);
@@ -1718,10 +2059,67 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         showTooltip(info, { pin: !_touchMQ.matches });
                         return true;
                     },
+                };
+                if (nightView) {
+                    const z = map ? map.getZoom() : 12;
+                    return new NightLayer({
+                        ...shared,
+                        id: "companies-night",
+                        getFillColor: [...NIGHT_RGB, 255],
+                        updateTriggers: { getFilterValue: [_filterVersion] },
+                        getRadius: 1,
+                        radiusUnits: "pixels",
+                        radiusScale: NIGHT_RADIUS * Math.max(night.size, 0.1),
+                        radiusMinPixels: 0,
+                        radiusMaxPixels: 100,
+                        // the light is the shader's gain, not the layer opacity
+                        light: night.light,
+                        twinkle: reduceMotion ? 0 : NIGHT_TWINKLE,
+                        // seconds, wrapped so sin() keeps its float32 precision
+                        time: (performance.now() / 1000) % 3600,
+                        // twinkle cell: ~2 CSS px of longitude at this zoom
+                        cell: (2 * 360) / (512 * Math.pow(2, z)),
+                        peak: 1 + (CLOSE_PEAK - 1) * closeness(z),
+                        parameters: {
+                            depthWriteEnabled: false,
+                            depthCompare: "always",
+                            blend: true,
+                            blendColorOperation: "add",
+                            blendColorSrcFactor: "one",
+                            blendColorDstFactor: "one",
+                            blendAlphaOperation: "add",
+                            blendAlphaSrcFactor: "one",
+                            blendAlphaDstFactor: "one",
+                        },
+                    });
+                }
+                return new deck.ScatterplotLayer({
+                    ...shared,
+                    id: "companies",
+                    getFillColor: (d) => {
+                        const rgb = pointRgb(d);
+                        return [rgb[0], rgb[1], rgb[2], 230];
+                    },
+                    updateTriggers: {
+                        getFillColor: [labelMask],
+                        getFilterValue: [_filterVersion],
+                    },
+                    getRadius: 18,
+                    radiusScale: 1,
+                    radiusMinPixels: RADIUS_MIN,
+                    radiusMaxPixels: RADIUS_MAX,
+                    opacity: 1,
+                    parameters: {
+                        depthTest: false,
+                        blend: true,
+                        blendFunc: [770, 1],
+                        blendEquation: 32774,
+                    },
                 });
             }
 
-            // cheap redraw for props that don't change what is shown (night opacity on zoom)
+            // cheap redraw for props that don't change what is shown: twinkle, auto
+            // exposure, zoom
             function redrawLayer() {
                 if (overlay) overlay.setProps({ layers: [buildLayer()] });
             }
@@ -1729,6 +2127,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             function refreshLayer() {
                 if (!overlay) return;
                 _filterVersion++;
+                autoSnap();
                 overlay.setProps({ layers: [buildLayer()] });
                 displayTotal = 0;
                 for (const id of activeCantons) displayTotal += cantonTotals[id] || 0;
@@ -1857,6 +2256,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     async function toggleCanton() {
                         if (activeCantons.has(canton.id)) {
                             setCantonActive(canton.id, false);
+                            revealCanton(canton);
                         } else {
                             setCantonActive(canton.id, true);
                             revealCanton(canton);
@@ -1912,6 +2312,9 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                             map.setLayoutProperty(layer.id, "visibility", "none");
                         }
                     }
+                    styleReady = true;
+                    // toggled on before the style loaded
+                    if (nightView) setNightBasemap(true);
 
                     map.addControl(
                         new maplibregl.AttributionControl({
@@ -1938,12 +2341,11 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                     setTimeout(() => ls.remove(), 450);
                 });
 
-                map.on("zoom", () => {
-                    if (nightView) {
-                        document.getElementById("night-intensity").value =
-                            effectiveIntensity();
-                        redrawLayer();
-                    }
+                map.on("move", () => {
+                    if (!nightView) return;
+                    autoSoon();
+                    // the twinkle cell follows the zoom
+                    redrawLayer();
                 });
 
                 document
@@ -1998,18 +2400,19 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         const btn = document.getElementById("btn-night-view");
                         btn.classList.toggle("active", nightView);
                         btn.setAttribute("aria-pressed", nightView ? "true" : "false");
-                        document
-                            .getElementById("night-intensity-row")
-                            .classList.toggle("visible", nightView);
+                        document.body.classList.toggle("night", nightView);
+                        setNightBasemap(nightView);
+                        if (nightView && !autoGoal) {
+                            // the zoom curve stands in until the first look lands
+                            Object.assign(night, zoomCurve(map.getZoom()));
+                        }
+                        if (!nightView) {
+                            autoStop();
+                            clearTimeout(autoTimer);
+                            autoTimer = 0;
+                        }
                         refreshLayer();
-                    });
-
-                document
-                    .getElementById("night-intensity")
-                    .addEventListener("input", (e) => {
-                        anchorIntensity = +e.target.value;
-                        anchorZoom = map.getZoom();
-                        redrawLayer();
+                        twinkleLoop();
                     });
 
                 // ── Canton all / none ──────────────────────────────────────────────
@@ -2180,10 +2583,9 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 });
             }
 
-            // canton switched on from the list: bring it into view if it is off-screen
+            // canton switched on or off from the list: fly to it, so the change is seen
             function revealCanton(canton) {
-                if (map && !map.getBounds().contains([canton.lng, canton.lat]))
-                    flyTo({ center: [canton.lng, canton.lat], zoom: Math.max(map.getZoom(), 10) });
+                if (map) flyTo({ center: [canton.lng, canton.lat], zoom: Math.max(map.getZoom(), 10) });
             }
 
             // Escape: close a pinned card, then the mobile bottom sheets
@@ -2222,14 +2624,21 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             const _searchWorkerSrc = `
 const fold=${foldText.toString()};
 const rank=${matchRank.toString()};
-let idx=null,folded=null,dup=null;
+let idx=null,folded=null,dup=null,cantonsAt=null;
 async function load(url){
   const res=await fetch(url);if(!res.ok)throw new Error('HTTP '+res.status);
   const text=await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).text();
   idx=JSON.parse(text);folded=idx.n.map(fold);
-  // flag repeats of a name in the same canton once, so queries skip them without allocating
-  dup=new Uint8Array(idx.n.length);const seen=new Set();
-  for(let i=0;i<idx.n.length;i++){const key=idx.n[i]+'\0'+idx.c[i];if(seen.has(key))dup[i]=1;else seen.add(key);}
+  // one row per name: flag its repeats once, so queries skip them without allocating,
+  // and gather every canton the name is registered in (UBS AG: BS and ZH) on its first index
+  dup=new Uint8Array(idx.n.length);cantonsAt=new Map();const first=new Map();
+  for(let i=0;i<idx.n.length;i++){
+    const f=first.get(idx.n[i]);
+    if(f===undefined){first.set(idx.n[i],i);continue;}
+    dup[i]=1;
+    let cs=cantonsAt.get(f);if(!cs)cantonsAt.set(f,cs=[idx.c[f]]);
+    if(!cs.includes(idx.c[i]))cs.push(idx.c[i]);
+  }
 }
 const byName=(a,b)=>idx.n[a]<idx.n[b]?-1:idx.n[a]>idx.n[b]?1:0;
 // append the best 'need' hits of one rank bucket: shorter names first, then A-Z;
@@ -2244,7 +2653,7 @@ function search(q,max){
   for(let i=0;i<folded.length;i++){if(dup[i])continue;const r=rank(folded[i],q);if(r>=0)buckets[r].push(i);}
   const out=[];
   for(const b of buckets){if(out.length>=max)break;take(b,max-out.length,out);}
-  const rows=out.map(i=>[idx.n[i],idx.t[i],idx.c[i],idx.lat[i],idx.lng[i]]);
+  const rows=out.map(i=>[idx.n[i],idx.t[i],idx.c[i],idx.lat[i],idx.lng[i],cantonsAt.get(i)||[idx.c[i]]]);
   return {total:buckets[0].length+buckets[1].length+buckets[2].length,rows};
 }
 self.onmessage=async({data})=>{
@@ -2274,8 +2683,8 @@ self.onmessage=async({data})=>{
                         icon.classList.remove("loading");
                         input.placeholder = t("searchPlaceholder");
                     } else if (data.type === "result" && data.id === _searchSeq) {
-                        const hits = data.rows.map(([name, tc, cantonId, lat, lng]) => ({
-                            name, cantonId, lat, lng, label: getLabel(T_DECODE[tc] || tc),
+                        const hits = data.rows.map(([name, tc, cantonId, lat, lng, cantons]) => ({
+                            name, cantonId, cantons, lat, lng, label: getLabel(T_DECODE[tc] || tc),
                         }));
                         showHits(hits, data.total, true);
                     }
@@ -2303,15 +2712,20 @@ self.onmessage=async({data})=>{
                 }
                 // fallback: loaded cantons only, ranked the same way
                 _searchSeq++;
+                // one row per name, covering every loaded canton it is registered in
                 const ranked = [];
-                const seen = new Set();
+                const byName = new Map(); // name → hit
                 for (const e of searchIndex) {
                     const r = matchRank(e.fold, q);
                     if (r < 0) continue;
-                    const key = e.name + "\0" + e.cantonId;
-                    if (seen.has(key)) continue;
-                    seen.add(key);
-                    ranked.push([r, e]);
+                    const seen = byName.get(e.name);
+                    if (seen) {
+                        if (!seen.cantons.includes(e.cantonId)) seen.cantons.push(e.cantonId);
+                        continue;
+                    }
+                    const hit = { ...e, cantons: [e.cantonId] };
+                    byName.set(e.name, hit);
+                    ranked.push([r, hit]);
                 }
                 ranked.sort((a, b) => a[0] - b[0] || a[1].name.length - b[1].name.length);
                 showHits(ranked.slice(0, MAX_ROWS).map(([, e]) => e), ranked.length, false);
@@ -2366,7 +2780,7 @@ self.onmessage=async({data})=>{
                             el.dataset.hi = hi;
                             const dot = Object.assign(document.createElement("div"), { className: "legend-color" });
                             dot.style.background = _labelToHex.get(hit.label) ?? "#888";
-                            const badge = Object.assign(document.createElement("span"), { className: "canton-badge", textContent: hit.cantonId });
+                            const badge = Object.assign(document.createElement("span"), { className: "canton-badge", textContent: (hit.cantons || [hit.cantonId]).join(" · ") });
                             const nameEl = Object.assign(document.createElement("span"), { className: "search-result-name", textContent: hit.name });
                             const formEl = Object.assign(document.createElement("span"), { className: "search-result-form", textContent: labelText(hit.label) });
                             el.replaceChildren(dot, badge, nameEl, formEl);
@@ -2384,11 +2798,13 @@ self.onmessage=async({data})=>{
             // fly to a hit, loading its canton first if needed, and ring every location
             function selectHit(hit) {
                 const { name, cantonId } = hit;
+                const cantons = hit.cantons || [cantonId];
                 const approx = hit.lat !== undefined ? [hit.lng, hit.lat] : hit.point.position;
 
+                // every location of the name, across all its cantons
                 function resolvePts() {
-                    if (hit.point) return [hit.point];
-                    return pointByName[cantonId]?.get(name) ?? [];
+                    if (hit.point && cantons.length === 1) return [hit.point];
+                    return cantons.flatMap((id) => pointByName[id]?.get(name) ?? []);
                 }
 
                 function placeMarkers() {
@@ -2411,10 +2827,12 @@ self.onmessage=async({data})=>{
                     searchMarkersTimer = setTimeout(() => { searchMarkers.forEach(m => m.remove()); searchMarkers = []; }, 3000);
                 }
 
-                if (!activeCantons.has(cantonId) || !cantonData[cantonId]) {
-                    flyTo({ center: approx, zoom: 14 });
-                    setCantonActive(cantonId, true);
-                    loadCantonData(_cantonById.get(cantonId)).then(() => { refreshLayer(); placeMarkers(); });
+                const inactive = cantons.filter((id) => !activeCantons.has(id) || !cantonData[id]);
+                if (inactive.length) {
+                    // several cantons: placeMarkers fits them all once loaded
+                    if (cantons.length === 1) flyTo({ center: approx, zoom: 14 });
+                    inactive.forEach((id) => setCantonActive(id, true));
+                    Promise.all(inactive.map((id) => loadCantonData(_cantonById.get(id)))).then(() => { refreshLayer(); placeMarkers(); });
                 } else {
                     placeMarkers();
                 }
