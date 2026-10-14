@@ -3081,8 +3081,8 @@ in float night_seed;
             const TWINKLE_MS = 50;
             let twinkleTimer = 0;
             function twinkleOn() {
-                // the timeline paints its own frames
-                return !timelineOn && !reduceMotion && !document.hidden;
+                // the timeline paints its own frames while it plays
+                return !(timelineOn && tlPlaying) && !reduceMotion && !document.hidden;
             }
             function twinkleLoop() {
                 clearTimeout(twinkleTimer);
@@ -3844,6 +3844,14 @@ vec3 tl_state() {
                 tlUpdateUi();
             }
 
+            // the map has one lamp per address, the timeline one per company: today
+            // the timeline lights about twice as many, so its light is cut by that
+            // share, and the shown day looks like the map
+            function tlLightScale() {
+                syncVisibleXY();
+                const d = tl.lastDay + 1, lit = tl.cumOpen[d] - tl.cumClose[d];
+                return lit > 0 ? Math.min(1, visibleXY.length / 2 / lit) : 1;
+            }
             function buildTimelineLayer() {
                 if (tl.filterVersion !== _filterVersion) tlApplyLegend();
                 const z = map ? map.getZoom() : 8;
@@ -3878,10 +3886,10 @@ vec3 tl_state() {
                     radiusScale: NIGHT_RADIUS * Math.max(night.size, 0.1),
                     radiusMinPixels: 0,
                     radiusMaxPixels: 100,
-                    light: night.light,
-                    twinkle: 0,
-                    time: 0,
-                    cell: 1,
+                    light: night.light * tlLightScale(),
+                    twinkle: reduceMotion ? 0 : NIGHT_TWINKLE,
+                    time: (performance.now() / 1000) % 3600,
+                    cell: (2 * 360) / (512 * Math.pow(2, z)),
                     peak: 1 + (CLOSE_PEAK - 1) * closeness(z),
                     parameters: {
                         depthWriteEnabled: false,
@@ -4063,6 +4071,7 @@ vec3 tl_state() {
                     if (tl && timelineOn) redrawLayer();
                     updateUrl();
                 }
+                twinkleLoop();
             }
             function tlTick(now) {
                 // clamp the step so a frame after a hidden tab doesn't skip a year
