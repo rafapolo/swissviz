@@ -3760,7 +3760,6 @@ vec3 tl_state() {
                 L.defaultProps = { ...Base.defaultProps, day: 0, flash: 30, fade: 50, night: 0 };
                 return L;
             };
-            const TimelineLayer = withTimeline(deck.ScatterplotLayer, "TimelineLayer");
             const TimelineNightLayer = withTimeline(NightLayer, "TimelineNightLayer");
 
             async function loadTimeline() {
@@ -3798,7 +3797,8 @@ vec3 tl_state() {
                     if (c16[i] !== TL_NONE && c16[i] > lastDay) lastDay = c16[i];
                     const code = String.fromCharCode(t8[i]);
                     const rgb = (rgbByCode[code] ??= getColor(T_DECODE[code] || code));
-                    rgba.set([rgb[0], rgb[1], rgb[2], 230], 4 * i);
+                    // the forms' colors turned down to about an ember's light, as on the map
+                    rgba.set([rgb[0] * LAMP_TONE, rgb[1] * LAMP_TONE, rgb[2] * LAMP_TONE, 255], 4 * i);
                 }
                 // all lamps set the pace of the clock; the counters follow the legend (tlApplyLegend)
                 const { cumOpen, cumClose, monthOpen, monthClose } = tlStats(o16, c16, lastDay, null);
@@ -3865,51 +3865,34 @@ vec3 tl_state() {
                     flash: tlPlaying || tlMoving ? TL_FLASH_SEC * TL_SPEED : 0,
                     fade: tlPlaying || tlMoving ? TL_FADE_SEC * TL_SPEED : 0,
                 };
-                {
-                    // no auto exposure here: it reads the company layer, and
-                    // the lit timeline lamps change every frame. The zoom curve
-                    // is tuned on a similar density.
-                    const look = zoomCurve(z);
-                    return new TimelineNightLayer({
-                        ...shared,
-                        id: "timeline-night",
-                        data: tl.dataNight,
-                        night: 1,
-                        getFillColor: [...NIGHT_RGB, 255],
-                        getRadius: 1,
-                        radiusUnits: "pixels",
-                        radiusScale: NIGHT_RADIUS * Math.max(look.size, 0.5) * (1 + (CLOSE_SIZE_MIN - 1) * closeness(z)),
-                        radiusMinPixels: 0,
-                        radiusMaxPixels: 100,
-                        light: look.light * (z >= AUTO_CLOSE_ZOOM ? AUTO_CLOSE_BOOST : 1),
-                        twinkle: 0,
-                        time: 0,
-                        cell: 1,
-                        peak: 1 + (CLOSE_PEAK - 1) * closeness(z),
-                        parameters: {
-                            depthWriteEnabled: false,
-                            depthCompare: "always",
-                            blend: true,
-                            blendColorOperation: "add",
-                            blendColorSrcFactor: "one",
-                            blendColorDstFactor: "one",
-                            blendAlphaOperation: "add",
-                            blendAlphaSrcFactor: "one",
-                            blendAlphaDstFactor: "one",
-                        },
-                    });
-                }
-                return new TimelineLayer({
+                // the same lamps as the map: ember in night view, the legal forms'
+                // colors otherwise, lit by the same exposure (auto or the light panel)
+                return new TimelineNightLayer({
                     ...shared,
-                    getRadius: 18,
-                    radiusScale: 1,
-                    radiusMinPixels: RADIUS_MIN,
-                    radiusMaxPixels: RADIUS_MAX,
+                    id: "timeline-night",
+                    data: nightView ? tl.dataNight : tl.data,
+                    night: 1,
+                    getFillColor: [...NIGHT_RGB, 255],
+                    getRadius: 1,
+                    radiusUnits: "pixels",
+                    radiusScale: NIGHT_RADIUS * Math.max(night.size, 0.1),
+                    radiusMinPixels: 0,
+                    radiusMaxPixels: 100,
+                    light: night.light,
+                    twinkle: 0,
+                    time: 0,
+                    cell: 1,
+                    peak: 1 + (CLOSE_PEAK - 1) * closeness(z),
                     parameters: {
-                        depthTest: false,
+                        depthWriteEnabled: false,
+                        depthCompare: "always",
                         blend: true,
-                        blendFunc: [770, 1],
-                        blendEquation: 32774,
+                        blendColorOperation: "add",
+                        blendColorSrcFactor: "one",
+                        blendColorDstFactor: "one",
+                        blendAlphaOperation: "add",
+                        blendAlphaSrcFactor: "one",
+                        blendAlphaDstFactor: "one",
                     },
                 });
             }
