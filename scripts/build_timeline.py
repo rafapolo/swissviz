@@ -21,6 +21,7 @@ followed by its high-byte plane (gzip packs the planes much better than the inte
     uint16 lat cell, uint16 lng cell: zigzag delta from the previous lamp, modulo 2^16
     uint16 open day        uint16 close day
     uint8  legal form (ASCII letter, see T_DECODE in index.html)
+    uint8  canton (index into CANTON_IDS, the 26 codes in alphabetical order; 255 unknown)
 The lamps are sorted along a Morton curve, so neighbours on the map are neighbours in the
 file: the coordinate deltas stay small, and each names chunk covers one region.
 Plus data/timeline/names/{k}.json.gz (the names of lamps k*chunk .. (k+1)*chunk-1, fetched
@@ -55,7 +56,9 @@ LEGAL = {
     "0108": "N", "0109": "V", "0110": "S", "0111": "L", "0113": "B", "0114": "B",
     "0115": "B", "0116": "B", "0117": "I", "0118": "B", "0119": "H", "0151": "Z",
 }
-LAMP_COLS = ["name", "t", "lat", "lng", "o", "c"]
+LAMP_COLS = ["name", "t", "canton", "lat", "lng", "o", "c"]
+# canton codes, in the order of the canton byte of events.bin.gz (255: unknown)
+CANTON_IDS = sorted("AG AI AR BE BL BS FR GE GL GR JU LU NE NW OW SG SH SO SZ TG TI UR VD VS ZG ZH".split())
 
 
 def day_of(yyyymmdd: int) -> int:
@@ -104,6 +107,10 @@ def build_lamps(ev: pl.DataFrame, days: dict, active: pl.DataFrame,
                          schema={"u": pl.Int64, "e": pl.Int64})
     if "id" not in ev.columns:
         ev = ev.with_row_index("id")
+    if "cantons" not in ev.columns:
+        ev = ev.with_columns(cantons=pl.lit(""))
+    if "canton" not in active.columns:
+        active = active.with_columns(canton=pl.lit(""))
     ev = ev.with_columns(norm_uid())
     ev = ev.filter(pl.col("lat").is_not_null()).with_columns(
         (pl.col("date").str.to_date() - pl.lit(EPOCH)).dt.total_days().alias("day"), legal_letter())
@@ -121,14 +128,15 @@ def build_lamps(ev: pl.DataFrame, days: dict, active: pl.DataFrame,
     # a company alive today shines at its current address under its current name (LINDAS), so the
     # end of the timeline falls on the map's points; one that left the register with no SHAB
     # deletion (merger, transfer…) goes dark on the day of the LINDAS list
-    cur = active.select(uid_int().alias("u"), pl.col("name").alias("cur_name"),
+    cur = active.select(uid_int().alias("u"), pl.col("name").alias("cur_name"), pl.col("canton").alias("cur_canton"),
                         pl.col("lat").alias("cur_lat"), pl.col("lng").alias("cur_lng"))
     life = life.with_columns(uid_int().alias("u")).join(cur, on="u", how="left")
     now = pl.col("c").is_null() & pl.col("cur_lat").is_not_null()
     counts["moved_to_current"] = life.filter(now & ((pl.col("lat") != pl.col("cur_lat")) |
                                                    (pl.col("lng") != pl.col("cur_lng")))).height
+    life = life.rename({"cantons": "canton"})
     life = life.with_columns(pl.when(now).then(pl.col(f"cur_{k}")).otherwise(pl.col(k)).alias(k)
-                             for k in ("name", "lat", "lng"))
+                             for k in ("name", "canton", "lat", "lng"))
     if snapshot_day is not None and active.height:
         gone = (pl.col("c").is_null() & pl.col("cur_lat").is_null()
                 & (pl.col("day") < snapshot_day - GRACE_DAYS))
@@ -154,12 +162,12 @@ def build_lamps(ev: pl.DataFrame, days: dict, active: pl.DataFrame,
     counts["active"] = act.height
 
     lamps = pl.concat([
-        life.select("name", "t", "lat", "lng", pl.col("day").alias("o"), pl.col("c").fill_null(NONE)),
-        orphan.select("name", "t", "lat", "lng", "o", pl.col("day").alias("c")),
-        loose.select("name", "t", "lat", "lng",
+        life.select("name", "t", "canton", "lat", "lng", pl.col("day").alias("o"), pl.col("c").fill_null(NONE)),
+        orphan.select("name", "t", pl.col("cantons").alias("canton"), "lat", "lng", "o", pl.col("day").alias("c")),
+        loose.select("name", "t", pl.col("cantons").alias("canton"), "lat", "lng",
                      pl.when(pl.col("kind") == "open").then("day").otherwise(NONE).alias("o"),
                      pl.when(pl.col("kind") == "close").then("day").otherwise(NONE).alias("c")),
-        act.select("name", "t", "lat", "lng", pl.col("e").alias("o"), pl.lit(NONE).alias("c")),
+        act.select("name", "t", "canton", "lat", "lng", pl.col("e").alias("o"), pl.lit(NONE).alias("c")),
     ], how="vertical_relaxed").with_columns(pl.col("o", "c").cast(pl.Int64)).sort("o", "c")
     return lamps.select(LAMP_COLS), counts
 
@@ -198,6 +206,8 @@ def write_timeline(lamps: pl.DataFrame, out_dir: str):
         planes(zigzag_delta(qa)), planes(zigzag_delta(qn)),
         planes(lamps["o"].to_numpy()), planes(lamps["c"].to_numpy()),
         "".join(lamps["t"].to_list()).encode("ascii"),
+        lamps["canton"].replace_strict({c: i for i, c in enumerate(CANTON_IDS)}, default=255,
+                                       return_dtype=pl.UInt8).to_numpy().tobytes(),
     ])
     with open(f"{out_dir}/events.bin.gz", "wb") as f:
         f.write(gzip.compress(buf, 9))
@@ -254,7 +264,7 @@ def main():
         estimates = None
     days = entry_days(registered, estimates)
     if os.path.exists(ACTIVE):
-        active = pl.read_parquet(ACTIVE, columns=["uid", "name", "legalForm", "lat", "lng"])
+        active = pl.read_parquet(ACTIVE, columns=["uid", "name", "legalForm", "canton", "lat", "lng"])
     else:   # scripts/active_firms.py not run yet: only the SHAB companies
         print(f"[WARN] {ACTIVE} not found: no lamps for companies without a SHAB event")
         active = pl.DataFrame(schema={"uid": pl.String, "name": pl.String, "legalForm": pl.String,
