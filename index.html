@@ -2366,12 +2366,69 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             // since 2018-01-01 (65535 = outside the window). The lamps are uploaded
             // once; the shader works out from `day` whether each is dark, flashing
             // open, lit, or burning out, so a frame only changes one uniform.
-            const TL_EPOCH = Date.UTC(2018, 0, 1);
+            // days count from 1883, when the commercial registers start; before
+            // 2018 only the entry date of companies alive today (or closed since) is known
+            const TL_EPOCH = Date.UTC(1883, 0, 1);
             // the service worker caches data files for good: bump on every rebuild
-            const TL_VERSION = 2;
+            const TL_VERSION = 3;
             const TL_NONE = 65535;
             const TL_FAR = 1e9; // a day that never comes
-            const TL_DAYS_PER_SEC = 365 / 7; // 1×: a year in ~7 s
+            // <tl-clock> screen time ↔ day (tested by scripts/test_tl_clock.mjs)
+            const TL_DAYS_PER_SEC = 365 / 7; // 1× from 2018: a year in ~7 s
+            const TL_SPLIT_DAY = 49308; // 2018-01-01
+            const TL_HIST_SEC = 45; // 1883–2018 at 1×
+            const TL_MIN_YEAR_SEC = 1 / 8; // at most 8 years a second
+            const TL_MAX_YEAR_SEC = 2; // at least a year every 2 s
+            // Before 2018 every year lasts a time proportional to its openings, so a
+            // second lights about as many lamps in 1900 as in 2000, within the bounds
+            // above; from 2018 on, a constant pace. Returns the knots of a piecewise
+            // linear map: clockT[i] seconds at 1× ↔ clockDay[i].
+            function tlBuildClock(cumOpen, firstDay, lastDay) {
+                const t = [0], d = [firstDay];
+                const split = Math.min(TL_SPLIT_DAY, lastDay);
+                if (firstDay < split) {
+                    const yearDay = (y) => Math.round((Date.UTC(y, 0, 1) - Date.UTC(1883, 0, 1)) / 864e5);
+                    const y0 = 1883 + Math.floor(firstDay / 365.25);
+                    const knots = [firstDay];
+                    for (let y = y0 + 1; yearDay(y) < split; y++) if (yearDay(y) > firstDay) knots.push(yearDay(y));
+                    knots.push(split);
+                    const opens = knots.slice(1).map((k, i) => cumOpen[k] - cumOpen[knots[i]]);
+                    const total = opens.reduce((a, b) => a + b, 0) || 1;
+                    // share of its calendar year each span covers: the first and last may be partial
+                    const span = knots.slice(1).map((k, i) => {
+                        const y = 1883 + Math.floor(knots[i] / 365.2425);
+                        const y1 = yearDay(y) > knots[i] ? y - 1 : yearDay(y + 1) <= knots[i] ? y + 1 : y;
+                        return (k - knots[i]) / (yearDay(y1 + 1) - yearDay(y1));
+                    });
+                    const lo = (k) => TL_MIN_YEAR_SEC * span[k], hi = (k) => TL_MAX_YEAR_SEC * span[k];
+                    const clamp = (s, k) => Math.min(hi(k), Math.max(lo(k), s));
+                    let dur = opens.map((o, k) => clamp((o / total) * TL_HIST_SEC, k));
+                    // one pass: stretch the years that hit no bound so the whole stays near the target
+                    const free = dur.map((s, k) => s > lo(k) * 1.0001 && s < hi(k) * 0.9999);
+                    const fixed = dur.reduce((a, s, k) => a + (free[k] ? 0 : s), 0);
+                    const loose = dur.reduce((a, s, k) => a + (free[k] ? s : 0), 0);
+                    if (loose > 0 && TL_HIST_SEC > fixed) {
+                        const f = (TL_HIST_SEC - fixed) / loose;
+                        dur = dur.map((s, k) => (free[k] ? clamp(s * f, k) : s));
+                    }
+                    for (let k = 0; k < dur.length; k++) { t.push(t[t.length - 1] + dur[k]); d.push(knots[k + 1]); }
+                }
+                if (lastDay > d[d.length - 1]) {
+                    t.push(t[t.length - 1] + (lastDay - d[d.length - 1]) / TL_DAYS_PER_SEC);
+                    d.push(lastDay);
+                }
+                return { clockT: Float64Array.from(t), clockDay: Float64Array.from(d), tMax: t[t.length - 1] };
+            }
+            // y at x on the polyline (xs ascending), clamped at both ends
+            function tlInterp(xs, ys, x) {
+                const n = xs.length;
+                if (x <= xs[0]) return ys[0];
+                if (x >= xs[n - 1]) return ys[n - 1];
+                let lo = 0, hi = n - 1;
+                while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] <= x) lo = m; else hi = m; }
+                return ys[lo] + ((x - xs[lo]) / (xs[hi] - xs[lo])) * (ys[hi] - ys[lo]);
+            }
+            // </tl-clock>
             const TL_FLASH_SEC = 0.6; // an opening flares, then settles
             const TL_FADE_SEC = 1.0; // a closing burns red and goes out
             const TL_CLOSE_RGB = [255, 80, 40];
@@ -2379,6 +2436,11 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             let tl = null; // { n, data, cumOpen, cumClose, lastDay, weekOpen, weekClose }
             let tlLoading = null;
             let tlDay = 0;
+            let tlT = 0; // seconds of screen time at 1× since the start; tlDay follows from it
+            const tlDayAt = (t) => tlInterp(tl.clockT, tl.clockDay, t);
+            const tlTimeAt = (day) => tlInterp(tl.clockDay, tl.clockT, day);
+            // days per second of screen time at t (1×)
+            const tlRateAt = (t) => (tlDayAt(Math.min(t, tl.tMax - 0.01) + 0.01) - tlDayAt(Math.min(t, tl.tMax - 0.01))) / 0.01;
             let tlPlaying = false;
             let tlSpeed = 1;
             let tlFrame = 0;
@@ -2492,9 +2554,10 @@ vec3 tl_state() {
                     cumOpen[d] += cumOpen[d - 1];
                     cumClose[d] += cumClose[d - 1];
                 }
-                // the portal starts mid-2018: begin at its first week
+                // begin at the first lamp
                 let firstDay = 0;
                 while (firstDay < lastDay && cumOpen[firstDay + 1] + cumClose[firstDay + 1] === 0) firstDay++;
+                const clock = tlBuildClock(cumOpen, firstDay, lastDay);
                 const data = {
                     length: n,
                     attributes: {
@@ -2504,7 +2567,7 @@ vec3 tl_state() {
                         getClose: { value: close, size: 1 },
                     },
                 };
-                return { n, data, cumOpen, cumClose, firstDay, lastDay, weekOpen, weekClose };
+                return { n, data, cumOpen, cumClose, firstDay, lastDay, weekOpen, weekClose, ...clock };
             }
 
             function buildTimelineLayer() {
@@ -2572,11 +2635,13 @@ vec3 tl_state() {
                 return timelineOn && tl ? [buildTimelineLayer()] : [buildLayer()];
             }
 
+            // before 2018 years fly by: show the year only
             function tlDateText(day) {
-                return new Date(TL_EPOCH + Math.floor(day) * 864e5).toLocaleDateString(numLocale(), {
-                    year: "numeric", month: "short", day: "numeric", timeZone: "UTC",
-                });
+                const date = new Date(TL_EPOCH + Math.floor(day) * 864e5);
+                if (day < TL_SPLIT_DAY) return String(date.getUTCFullYear());
+                return date.toLocaleDateString(numLocale(), { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
             }
+            const tlIsoDay = (day) => new Date(TL_EPOCH + Math.floor(day) * 864e5).toISOString().slice(0, 10);
             function tlUpdateUi() {
                 if (!tl) return;
                 const d = clamp(Math.floor(tlDay), 0, tl.lastDay);
@@ -2587,8 +2652,9 @@ vec3 tl_state() {
                 document.getElementById("tl-closed").textContent = c.toLocaleString(loc);
                 document.getElementById("tl-net").textContent = (o >= c ? "+" : "−") + Math.abs(o - c).toLocaleString(loc);
                 const range = document.getElementById("tl-range");
-                if (+range.value !== d) range.value = d;
-                const f = (d - tl.firstDay) / Math.max(1, tl.lastDay - tl.firstDay);
+                const f = clamp(tlT / tl.tMax, 0, 1);
+                const v = Math.round(f * 1000);
+                if (+range.value !== v) range.value = v;
                 document.getElementById("tl-cursor").style.left = `calc(${(f * 100).toFixed(3)}% + ${(8 - 16 * f).toFixed(1)}px)`;
             }
             // weekly bars: openings up, closings down, on a shared scale
@@ -2638,7 +2704,7 @@ vec3 tl_state() {
                 btn.dataset.i18nAria = tlPlaying ? "tlPause" : "tlPlay";
                 cancelAnimationFrame(tlFrame);
                 if (tlPlaying) {
-                    if (tlDay >= tl.lastDay) tlDay = tl.firstDay;
+                    if (tlT >= tl.tMax) { tlT = 0; tlDay = tl.firstDay; }
                     tlLastT = performance.now();
                     tlFrame = requestAnimationFrame(tlTick);
                 } else updateUrl();
@@ -2647,8 +2713,10 @@ vec3 tl_state() {
                 // clamp the step so a frame after a hidden tab doesn't skip a year
                 const dt = Math.min(0.1, (now - tlLastT) / 1000);
                 tlLastT = now;
-                tlDay += dt * TL_DAYS_PER_SEC * tlSpeed;
-                if (tlDay >= tl.lastDay + TL_FADE_SEC * TL_DAYS_PER_SEC * tlSpeed) {
+                tlT += dt * tlSpeed;
+                tlDay = tlT <= tl.tMax ? tlDayAt(tlT) : tl.lastDay + (tlT - tl.tMax) * TL_DAYS_PER_SEC;
+                if (tlT >= tl.tMax + TL_FADE_SEC) {
+                    tlT = tl.tMax;
                     tlDay = tl.lastDay;
                     redrawLayer();
                     tlUpdateUi();
@@ -2685,10 +2753,11 @@ vec3 tl_state() {
                     }
                     if (!timelineOn) return;
                     const range = document.getElementById("tl-range");
-                    range.min = tl.firstDay;
-                    range.max = tl.lastDay;
+                    range.min = 0;
+                    range.max = 1000;
                 }
                 tlDay = day != null ? clamp(day, tl.firstDay, tl.lastDay) : tl.firstDay;
+                tlT = tlTimeAt(tlDay);
                 tlDrawHist();
                 tlUpdateUi();
                 refreshLayer();
@@ -2703,7 +2772,8 @@ vec3 tl_state() {
                 range.addEventListener("input", () => {
                     if (!tl) return;
                     tlSetPlaying(false);
-                    tlDay = +range.value;
+                    tlT = (+range.value / 1000) * tl.tMax;
+                    tlDay = tlDayAt(tlT);
                     redrawLayer();
                     tlUpdateUi();
                 });
@@ -2736,8 +2806,12 @@ vec3 tl_state() {
                 const off = (h.get("off") || "").split(",").filter((i) => /^\d+$/.test(i)).map((i) => colorAssignments[+i]?.label).filter(Boolean);
                 if (off.length) st.labelsOff = off;
                 st.night = h.get("night") === "1";
-                const d = parseInt(h.get("tl"), 10);
-                if (d >= 0) st.timelineDay = d;
+                // tl=YYYY-MM-DD; a bare number is an old link: days since 2018-01-01
+                const tlq = h.get("tl") || "";
+                if (/^\d{4}-\d{2}-\d{2}$/.test(tlq)) {
+                    const ms = Date.parse(`${tlq}T00:00:00Z`);
+                    if (Number.isFinite(ms) && ms >= TL_EPOCH) st.timelineDay = Math.round((ms - TL_EPOCH) / 864e5);
+                } else if (/^\d+$/.test(tlq)) st.timelineDay = TL_SPLIT_DAY + +tlq;
                 return st;
             }
             const urlState = readUrlState();
@@ -2755,7 +2829,7 @@ vec3 tl_state() {
                     const off = colorAssignments.flatMap((a, i) => (activeLabels.has(a.label) ? [] : [i]));
                     if (off.length) h.set("off", off.join(","));
                     if (nightView) h.set("night", "1");
-                    if (timelineOn) h.set("tl", String(Math.floor(tlDay)));
+                    if (timelineOn) h.set("tl", tlIsoDay(tlDay));
                     // URLSearchParams escapes the commas; they are safe in a fragment
                     history.replaceState(null, "", location.pathname + location.search + "#" + h.toString().replace(/%2C/g, ","));
                 }, 250);

@@ -187,7 +187,12 @@ def main():
         print(f"[WARN] {ESTIMATES} not found: no estimated dates")
         estimates = None
     days = entry_days(registered, estimates)
-    active = pl.read_parquet(ACTIVE, columns=["uid", "name", "legalForm", "lat", "lng"])
+    if os.path.exists(ACTIVE):
+        active = pl.read_parquet(ACTIVE, columns=["uid", "name", "legalForm", "lat", "lng"])
+    else:   # scripts/active_firms.py not run yet: only the SHAB companies
+        print(f"[WARN] {ACTIVE} not found: no lamps for companies without a SHAB event")
+        active = pl.DataFrame(schema={"uid": pl.String, "name": pl.String, "legalForm": pl.String,
+                                      "lat": pl.Float64, "lng": pl.Float64})
     lamps, counts = build_lamps(ev, days, active)
     print(f"[DATES] register {len(registered):,}  with estimates {len(days):,}")
     print("[LAMPS] " + "  ".join(f"{k} {v:,}" for k, v in counts.items()) + f"  total {lamps.height:,}")
