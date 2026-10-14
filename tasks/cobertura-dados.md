@@ -61,7 +61,7 @@ As três últimas somam ~452 mil empresas. A **P2** troca essas estimativas pela
 
 ### 1. Ano de abertura no card do mapa (`'98`)
 
-- `scripts/canton_years.py` acrescenta a coluna `y` (ano, 0 = desconhecido) aos arquivos `data/{cantão}_{k}.json.gz`. O card mostra `'98` ao lado do nome; o ano completo fica no `title`.
+- A coluna `y` (ano, 0 = desconhecido) dos arquivos `data/{cantão}_{k}.json.gz` vem hoje de `scripts/canton_files.py` (no início era `scripts/canton_years.py`, que casava por nome). O card mostra `'98` ao lado do nome; o ano completo fica no `title`.
 - Ordem das fontes (a última vence): estimativa de `opening_dates.json.gz` com precisão 0–2 → abertura no SHAB → registro cantonal (`data/registered.json.gz`, 638.252 empresas depois da coleta de Friburgo).
 - Os arquivos de cantão não têm UID. A empresa é achada no LINDAS pelo **nome + cantão**; se não der, só pelo nome, quando todas as homônimas têm o mesmo ano.
 - Cobertura: **682.547 de 760.625 empresas (89,7%)**. Custo: +756 kB em gzip somando os 26 cantões (~7%).
@@ -102,9 +102,16 @@ Ressalvas:
 - **Antes de 2018 o lugar é o de hoje.** A lâmpada de uma empresa aberta em 1950 fica no endereço atual dela. O histórico de endereços existe nos extratos cantonais (`addresses[]`, `seats[]`), mas não foi geocodificado.
 - **Canceladas antes de 2018 não aparecem.** Só entram as que existem hoje ou foram canceladas a partir de 2018.
 
-### Proposta para o item 3: uma fonte só para "hoje"
+### Proposta para o item 3: uma fonte só para "hoje" (passos 1–3 feitos em 14/10/2026, ver abaixo)
 
 1. **Mapa normal a partir do LINDAS.** Gerar `data/{cantão}_{k}.json.gz` de `build/lindas_active.parquet`: nome atual, coordenada do swisstopo, ano pelo UID (sem casar por nome: 795.158 de 795.271 têm ano, 99,99%, contra 89,7% hoje). Refazer `search_index.json.gz` e os totais (`scripts/canton_counts.py`) com a mesma lista. Os arquivos de 04/2026 e o Mapbox saem do caminho.
 2. **Lâmpadas acesas hoje no endereço e com o nome atuais.** No `build_timeline.py`, quem existe no LINDAS usa a coordenada e o nome de lá; quem foi cancelado fica no endereço do cancelamento. Assim, no fim da linha do tempo, cada lâmpada acesa coincide com um ponto do mapa normal.
 3. **As 3.194 que sumiram sem HR03** apagam na data do snapshot do LINDAS em que deixaram de aparecer (ou na data de hoje, como aproximação), marcadas como "saída sem publicação".
 4. Opcional: mostrar a mudança de endereço (a lâmpada se move na data da mudança) exige as publicações de mutação (HR02) do SHAB, que ainda não são baixadas.
+
+### Feito em 14/10/2026: uma fonte só para "hoje"
+
+- **Mapa normal**: `scripts/canton_files.py` gera os 26 arquivos de cantão e o `search_index.json.gz` a partir de `build/lindas_active.parquet`. São **795.271 empresas** (antes 760.625), coordenadas do swisstopo com 5 casas e ano pelo UID para **99,99%**. Os totais vêm de `scripts/canton_counts.py`. Os cantões somam 12,2 MB em gzip (antes 10,9 MB); o índice de busca tem 9,0 MB (antes 8,7 MB).
+- **Linha do tempo** (`build_lamps`): uma empresa que existe hoje acende no endereço e com o nome do LINDAS (81.288 lâmpadas mudaram de lugar). Quem saiu do registro sem cancelamento no SHAB apaga no dia do snapshot do LINDAS (2.989 lâmpadas), exceto quem foi inscrito há menos de 30 dias (`GRACE_DAYS`): o LINDAS demora umas semanas para incluir empresas novas.
+- **Resultado**: das 797 mil lâmpadas acesas hoje, 780.537 têm par no mapa pelo nome, **nenhuma a mais de 100 m** (antes 7,9%). Sobram 193 acesas sem par (inscritas há menos de 30 dias) e 559 empresas do LINDAS sem lâmpada (sem data de abertura ou sem UID).
+- Ao refazer: `active_firms.py` → `canton_files.py` → `canton_counts.py` → `build_timeline.py`. A data do snapshot é a da modificação de `build/lindas_active.parquet`.

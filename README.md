@@ -56,7 +56,7 @@ On mobile, tap the corner icons to open panels as bottom sheets. Tap anywhere on
 
 ## Where does the data come from?
 
-All data is sourced from **[opendata.swiss](https://opendata.swiss)** — Switzerland's official open government data portal. The business registry is public information, updated regularly by the Swiss federal authorities.
+Company data comes from Switzerland's official open sources: **LINDAS** (the commercial register as linked data), the **SHAB** (the official gazette, for new entries and deletions since 2018), the **cantonal commercial registers** (entry dates back to 1883) and the **swisstopo** address register (coordinates). The business registry is public information, updated regularly by the Swiss federal authorities.
 
 The map tiles (the street map underneath) come from [OpenFreeMap](https://openfreemap.org/) using [OpenStreetMap](https://www.openstreetmap.org/) data — both fully open-source, with no API key and no rate limits.
 
@@ -69,8 +69,8 @@ The map tiles (the street map underneath) come from [OpenFreeMap](https://openfr
 
 For those curious about how it works under the hood:
 
-- Company data is downloaded from opendata.swiss (one CSV file per canton, 26 total)
-- Addresses are geocoded (converted to map coordinates) using the Mapbox Geocoding API
+- Today's companies come from LINDAS (the commercial register as linked data, `scripts/active_firms.py`)
+- Addresses are placed on their building with the swisstopo address register (`scripts/swisstopo_geo.py`)
 - The coordinates are compressed and stored as gzipped JSON files, one per canton, fetched on demand — no server needed
 - Parsing runs in a **web worker** so the UI stays responsive while large cantons load
 - The map is created immediately and Bern's data streams in alongside the map style, so nothing waits on data before the first paint
@@ -80,8 +80,8 @@ For those curious about how it works under the hood:
 - CDN scripts are deferred, fonts load without blocking, and Bern's data is preloaded so the map is interactive as fast as possible
 - Canton totals shown before a canton is loaded are generated from the data with `python3 scripts/canton_counts.py`
 - The **timeline** (`data/timeline/`) has one lamp per company life: SHAB new entries and deletions since 2018, plus today's companies (LINDAS, placed by the swisstopo address register) lit from their cantonal register entry date back to 1883. `events.bin.gz` (3.9 MB) holds positions on a uint16 grid along a Morton curve, delta-coded and split into byte planes; names come in 65 regional chunks of ~180 kB, fetched on hover
-- Caveats: before 2018 a lamp sits at the company's **current** address; companies deleted before 2018 are missing; the normal map and the timeline still use different sources (see `tasks/cobertura-dados.md`), so some points shift when switching
-- The `'98` next to a company name is its entry year (`scripts/canton_years.py`): cantonal register, else SHAB, else estimate; known for ~90% of companies
+- Caveats: before 2018 a lamp sits at the company's **current** address; companies deleted before 2018 are missing; the normal map and the timeline share one list of today's companies (LINDAS, `scripts/canton_files.py`), so at the end of the timeline every lit lamp sits on a map point
+- The `'98` next to a company name is its entry year (`scripts/canton_files.py`): cantonal register, else SHAB, else estimate; known for 99.99% of companies
 - The map renders entirely in your browser using [deck.gl](https://deck.gl) and [MapLibre GL](https://maplibre.org/)
 - Keyboard navigation, ARIA labels, and color contrast meet WCAG AA accessibility standards
 - The whole thing is a single HTML file + data files, hosted for free on GitHub Pages
@@ -90,17 +90,21 @@ For those curious about how it works under the hood:
 
 ```mermaid
 flowchart TD
-    A([opendata.swiss]) -->|CSV per canton\n26 files| B[hr_companies/\n*.csv]
-
-    B --> C[geocode.py]
-    E[(geocode_cache.json\nresume support)] <-->|cache lookup\n& save| C
-    F([Mapbox Geocoding API]) -->|lat · lng| C
-    C -->|address → coordinates| G[hr_companies/\n*_latlong.csv]
-
-    G --> H[repack.py]
-    H -->|columnar JSON\nsingle-char type codes\n4-decimal coords\ngzip compressed| I[data/\n*.json.gz chunks]
-
-    I -->|fetched on demand\ndecompressed in browser| J([Browser\ndeck.gl · MapLibre GL\nOpenFreeMap tiles])
+    A([LINDAS · Zefix linked data]) --> B[active_firms.py]
+    S([swisstopo address register]) --> B
+    B --> C[(build/lindas_active.parquet)]
+    H([SHAB 2018–2026]) --> F[fetch_shab.py] --> E[(build/shab_events.jsonl)]
+    R([cantonal registers]) --> K[fetch_cantonal.py] --> RG[data/registered.json.gz]
+    C --> CF[canton_files.py]
+    E --> CF
+    RG --> CF
+    CF --> D[data/*_0.json.gz\nsearch_index.json.gz]
+    C --> T[build_timeline.py]
+    E --> T
+    RG --> T
+    T --> TL[data/timeline/\nevents.bin.gz · names/]
+    D --> J([Browser\ndeck.gl · MapLibre GL])
+    TL --> J
 ```
 
 ---

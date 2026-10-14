@@ -61,6 +61,33 @@ def test_active_without_shab_event_gets_a_lamp():
     assert counts["active"] == 1
 
 
+def test_alive_company_shines_at_its_current_address_and_name():
+    ev = events([("CHE-555.555.555", "open", "2019-03-01", "Old Name GmbH", "0107", 47.0, 8.0)])
+    lamps, counts = build_lamps(ev, {}, active([("CHE-555.555.555", "New Name AG", "0106", 46.5, 7.4)]))
+    r = lamps.row(0, named=True)
+    assert (r["name"], r["lat"], r["lng"], r["c"]) == ("New Name AG", 46.5, 7.4, NONE)
+    assert counts["moved_to_current"] == 1
+
+
+def test_closed_company_stays_where_it_closed():
+    ev = events([("CHE-555.555.555", "open", "2019-03-01", "X GmbH", "0107", 47.0, 8.0),
+                 ("CHE-555.555.555", "close", "2021-03-01", "X GmbH", "0107", 47.1, 8.1)])
+    lamps, _ = build_lamps(ev, {}, active([("CHE-555.555.555", "X GmbH", "0107", 46.5, 7.4)]))
+    r = lamps.row(0, named=True)
+    assert (r["lat"], r["lng"]) == (47.0, 8.0)
+
+
+def test_company_gone_from_lindas_goes_dark_on_the_snapshot_day():
+    snap = day_of(20261014)
+    ev = events([("CHE-666.666.666", "open", "2020-01-01", "Merged AG", "0106", 47.0, 8.0),
+                 ("CHE-777.777.777", "open", "2026-10-01", "Brand New AG", "0106", 47.0, 8.0)])
+    lamps, counts = build_lamps(ev, {}, active([("CHE-999.999.999", "Other AG", "0106", 46.0, 7.0)]), snap)
+    c = {r["name"]: r["c"] for r in lamp_rows(lamps)}
+    assert c["Merged AG"] == snap            # left the register with no SHAB deletion
+    assert c["Brand New AG"] == NONE         # entered two weeks ago: LINDAS just hasn't caught up
+    assert counts["left_without_deletion"] == 1
+
+
 def test_uid_in_shab_and_active_is_one_lamp():
     ev = events([("CHE-555.555.555", "open", "2022-01-10", "E AG", "0106", 47.4, 8.5)])
     lamps, _ = build_lamps(ev, {555555555: day_of(20220110)},
