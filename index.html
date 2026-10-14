@@ -2572,7 +2572,8 @@ vec3 tl_state() {
 
             function buildTimelineLayer() {
                 const z = map ? map.getZoom() : 8;
-                const perDay = TL_DAYS_PER_SEC * tlSpeed;
+                // flash and fade last the same screen time in 1900 and in 2020
+                const perDay = tlRateAt(tlT) * tlSpeed;
                 const shared = {
                     id: "timeline",
                     data: tl.data,
@@ -2657,7 +2658,9 @@ vec3 tl_state() {
                 if (+range.value !== v) range.value = v;
                 document.getElementById("tl-cursor").style.left = `calc(${(f * 100).toFixed(3)}% + ${(8 - 16 * f).toFixed(1)}px)`;
             }
-            // weekly bars: openings up, closings down, on a shared scale
+            // bars on the screen-time axis, like the slider: one per year before 2018
+            // (openings only), one per week after (openings up, closings down); each
+            // part has its own vertical scale
             function tlDrawHist() {
                 const cv = document.getElementById("tl-hist");
                 const w = cv.clientWidth, h = cv.clientHeight;
@@ -2667,30 +2670,50 @@ vec3 tl_state() {
                 cv.height = h * dpr;
                 const g = cv.getContext("2d");
                 g.scale(dpr, dpr);
-                const w0 = Math.floor(tl.firstDay / 7), w1 = tl.weekOpen.length;
-                let max = 1;
-                for (let i = w0; i < w1; i++) max = Math.max(max, tl.weekOpen[i], tl.weekClose[i]);
-                // a strip on top for the year labels, then openings up and closings down
                 const top = 11, mid = top + (h - top) * 0.6, up = mid - top, down = h - mid;
-                const bw = (w - 16) / (w1 - w0);
+                const X = (day) => 8 + (tlTimeAt(day) / tl.tMax) * (w - 16);
                 const css = getComputedStyle(document.documentElement);
-                g.fillStyle = `rgb(${css.getPropertyValue("--spark-raw")})`;
-                for (let i = w0; i < w1; i++) {
-                    const bh = (tl.weekOpen[i] / max) * up;
-                    g.fillRect(8 + (i - w0) * bw, mid - bh, Math.max(1, bw - 0.5), bh);
+                const spark = `rgb(${css.getPropertyValue("--spark-raw")})`;
+                const yearDay = (y) => Math.round((Date.UTC(y, 0, 1) - TL_EPOCH) / 864e5);
+                const split = Math.min(TL_SPLIT_DAY, tl.lastDay);
+                // years before 2018
+                const y0 = new Date(TL_EPOCH + tl.firstDay * 864e5).getUTCFullYear();
+                const years = [];
+                for (let y = y0; yearDay(y) < split; y++) {
+                    const a = Math.max(yearDay(y), tl.firstDay), b = Math.min(yearDay(y + 1), split);
+                    years.push([a, b, tl.cumOpen[b] - tl.cumOpen[a]]);
                 }
-                g.fillStyle = "#ff6b4a";
-                for (let i = w0; i < w1; i++) {
-                    const bh = Math.min(down, (tl.weekClose[i] / max) * up);
-                    g.fillRect(8 + (i - w0) * bw, mid, Math.max(1, bw - 0.5), bh);
+                const maxYear = Math.max(1, ...years.map((v) => v[2]));
+                g.fillStyle = spark;
+                for (const [a, b, o] of years) {
+                    const x = X(a), bh = (o / maxYear) * up;
+                    g.fillRect(x, mid - bh, Math.max(1, X(b) - x - 0.5), bh);
                 }
-                // year ticks
+                // weeks from 2018
+                const w0 = Math.ceil(split / 7), w1 = tl.weekOpen.length;
+                let maxWeek = 1;
+                for (let i = w0; i < w1; i++) maxWeek = Math.max(maxWeek, tl.weekOpen[i], tl.weekClose[i]);
+                for (let i = w0; i < w1; i++) {
+                    const x = X(i * 7), bw = Math.max(1, X(Math.min(tl.lastDay, i * 7 + 7)) - x - 0.5);
+                    const bo = (tl.weekOpen[i] / maxWeek) * up, bc = Math.min(down, (tl.weekClose[i] / maxWeek) * up);
+                    g.fillStyle = spark;
+                    g.fillRect(x, mid - bo, bw, bo);
+                    g.fillStyle = "#ff6b4a";
+                    g.fillRect(x, mid, bw, bc);
+                }
+                // year ticks: a few landmarks before 2018, every year after; no overlapping labels
                 g.fillStyle = "rgba(255,255,255,0.45)";
                 g.font = "9px Inter, sans-serif";
-                for (let y = 2019; ; y++) {
-                    const d = (Date.UTC(y, 0, 1) - TL_EPOCH) / 864e5;
-                    if (d > tl.lastDay) break;
-                    const x = 8 + ((d - tl.firstDay) / (tl.lastDay - tl.firstDay)) * (w - 16);
+                const lastYear = new Date(TL_EPOCH + tl.lastDay * 864e5).getUTCFullYear();
+                const ticks = [1900, 1950, 1980, 2000, 2010, 2018];
+                for (let y = 2019; y <= lastYear; y++) ticks.push(y);
+                let prev = -Infinity;
+                for (const y of ticks) {
+                    const d = yearDay(y);
+                    if (d < tl.firstDay || d > tl.lastDay) continue;
+                    const x = X(d);
+                    if (x - prev < 28) continue;
+                    prev = x;
                     g.fillRect(x, 0, 1, top - 2);
                     g.fillText(String(y), x + 3, 8);
                 }
