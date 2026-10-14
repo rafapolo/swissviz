@@ -70,6 +70,14 @@ def uid_int(col: str = "uid") -> pl.Expr:
     return pl.col(col).str.replace_all(r"\D", "").cast(pl.Int64, strict=False)
 
 
+def norm_uid(col: str = "uid") -> pl.Expr:
+    """The SHAB writes some UIDs bare (CHE492310367): one spelling, CHE-123.456.789, for pairing."""
+    d = pl.col(col).fill_null("").str.replace_all(r"\D", "")
+    return (pl.when(d.str.len_chars() == 9)
+            .then(pl.format("CHE-{}.{}.{}", d.str.slice(0, 3), d.str.slice(3, 3), d.str.slice(6, 3)))
+            .otherwise(pl.col(col).fill_null("")).alias(col))
+
+
 def legal_letter(col: str = "legalForm") -> pl.Expr:
     return pl.col(col).replace_strict(LEGAL, default="B").fill_null("B").alias("t")
 
@@ -83,6 +91,7 @@ def build_lamps(ev: pl.DataFrame, days: dict, active: pl.DataFrame) -> tuple[pl.
                          schema={"u": pl.Int64, "e": pl.Int64})
     if "id" not in ev.columns:
         ev = ev.with_row_index("id")
+    ev = ev.with_columns(norm_uid())
     ev = ev.filter(pl.col("lat").is_not_null()).with_columns(
         (pl.col("date").str.to_date() - pl.lit(EPOCH)).dt.total_days().alias("day"), legal_letter())
 
@@ -155,7 +164,7 @@ def place_events() -> pl.DataFrame:
                 rows.append(json.loads(line))
             except ValueError:
                 pass
-    ev = pl.DataFrame(rows, infer_schema_length=None).unique("id")
+    ev = pl.DataFrame(rows, infer_schema_length=None).unique("id").with_columns(norm_uid())
     print(f"[READ] {ev.height:,} events  open {ev.filter(pl.col('kind') == 'open').height:,}  "
           f"close {ev.filter(pl.col('kind') == 'close').height:,}")
     ev = geocode(ev.with_columns(pl.col(c).fill_null("") for c in ["street", "houseNumber", "zip", "town", "seat"]))

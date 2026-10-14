@@ -2382,7 +2382,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             // 2018 only the entry date of companies alive today (or closed since) is known
             const TL_EPOCH = Date.UTC(1883, 0, 1);
             // the service worker caches data files for good: bump on every rebuild
-            const TL_VERSION = 4;
+            const TL_VERSION = 5;
             const TL_NONE = 65535;
             const TL_FAR = 1e9; // a day that never comes
             // <tl-clock> screen time ↔ day (tested by scripts/test_tl_clock.mjs)

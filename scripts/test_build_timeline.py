@@ -110,3 +110,12 @@ def test_binary_round_trip(tmp_path):
     assert o == (10, NONE) and c == (NONE, 50000)
     assert buf[4 + 12 * n:] == b"AG"
     assert json.loads(gzip.decompress((tmp_path / "names.json.gz").read_bytes())) == ["X", "Y"]
+
+
+def test_uid_without_dots_pairs_with_the_dotted_one():
+    # the SHAB writes some UIDs bare (CHE492310367): opening and closing must still be one lamp
+    ev = events([("CHE492310367", "open", "2019-01-15", "Ursuta AG", "0106", 46.1, 7.1),
+                 ("CHE-492.310.367", "close", "2019-10-10", "Ursuta AG", "0106", 46.1, 7.1)])
+    lamps, counts = build_lamps(ev, {}, NO_ACTIVE)
+    assert lamp_rows(lamps) == [{"name": "Ursuta AG", "t": "A", "o": day_of(20190115), "c": day_of(20191010)}]
+    assert counts["close_only_dated"] + counts["close_only_undated"] == 0
