@@ -47,7 +47,7 @@ The legend shows the 12 legal forms and their colours. Click any item to hide or
 Switch the whole interface between **DE**, **FR**, **IT** and **EN** using the buttons in the top-right of the legend. The first visit follows your browser's language, and your choice is remembered.
 
 ### Night view
-The **moon** button next to the search turns every company into a warm light, like a satellite photo of Switzerland at night: dense business districts glow, single companies twinkle. The exposure adapts to what is in view, so a village is as readable as Zürich.
+The **moon** button next to the search turns every company into a warm light, like a satellite photo of Switzerland at night: dense business districts glow, single companies twinkle. The exposure adapts to what is in view, so a village is as readable as Zürich. With few legal forms or cantons switched on, the lights grow bigger and brighter so the few left stay easy to see.
 
 ### Timeline
 The **clock** button next to the search opens the timeline at the bottom of the screen.
@@ -58,7 +58,7 @@ The **clock** button next to the search opens the timeline at the bottom of the 
 - The bars show new entries per year before 2018, and new entries (up) and deletions (down) per month after
 - Drag the **slider**, or use **← / →**, to move a year at a time before 2018 and a month at a time after; **Space** plays and pauses
 - **Opened**, **Closed** and **Net** count the companies of the cantons and legal forms you have switched on
-- Every light has its legal form's colour and the same brightness; only the twinkle moves it
+- Every light has its legal form's colour and the same brightness; only the twinkle moves it. Companies at one address share one light, as on the map, so lights only add up as you zoom out
 - Hover (or tap) a light to see the same card as on the map: the company's name, the year it was registered (*'98*) and its legal form
 
 What the timeline cannot show: companies deleted **before 2018** (no source lists them with an address), and moves before 2018 — a company sits at its current address for its whole life.
