@@ -23,6 +23,8 @@ const minified = await minify(src, {
     useShortDoctype: true,
     minifyCSS: true,
     minifyJS: {
+        // the page's one script is a module with a top-level await
+        module: true,
         compress: {
             drop_console: false,
             passes: 2,

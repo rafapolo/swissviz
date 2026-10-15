@@ -17,13 +17,10 @@
         <link rel="icon" href="favicon.svg" type="image/svg+xml" />
         <link rel="icon" href="favicon.png" type="image/png" sizes="32x32" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-        <link rel="preload" href="data/BE.json" as="fetch" crossorigin />
-        <link rel="preload" href="data/BE_0.json.gz" as="fetch" crossorigin />
         <link rel="preconnect" href="https://unpkg.com" crossorigin />
         <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link rel="modulepreload" href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.mjs" crossorigin />
         <!-- non-blocking: the map's controls only appear once its script has run -->
         <link href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css" rel="stylesheet" media="print" onload="this.media='all'" />
         <!-- non-blocking: the system font shows until Inter (and the wordmark's Bricolage) arrives -->
@@ -2152,7 +2149,6 @@
 
 
 
-        <!-- defer keeps it ahead of the module below (both run in document order) without blocking parsing -->
         <!-- bottom right: the view's chips and about -->
         <div class="chips">
             <button type="button" id="tilt" class="chip" aria-pressed="false"><span class="chip-text" data-i18n="tiltOff">top view</span></button>
@@ -2175,10 +2171,19 @@
             </p>
         </dialog>
 
-        <script defer src="https://unpkg.com/deck.gl@9.4.0/dist.min.js"></script>
         <script type="module">
-            // MapLibre v6 ships ESM only
-            import * as maplibregl from "https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.mjs";
+            // The page paints first (the masthead, the loading notice), then the two
+            // libraries load and run: evaluated before the first paint they held it
+            // back on a slow phone, and preloaded from <head> Lighthouse counted them
+            // (and the first canton's data) into the LCP, 6.6 s instead of 0.8.
+            // MapLibre v6 ships ESM only; deck.gl is a global script.
+            await new Promise((r) => requestAnimationFrame(() => setTimeout(r)));
+            const loadScript = (src) =>
+                new Promise((res, rej) => document.head.append(Object.assign(document.createElement("script"), { src, onload: res, onerror: rej })));
+            const [maplibregl] = await Promise.all([
+                import("https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.mjs"),
+                loadScript("https://unpkg.com/deck.gl@9.4.0/dist.min.js"),
+            ]);
 
             // ── URL params ────────────────────────────────────────────────────────
             // ?r=min,max  e.g. ?r=0.5,2  controls radiusMinPixels,radiusMaxPixels
@@ -5005,7 +5010,8 @@ self.onmessage=async({data})=>{
                         }
                     }
                 }
-                ranked.sort((a, b) => a[0] - b[0] || a[1].name.length - b[1].name.length);
+                // as the worker ranks: shorter names first, then A-Z
+                ranked.sort((a, b) => a[0] - b[0] || a[1].name.length - b[1].name.length || (a[1].name < b[1].name ? -1 : a[1].name > b[1].name ? 1 : 0));
                 showHits(ranked.slice(0, MAX_ROWS).map(([, e]) => e), ranked.length, false);
             }
 
