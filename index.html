@@ -1260,22 +1260,18 @@
                     transform: none;
                     padding: 8px 12px 10px;
                 }
-                /* play and date on top; the three counters get a line of their own */
-                .tl-row {
-                    flex-wrap: wrap;
-                    row-gap: 4px;
-                }
+                /* play and date on the left; the three counters stacked on the right */
                 #tl-date {
                     flex: 1;
                     min-width: 0;
                     font-size: 16px;
                 }
                 .tl-stats {
-                    order: 3;
-                    flex-basis: 100%;
-                    margin-left: 0;
-                    justify-content: space-between;
+                    flex-direction: column;
+                    align-items: flex-end;
+                    gap: 0;
                     font-size: 11px;
+                    line-height: 1.35;
                 }
                 .tl-track {
                     height: 52px;
