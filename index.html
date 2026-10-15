@@ -3138,8 +3138,6 @@ in float night_seed;
             }
             const cantonData = {}; // id → point array
             const cantonTotals = {}; // id → company count of a loaded canton
-            const searchIndex = []; // flat local index: { name, label, cantonId, point }
-            const pointByName = {}; // cantonId → Map<name, point[]>
                         let overlay = null;
             let map = null;
             let searchMarkers = [];
@@ -3179,18 +3177,6 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             _parseWorker.onmessage = ({ data: { id, points } }) => { _parsePending.get(id)(points); _parsePending.delete(id); };
             function parseCantonDataAsync(col, cantonId) {
                 return new Promise(res => { const id = _parseSeq++; _parsePending.set(id, res); _parseWorker.postMessage({ id, col, cantonId }); });
-            }
-
-            function indexCanton(cantonId, points) {
-                const nameMap = new Map();
-                for (const point of points) {
-                    for (const co of point.companies) {
-                        searchIndex.push({ name: co.name, fold: foldText(co.name), label: co.label, cantonId, point });
-                        if (!nameMap.has(co.name)) nameMap.set(co.name, []);
-                        nameMap.get(co.name).push(point);
-                    }
-                }
-                pointByName[cantonId] = nameMap;
             }
 
             // ── Recompute legend/canton counts and frame color from the viewport ──────
@@ -3374,7 +3360,6 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                         const rows = await loadCantonAll(canton.id);
                         const points = await parseCantonDataAsync(rows, canton.id);
                         cantonData[canton.id] = points;
-                        indexCanton(canton.id, points);
                         const companyCount = points.reduce(
                             (s, p) => s + p.companies.length,
                             0,
@@ -4840,22 +4825,27 @@ self.onmessage=async({data})=>{
                     _searchWorker.postMessage({ type: "search", id: ++_searchSeq, q, max: MAX_ROWS });
                     return;
                 }
-                // fallback: loaded cantons only, ranked the same way
+                // fallback until the worker is ready: the loaded cantons, ranked the same
+                // way, read straight from their points (no index kept: it took half the heap)
                 _searchSeq++;
                 // one row per name, covering every loaded canton it is registered in
                 const ranked = [];
                 const byName = new Map(); // name → hit
-                for (const e of searchIndex) {
-                    const r = matchRank(e.fold, q);
-                    if (r < 0) continue;
-                    const seen = byName.get(e.name);
-                    if (seen) {
-                        if (!seen.cantons.includes(e.cantonId)) seen.cantons.push(e.cantonId);
-                        continue;
+                for (const [cantonId, points] of Object.entries(cantonData)) {
+                    for (const point of points) {
+                        for (const co of point.companies) {
+                            const r = matchRank(foldText(co.name), q);
+                            if (r < 0) continue;
+                            const seen = byName.get(co.name);
+                            if (seen) {
+                                if (!seen.cantons.includes(cantonId)) seen.cantons.push(cantonId);
+                                continue;
+                            }
+                            const hit = { name: co.name, label: co.label, cantonId, point, cantons: [cantonId] };
+                            byName.set(co.name, hit);
+                            ranked.push([r, hit]);
+                        }
                     }
-                    const hit = { ...e, cantons: [e.cantonId] };
-                    byName.set(e.name, hit);
-                    ranked.push([r, hit]);
                 }
                 ranked.sort((a, b) => a[0] - b[0] || a[1].name.length - b[1].name.length);
                 showHits(ranked.slice(0, MAX_ROWS).map(([, e]) => e), ranked.length, false);
@@ -4934,7 +4924,7 @@ self.onmessage=async({data})=>{
                 // every location of the name, across all its cantons
                 function resolvePts() {
                     if (hit.point && cantons.length === 1) return [hit.point];
-                    return cantons.flatMap((id) => pointByName[id]?.get(name) ?? []);
+                    return cantons.flatMap((id) => (cantonData[id] ?? []).filter((p) => p.companies.some((c) => c.name === name)));
                 }
 
                 function placeMarkers() {
