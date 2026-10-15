@@ -872,7 +872,7 @@
                     visibility: visible;
                 }
                 #light-panel {
-                    padding-top: 20px;
+                    padding-top: 14px;
                 }
                 #light-panel .light-body {
                     padding-bottom: calc(14px + env(safe-area-inset-bottom));
@@ -1380,6 +1380,10 @@
                 }
                 body:has(.panel.open) #timeline {
                     visibility: hidden;
+                }
+                /* ...and the bars and map controls drop back to the bottom with it */
+                body:has(.panel.open) {
+                    --tl-h: 0px;
                 }
                 /* map controls sit above the timeline (--tl-h is its height, 0 while
                    hidden; set by a ResizeObserver) */
@@ -1913,7 +1917,7 @@
                 cursor: pointer;
             }
 
-            #dock {
+            .dock {
                 display: none;
             }
             @media (max-width: 980px) {
@@ -1944,13 +1948,12 @@
                     left: 176px;
                     right: 68px;
                 }
-                /* the bottom: the view's buttons in one glass bar, centered */
-                #dock {
+                /* the bottom: two glass bars, the map's looks (night, light, timeline)
+                   on the left and the camera and the about on the right */
+                .dock {
                     display: flex;
                     position: fixed;
-                    left: 50%;
                     bottom: calc(16px + env(safe-area-inset-bottom) + var(--tl-h, 0px));
-                    transform: translateX(-50%);
                     z-index: 13;
                     gap: 2px;
                     padding: 4px;
@@ -1958,7 +1961,13 @@
                     border: 1px solid var(--hair);
                     border-radius: 24px;
                 }
-                #dock > * {
+                #dock {
+                    left: 16px;
+                }
+                #dock-tools {
+                    right: 16px;
+                }
+                .dock > * {
                     position: static;
                     flex: none;
                     display: flex;
@@ -1974,12 +1983,12 @@
                     color: var(--soft);
                     font-size: 16px;
                 }
-                #dock > [aria-expanded="true"],
-                #dock > #names[aria-pressed="true"] {
+                .dock > [aria-expanded="true"],
+                .dock > #names[aria-pressed="true"] {
                     background: rgba(var(--lamp-raw), 0.1);
                     color: var(--lamp);
                 }
-                #dock > .mode-btn.active {
+                .dock > .mode-btn.active {
                     background: rgba(var(--ember-raw), 0.35);
                     color: var(--lamp);
                     box-shadow: var(--lit);
@@ -2173,7 +2182,8 @@
             <button type="button" id="about-open" class="chip" aria-haspopup="dialog"><span class="chip-text" data-i18n="about">about</span></button>
         </div>
         <!-- phones: the view's buttons gather here, at the bottom (placeDock) -->
-        <nav id="dock" aria-label="Map controls"></nav>
+        <nav id="dock" class="dock" aria-label="Map views"></nav>
+        <nav id="dock-tools" class="dock" aria-label="Map tools"></nav>
 
         <dialog id="about" class="about" aria-labelledby="about-title">
             <form method="dialog"><button class="close" aria-label="Close" data-i18n-aria="close">×</button></form>
@@ -4749,19 +4759,18 @@ vec3 tl_state() {
             }
 
             // ── Dock ───────────────────────────────────────────────────────────────
-            // phones: the view's buttons gather in one bar at the bottom; on wider
+            // phones: the view's buttons gather in two bars at the bottom; on wider
             // screens each goes back where it was (moving keeps their listeners)
-            const DOCK_IDS = ["btn-night-view", "toggle-light", "btn-timeline", "tilt", "names", "about-open"];
-            const _dockHome = new Map(DOCK_IDS.map((id) => {
+            const DOCK_IDS = { "btn-night-view": "dock", "toggle-light": "dock", "btn-timeline": "dock", tilt: "dock-tools", names: "dock-tools", "about-open": "dock-tools" };
+            const _dockHome = new Map(Object.keys(DOCK_IDS).map((id) => {
                 const el = document.getElementById(id);
                 return [id, { parent: el.parentNode, next: el.nextSibling }];
             }));
             const _dockMQ = window.matchMedia("(max-width: 980px)");
             function placeDock() {
-                const dock = document.getElementById("dock");
-                for (const id of DOCK_IDS) {
+                for (const [id, dock] of Object.entries(DOCK_IDS)) {
                     const el = document.getElementById(id);
-                    if (_dockMQ.matches) dock.appendChild(el);
+                    if (_dockMQ.matches) document.getElementById(dock).appendChild(el);
                     else {
                         const home = _dockHome.get(id);
                         home.parent.insertBefore(el, home.next?.parentNode === home.parent ? home.next : null);
