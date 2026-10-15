@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "swissviz",
+      "name": "cantography",
       "devDependencies": {
         "html-minifier-terser": "^7.2.0",
       },

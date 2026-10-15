@@ -30,7 +30,7 @@ import polars as pl
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD = os.path.join(ROOT, "build")
 OUT = os.path.join(ROOT, "data", "opening_dates.json.gz")
-UA = "swissviz/0.1 (https://github.com/rafapolo/swissviz)"
+UA = "cantography/0.1 (https://github.com/rafapolo/cantography)"
 # ehraids below this come from the bulk load: no order by year
 EHRAID_ORDERED = 550_000
 

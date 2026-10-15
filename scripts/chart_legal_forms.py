@@ -138,7 +138,7 @@ legend = ax.legend(handles=legend_patches, loc="lower center",
                    labelcolor="#aaa", handlelength=1.2, handleheight=0.9,
                    columnspacing=1.2, handletextpad=0.5)
 
-ax.text(0.44, -0.27, "Source: opendata.swiss  ·  swissviz",
+ax.text(0.44, -0.27, "Source: opendata.swiss  ·  cantography",
         transform=ax.transAxes, ha="center", color="#444", fontsize=8)
 
 plt.tight_layout(rect=[0, 0.12, 1, 1])

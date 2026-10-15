@@ -1,6 +1,6 @@
 // scripts/build.js rewrites the name with the commit, so every deploy installs a
 // new worker and drops the caches of the old one
-const V = 'swissviz-dev';
+const V = 'cantography-dev';
 
 const PRECACHE = [
     './',

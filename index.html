@@ -3,17 +3,17 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <title>SwissViz — Swiss Companies Map</title>
+        <title>Cantography — Swiss Companies Map</title>
         <meta name="description" content="Interactive map of 750k+ Swiss companies visualised by location, canton, and legal form. Built with open data from opendata.swiss." />
         <meta name="author" content="ExtraPolo.com" />
-        <meta property="og:title" content="SwissViz — Swiss Companies Map" />
+        <meta property="og:title" content="Cantography — Swiss Companies Map" />
         <meta property="og:description" content="Interactive map of 750k+ Swiss companies visualised by location, canton, and legal form. Built with open data from opendata.swiss." />
-        <meta property="og:image" content="https://rafapolo.github.io/swissviz/mini.jpg" />
-        <meta property="og:url" content="https://rafapolo.github.io/swissviz/" />
+        <meta property="og:image" content="https://cantography.ch/mini.jpg" />
+        <meta property="og:url" content="https://cantography.ch/" />
         <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="SwissViz" />
+        <meta property="og:site_name" content="Cantography" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:image" content="https://rafapolo.github.io/swissviz/mini.jpg" />
+        <meta name="twitter:image" content="https://cantography.ch/mini.jpg" />
         <link rel="icon" href="favicon.svg" type="image/svg+xml" />
         <link rel="icon" href="favicon.png" type="image/png" sizes="32x32" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -427,7 +427,7 @@
                 color: var(--dim);
                 text-shadow: var(--aura);
             }
-            /* the "v" of viz is the one lit lamp in the type */
+            /* the "o" of canto is the one lit lamp in the type */
             .wordmark .lit {
                 font-weight: 800;
                 color: var(--lamp);
@@ -1932,8 +1932,9 @@
                     align-items: center;
                     justify-content: center;
                 }
+                /* "cantography" fits the 100px box */
                 .wordmark {
-                    font-size: 22px;
+                    font-size: 16px;
                 }
                 #toggle-canton {
                     top: 16px;
@@ -2086,7 +2087,7 @@
 
         <div id="rail">
         <header class="masthead panel">
-            <h1 class="wordmark" aria-label="SwissViz — Swiss Companies Map">swiss<span class="lit">v</span>iz</h1>
+            <h1 class="wordmark" aria-label="Cantography — Swiss Companies Map">cant<span class="lit">o</span>graphy</h1>
             <p class="dek" data-i18n="mastheadDek">Every dot is one of 750,000+ Swiss companies, placed at its address.</p>
         </header>
 
@@ -2193,7 +2194,7 @@
             <p data-i18n="aboutLight"></p>
             <p class="fine">
                 <span data-i18n="aboutData"></span>
-                <a href="https://github.com/rafapolo/swissviz" target="_blank" rel="noopener" data-i18n="aboutCode">Code</a> ·
+                <a href="https://github.com/rafapolo/cantography" target="_blank" rel="noopener" data-i18n="aboutCode">Code</a> ·
                 <a href="https://extrapolo.com" target="_blank" rel="noopener">extrapolo.com</a>
             </p>
         </dialog>
@@ -2530,7 +2531,7 @@
                 if (!TRANSLATIONS[lang]) lang = "en";
                 currentLang = lang;
                 document.documentElement.lang = lang;
-                try { localStorage.setItem("swissviz-lang", lang); } catch {}
+                try { localStorage.setItem("cantography-lang", lang); } catch {}
                 const tr = TRANSLATIONS[lang];
                 document
                     .querySelectorAll(".lang-btn")
@@ -2569,7 +2570,7 @@
             // saved choice, else the browser's first Swiss language, else English
             function initialLang() {
                 try {
-                    const saved = localStorage.getItem("swissviz-lang");
+                    const saved = localStorage.getItem("cantography-lang") ?? localStorage.getItem("swissviz-lang");
                     if (saved && TRANSLATIONS[saved]) return saved;
                 } catch {}
                 for (const l of navigator.languages || [navigator.language || ""]) {

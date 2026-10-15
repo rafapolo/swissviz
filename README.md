@@ -1,4 +1,4 @@
-# SwissViz
+# Cantography
 
 An interactive map of every registered company in Switzerland — all 795,000 of them — and a timeline of how they appeared, from 1883 to today.
 
@@ -12,11 +12,11 @@ An interactive map of every registered company in Switzerland — all 795,000 of
 
 ## What is this?
 
-SwissViz turns Switzerland's official public business registry into a visual map you can explore. Each dot on the map is a real, registered company, placed on its building. The colour tells you what kind of company it is — corporations in yellow, foundations in purple, sole traders in orange, and so on.
+Cantography turns Switzerland's official public business registry into a visual map you can explore. Each dot on the map is a real, registered company, placed on its building. The colour tells you what kind of company it is — corporations in yellow, foundations in purple, sole traders in orange, and so on.
 
 The **timeline** replays how those companies appeared: every company lights up on the day it entered the commercial register (back to 1883), and every company deleted since 2018 burns out on the day it left.
 
-**Live at → [rafapolo.github.io/swissviz](https://rafapolo.github.io/swissviz)**
+**Live at → [cantography.ch](https://cantography.ch)**
 
 No account needed. No install. Just open the link.
 
@@ -58,7 +58,8 @@ The **clock** button next to the search opens the timeline at the bottom of the 
 - The bars show new entries per year before 2018, and new entries (up) and deletions (down) per month after
 - Drag the **slider**, or use **← / →**, to move a year at a time before 2018 and a month at a time after; **Space** plays and pauses
 - **Opened**, **Closed** and **Net** count the companies of the cantons and legal forms you have switched on
-- Hover (or tap) a light to see the company's name, legal form, and the days it was entered and deleted
+- Every light has its legal form's colour and the same brightness; only the twinkle moves it
+- Hover (or tap) a light to see the same card as on the map: the company's name, the year it was registered (*'98*) and its legal form
 
 What the timeline cannot show: companies deleted **before 2018** (no source lists them with an address), and moves before 2018 — a company sits at its current address for its whole life.
 
@@ -98,7 +99,7 @@ For those curious about how it works under the hood:
 - The layout adapts to phones (bottom sheets, notch and home-bar safe areas, `100dvh`, 16px inputs so iOS does not zoom)
 - The map renders entirely in your browser using [deck.gl](https://deck.gl) and [MapLibre GL](https://maplibre.org/)
 - Keyboard navigation, ARIA labels, and colour contrast meet WCAG AA accessibility standards
-- The whole thing is a single HTML file + data files, minified by `scripts/build.js` and hosted for free on GitHub Pages
+- The whole thing is a single HTML file + data files, minified by `scripts/build.js` and hosted for free on GitHub Pages at [cantography.ch](https://cantography.ch) (formerly SwissViz)
 
 ### Data pipeline
 
