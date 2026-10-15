@@ -3292,15 +3292,43 @@ const _cCache=new Map(),_lCache=new Map();
 const LB=new Map(C.map((a,i)=>[a.label,1<<i]));
 function gc(rf){if(_cCache.has(rf))return _cCache.get(rf);const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey)){const v=h2r(a.hex);_cCache.set(rf,v);return v;}}const f=h2r('#1a1a30');_cCache.set(rf,f);return f;}
 function gl(rf){if(_lCache.has(rf))return _lCache.get(rf);const u=rf.toUpperCase();for(const a of C){if(u.includes(a.rfKey)){_lCache.set(rf,a.label);return a.label;}}_lCache.set(rf,rf);return rf;}
-function parse(col,canton){const m=new Map(),n=col.n.length;for(let i=0;i<n;i++){const tRaw=col.t[i]||'',rf=(T[tRaw]||tRaw).trim();if(!rf)continue;const lat=col.lat[i],lng=col.lng[i];if(!lat||!lng)continue;const k=Math.round(lat*1e5)*1000000+Math.round(lng*1e5),label=gl(rf),co={name:col.n[i]||'',rechtsform:rf,label,year:col.y?col.y[i]:0};if(!m.has(k))m.set(k,{position:[lng,lat],canton,companies:[],rechtsform:rf,label,color:gc(rf),mask:0});const p=m.get(k);p.companies.push(co);p.mask|=LB.get(label)||0;}return[...m.values()];}
-self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col,cantonId)});
+function parse(col,canton){const m=new Map(),n=col.n.length;for(let i=0;i<n;i++){const tRaw=col.t[i]||'',rf=(T[tRaw]||tRaw).trim();if(!rf)continue;const lat=col.lat[i],lng=col.lng[i];if(!lat||!lng)continue;const k=Math.round(lat*1e5)*1000000+Math.round(lng*1e5),label=gl(rf),co={name:col.n[i]||'',label,year:col.y[i]};if(!m.has(k))m.set(k,{position:[lng,lat],canton,companies:[],rechtsform:rf,label,color:gc(rf),mask:0});const p=m.get(k);p.companies.push(co);p.mask|=LB.get(label)||0;}return[...m.values()];}
+// the worker fetches, gunzips and parses a canton itself: none of it runs on the
+// page's thread, and only the grouped points travel back
+async function gz(url){const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status+' '+url);return new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).json();}
+async function load(base,id){
+  const r=await fetch(base+'data/'+id+'.json');if(!r.ok)throw new Error('HTTP '+r.status+' '+id);const meta=await r.json();
+  // { chunks: ["XX_0.json.gz", ...] } or { _chunks: N }
+  const files=Array.isArray(meta.chunks)?meta.chunks:Array.from({length:meta._chunks},(_,i)=>id+'_'+i+'.json.gz');
+  const chunks=await Promise.all(files.map(f=>gz(base+'data/'+f)));
+  const col={n:[],t:[],lat:[],lng:[],y:[]};
+  for(const c of chunks)for(let i=0;i<c.n.length;i++){col.n.push(c.n[i]);col.t.push(c.t[i]);col.lat.push(c.lat[i]);col.lng.push(c.lng[i]);col.y.push(c.y?c.y[i]:0);}
+  return parse(col,id);
+}
+self.onmessage=async({data:{id,cantonId,base}})=>{try{self.postMessage({id,points:await load(base,cantonId)});}catch(e){self.postMessage({id,error:String(e)});}};
 `;
             const _parseWorker = new Worker(URL.createObjectURL(new Blob([_workerSrc], { type: "application/javascript" })));
             const _parsePending = new Map();
             let _parseSeq = 0;
-            _parseWorker.onmessage = ({ data: { id, points } }) => { _parsePending.get(id)(points); _parsePending.delete(id); };
-            function parseCantonDataAsync(col, cantonId) {
-                return new Promise(res => { const id = _parseSeq++; _parsePending.set(id, res); _parseWorker.postMessage({ id, col, cantonId }); });
+            _parseWorker.onmessage = ({ data: { id, points, error } }) => {
+                const p = _parsePending.get(id);
+                if (!p) return;
+                _parsePending.delete(id);
+                if (error) p.rej(new Error(error));
+                else p.res(points);
+            };
+            // a worker that dies rejects every load in flight instead of leaving them hanging
+            _parseWorker.onerror = (e) => {
+                for (const p of _parsePending.values()) p.rej(new Error(e.message || "parse worker"));
+                _parsePending.clear();
+            };
+            // blob workers resolve relative URLs against blob:, so they get the page's base
+            function loadCantonPoints(cantonId) {
+                return new Promise((res, rej) => {
+                    const id = _parseSeq++;
+                    _parsePending.set(id, { res, rej });
+                    _parseWorker.postMessage({ id, cantonId, base: new URL(".", location.href).href });
+                });
             }
 
             // ── Recompute legend/canton counts and frame color from the viewport ──────
@@ -3389,47 +3417,6 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 el.classList.toggle("inactive", !on);
             }
 
-            async function gunzipJson(url) {
-                const res = await fetch(url);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const ds = new DecompressionStream("gzip");
-                const blob = await new Response(
-                    res.body.pipeThrough(ds),
-                ).blob();
-                return JSON.parse(await blob.text());
-            }
-
-            async function loadCantonChunk(cantonId, chunk) {
-                return gunzipJson(`data/${cantonId}_${chunk}.json.gz`);
-            }
-
-            async function loadCantonAll(cantonId) {
-                const meta = await fetch(`data/${cantonId}.json`).then((r) =>
-                    r.json(),
-                );
-                let chunkPromises;
-                if (Array.isArray(meta.chunks)) {
-                    // Format: { chunks: ["XX_0.json.gz", ...] }
-                    chunkPromises = meta.chunks.map((filename) =>
-                        gunzipJson(`data/${filename}`),
-                    );
-                } else {
-                    // Format: { _chunks: N }
-                    chunkPromises = Array.from(
-                        { length: meta._chunks },
-                        (_, i) => loadCantonChunk(cantonId, i),
-                    );
-                }
-                const chunks = await Promise.all(chunkPromises);
-                return {
-                    n: chunks.flatMap((c) => c.n),
-                    t: chunks.flatMap((c) => c.t),
-                    lat: chunks.flatMap((c) => c.lat),
-                    lng: chunks.flatMap((c) => c.lng),
-                    // entry year, 0 = unknown (scripts/canton_files.py)
-                    y: chunks.flatMap((c) => c.y ?? new Array(c.n.length).fill(0)),
-                };
-            }
 
             // ── Legend items (counts are filled in by updateLegendCounts) ──────────
             function buildLegend() {
@@ -3481,8 +3468,7 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
 
                 const p = (async () => {
                     try {
-                        const rows = await loadCantonAll(canton.id);
-                        const points = await parseCantonDataAsync(rows, canton.id);
+                        const points = await loadCantonPoints(canton.id);
                         cantonData[canton.id] = points;
                         const companyCount = points.reduce(
                             (s, p) => s + p.companies.length,
@@ -3510,7 +3496,8 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
             function pointRgb(d) {
                 const matched = d.companies.find((c) => activeLabels.has(c.label));
                 // use pre-built Map for O(1) color lookup; fallback to per-point cached color
-                if (matched) return _labelToRgb.get(matched.label) ?? getColor(matched.rechtsform);
+                // a form outside the legend keeps its own name as its label, so getColor reads it
+                if (matched) return _labelToRgb.get(matched.label) ?? getColor(matched.label);
                 return d.color;
             }
 
@@ -3635,12 +3622,20 @@ self.onmessage=({data:{id,col,cantonId}})=>self.postMessage({id,points:parse(col
                 updateUrl();
             }
 
-            // coalesce bursts of refreshes (many cantons landing together) into one frame
-            let _refreshQueued = false;
+            // The cantons land one by one at boot, and each refresh redoes the exposure,
+            // the counts and the deck attributes over every point loaded so far: the
+            // first one draws at once, the rest are batched at most every REFRESH_GAP_MS
+            const REFRESH_GAP_MS = 400;
+            let _refreshQueued = false, _lastRefresh = -Infinity;
             function refreshLayerSoon() {
                 if (_refreshQueued) return;
                 _refreshQueued = true;
-                requestAnimationFrame(() => { _refreshQueued = false; refreshLayer(); });
+                const wait = Math.max(0, _lastRefresh + REFRESH_GAP_MS - performance.now());
+                setTimeout(() => requestAnimationFrame(() => {
+                    _refreshQueued = false;
+                    _lastRefresh = performance.now();
+                    refreshLayer();
+                }), wait);
             }
 
             // ── Timeline: companies opening and closing, from the SHAB ─────────────
