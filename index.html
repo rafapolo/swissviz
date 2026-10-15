@@ -1998,6 +1998,23 @@
                     bottom: calc(72px + var(--tl-h, 0px)) !important;
                 }
             }
+            /* the language buttons keep a finger's width from the collapse arrow */
+            .lang-switcher {
+                margin-right: 10px;
+            }
+            /* phones: no text under 12px (the panels' counts, badges and small print) */
+            @media (max-width: 980px) {
+                .legend-count,
+                .canton-badge,
+                .panel-subtitle,
+                .knob span,
+                .light-foot,
+                .panel-controls button,
+                .peek span,
+                .lang-btn {
+                    font-size: 12px;
+                }
+            }
         </style>
     </head>
     <body class="night">
