@@ -1,4 +1,6 @@
-const V = 'swissviz-v7';
+// scripts/build.js rewrites the name with the commit, so every deploy installs a
+// new worker and drops the caches of the old one
+const V = 'swissviz-dev';
 
 const PRECACHE = [
     './',
@@ -38,6 +40,8 @@ self.addEventListener('fetch', e => {
         );
         return;
     }
+    // Everything else, data included, is cache-first within a deploy: the cache is
+    // named after the commit, so a new deploy fetches each file once again
     e.respondWith(
         caches.match(e.request).then(hit => {
             if (hit) return hit;

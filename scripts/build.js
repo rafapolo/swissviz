@@ -38,8 +38,13 @@ const minified = await minify(src, {
 
 writeFileSync(join(DIST, "index.html"), minified);
 
-// ── 2. Copy service worker (already small; copy verbatim so SW scope is root) ─
-copyFileSync(join(ROOT, "sw.js"), join(DIST, "sw.js"));
+// ── 2. Service worker, its cache named after the commit ──────────────────────
+// A new name per deploy makes sw.js differ byte-wise, so browsers install the new
+// worker, which drops the old caches. GITHUB_SHA in CI, else the checkout's HEAD.
+const sha = (process.env.GITHUB_SHA || Bun.spawnSync(["git", "rev-parse", "HEAD"], { cwd: ROOT }).stdout.toString().trim() || "dev").slice(0, 8);
+const sw = readFileSync(join(ROOT, "sw.js"), "utf-8").replace(/^const V = '[^']*';/m, `const V = 'swissviz-${sha}';`);
+if (!sw.includes(`swissviz-${sha}`)) throw new Error("sw.js: cache name not found");
+writeFileSync(join(DIST, "sw.js"), sw);
 
 // ── 3. Copy static assets ─────────────────────────────────────────────────────
 cpSync(join(ROOT, "data"), join(DIST, "data"), { recursive: true });
@@ -55,5 +60,5 @@ const saved    = srcSize - distSize;
 const pct      = ((saved / srcSize) * 100).toFixed(1);
 
 console.log(`index.html: ${(srcSize / 1024).toFixed(1)} KB → ${(distSize / 1024).toFixed(1)} KB  (−${pct}%, saved ${(saved / 1024).toFixed(1)} KB)`);
-console.log(`sw.js:      ${(swSize / 1024).toFixed(1)} KB  (unchanged)`);
+console.log(`sw.js:      ${(swSize / 1024).toFixed(1)} KB  (cache swissviz-${sha})`);
 console.log(`dist/ ready at: ${DIST}`);
