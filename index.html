@@ -24,7 +24,8 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link rel="modulepreload" href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.mjs" crossorigin />
-        <link href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css" rel="stylesheet" />
+        <!-- non-blocking: the map's controls only appear once its script has run -->
+        <link href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css" rel="stylesheet" media="print" onload="this.media='all'" />
         <!-- non-blocking: the system font shows until Inter (and the wordmark's Bricolage) arrives -->
         <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@300;800&family=Inter:wght@300;400;500;600&family=Martian+Mono:wght@400&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
         <style>
@@ -50,7 +51,9 @@
                 /* Panels, from ../brasilume: smoked warm glass over the map, a hairline
                    of lamp light for the border; the wordmark glows in the dots' color */
                 --ink-raw: 11, 9, 8;
-                --glass: rgba(var(--ink-raw), 0.6);
+                /* darker glass with no backdrop blur: the lamps twinkle on every frame, and
+                   a blur behind each panel would be redone on every one of them */
+                --glass: rgba(var(--ink-raw), 0.86);
                 --hair: rgba(237, 227, 209, 0.14);
                 --dim: #8f8473;
                 --soft: #cfc5b4;
@@ -303,8 +306,6 @@
                 background: var(--glass);
                 border: 1px solid var(--hair);
                 border-radius: 4px;
-                backdrop-filter: blur(10px);
-                -webkit-backdrop-filter: blur(10px);
                 padding: 14px 16px;
                 font-size: 14px;
                 overflow-y: auto;
@@ -855,14 +856,6 @@
                 }
             }
             @media (max-width: 980px) {
-                /* Glass a phone GPU need not blur every frame: darker, no backdrop-filter */
-                :root {
-                    --glass: rgba(var(--ink-raw), 0.86);
-                }
-                .panel {
-                    -webkit-backdrop-filter: none;
-                    backdrop-filter: none;
-                }
                 /* the rail dissolves: the canton panel is a sheet, the masthead sits under the top bar */
                 #rail,
                 #rail-right {
@@ -1473,8 +1466,6 @@
                 border-radius: 50%;
                 color: var(--soft);
                 box-shadow: none;
-                backdrop-filter: blur(6px);
-                -webkit-backdrop-filter: blur(6px);
                 transition:
                     border-color 160ms,
                     color 160ms,
@@ -1499,8 +1490,6 @@
                 border-radius: 22px;
                 padding: 0 16px;
                 box-shadow: none;
-                backdrop-filter: blur(6px);
-                -webkit-backdrop-filter: blur(6px);
             }
             #search-wrapper:focus-within {
                 border-color: var(--hair-hi);
@@ -1624,8 +1613,6 @@
                 border: 1px solid var(--hair);
                 border-radius: 4px;
                 color: var(--soft);
-                backdrop-filter: blur(10px);
-                -webkit-backdrop-filter: blur(10px);
             }
             #tl-play {
                 border: 1px solid var(--hair);
@@ -1666,15 +1653,6 @@
             }
             #tl-speed::picker-icon {
                 display: none;
-            }
-            @media (max-width: 980px) {
-                .panel-toggle,
-                .mode-btn,
-                #search-wrapper,
-                #timeline {
-                    -webkit-backdrop-filter: none;
-                    backdrop-filter: none;
-                }
             }
 
             /* ---------- canton picker, from ../brasilume's #picker ----------
@@ -1815,8 +1793,6 @@
                 font-size: 9px;
                 letter-spacing: 0.04em;
                 cursor: pointer;
-                backdrop-filter: blur(6px);
-                -webkit-backdrop-filter: blur(6px);
                 transition: border-color 160ms;
             }
             @media (hover: hover) {
@@ -1876,11 +1852,15 @@
                     background: rgba(var(--ink-raw), 0.86);
                     padding: 0;
                     border-radius: 50%;
-                    -webkit-backdrop-filter: none;
-                    backdrop-filter: none;
                 }
+                /* icons only; the words stay as the buttons' names for screen readers */
                 .chip-text {
-                    display: none;
+                    position: absolute;
+                    width: 1px;
+                    height: 1px;
+                    overflow: hidden;
+                    clip: rect(0, 0, 0, 0);
+                    white-space: nowrap;
                 }
             }
 
@@ -2108,10 +2088,10 @@
                 <span class="panel-dot" aria-hidden="true">⊟</span>
                 <h2 id="legend-title" data-i18n="legendTitle">Legend</h2>
                 <div class="lang-switcher" role="group" aria-label="Language selection">
-                    <button class="lang-btn" data-lang="de" aria-label="Deutsch" aria-pressed="false">DE</button>
-                    <button class="lang-btn" data-lang="fr" aria-label="Français" aria-pressed="false">FR</button>
-                    <button class="lang-btn" data-lang="it" aria-label="Italiano" aria-pressed="false">IT</button>
-                    <button class="lang-btn active" data-lang="en" aria-label="English" aria-pressed="true">EN</button>
+                    <button class="lang-btn" data-lang="de" aria-label="DE · Deutsch" aria-pressed="false">DE</button>
+                    <button class="lang-btn" data-lang="fr" aria-label="FR · Français" aria-pressed="false">FR</button>
+                    <button class="lang-btn" data-lang="it" aria-label="IT · Italiano" aria-pressed="false">IT</button>
+                    <button class="lang-btn active" data-lang="en" aria-label="EN · English" aria-pressed="true">EN</button>
                 </div>
                 <button class="panel-arrow" id="collapse-legend" aria-label="Collapse panel" data-i18n-aria="collapse"><span aria-hidden="true">›</span></button>
             </div>
@@ -3186,10 +3166,10 @@ in float night_seed;
             }
 
             // Twinkle keeps the map repainting, so while the camera rests it asks
-            // for a frame only every TWINKLE_MS (it drifts over seconds, 20 fps
+            // for a frame only every twinkleMs (it drifts over seconds, 12 fps
             // reads the same) and stops when the tab is hidden; off under reduced
-            // motion.
-            const TWINKLE_MS = 50;
+            // motion. A device that can't keep up gets fewer frames (adaptQuality).
+            let twinkleMs = 80;
             let twinkleTimer = 0;
             function twinkleOn() {
                 // the timeline paints its own frames while it plays
@@ -3200,9 +3180,33 @@ in float night_seed;
                 twinkleTimer = 0;
                 if (!twinkleOn()) return;
                 redrawLayer();
-                twinkleTimer = setTimeout(twinkleLoop, TWINKLE_MS);
+                twinkleTimer = setTimeout(twinkleLoop, twinkleMs);
             }
             document.addEventListener("visibilitychange", twinkleLoop);
+
+            // The lamps are dots a few CSS pixels wide: past 1.5 device pixels per
+            // CSS pixel a retina screen only multiplies the fragments to blend
+            const DECK_DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+            // Once the map has settled, time a second of twinkle: a device whose frames
+            // run slow drops to one device pixel per CSS pixel and a slower twinkle.
+            // Measured rather than guessed from navigator: deviceMemory and
+            // hardwareConcurrency are missing or capped in some browsers.
+            const SLOW_FRAME_MS = 25;
+            function adaptQuality() {
+                if (reduceMotion || document.hidden) return;
+                const gaps = [];
+                let last = performance.now();
+                const tick = (now) => {
+                    gaps.push(now - last);
+                    last = now;
+                    if (gaps.length < 60) { requestAnimationFrame(tick); return; }
+                    gaps.sort((a, b) => a - b);
+                    if (gaps[30] <= SLOW_FRAME_MS) return;
+                    twinkleMs = 140;
+                    if (DECK_DPR > 1) overlay.setProps({ useDevicePixels: 1 });
+                };
+                requestAnimationFrame(tick);
+            }
 
             // Night basemap: black under the lamps, since additive light is only
             // neutral on black, with lakes and rivers kept as a faint navy so the
@@ -4485,6 +4489,7 @@ vec3 tl_state() {
                 });
 
                 overlay = new deck.MapLibreOverlay({
+                    useDevicePixels: DECK_DPR,
                     layers: currentLayers(),
                     // a click that hits no company closes a pinned card
                     onClick: (info) => { if (!info.object && _ttPinned) hideTooltip(); },
@@ -4496,8 +4501,14 @@ vec3 tl_state() {
                 // loading pill goes with the first
                 CANTONS.forEach((c) => setCantonActive(c.id, true));
                 // the notice counts the cantons in; it goes once the map shows and all are in
-                let cantonsIn = 0, mapShown = false;
-                const bootDone = () => { if (mapShown && cantonsIn === CANTONS.length) hideProgress(); };
+                let cantonsIn = 0, mapShown = false, booted = false;
+                // reveal runs twice (idle and the 4 s fallback): the end of the boot only once
+                const bootDone = () => {
+                    if (booted || !mapShown || cantonsIn !== CANTONS.length) return;
+                    booted = true;
+                    hideProgress();
+                    setTimeout(adaptQuality, 1500);
+                };
                 showProgress(t("loadingCompanies"), 0);
                 const counted = (d) => {
                     cantonsIn++;
