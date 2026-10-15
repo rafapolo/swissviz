@@ -2233,8 +2233,6 @@
                     tlPause: "Pause",
                     tlDate: "Datum",
                     tlOpened: "Gegründet",
-                    tlEntered: "Eingetragen",
-                    tlDeleted: "Gelöscht",
                     tlClosed: "Gelöscht",
                     tlNet: "Saldo",
                     tlLoading: "Zeitachse wird geladen…",
@@ -2308,8 +2306,6 @@
                     tlPause: "Pause",
                     tlDate: "Date",
                     tlOpened: "Opened",
-                    tlEntered: "Entered",
-                    tlDeleted: "Deleted",
                     tlClosed: "Closed",
                     tlNet: "Net",
                     tlLoading: "Loading timeline…",
@@ -2381,8 +2377,6 @@
                     tlPause: "Pause",
                     tlDate: "Date",
                     tlOpened: "Créées",
-                    tlEntered: "Inscrite le",
-                    tlDeleted: "Radiée le",
                     tlClosed: "Radiées",
                     tlNet: "Solde",
                     tlLoading: "Chargement de la chronologie…",
@@ -2453,8 +2447,6 @@
                     tlPause: "Pausa",
                     tlDate: "Data",
                     tlOpened: "Iscritte",
-                    tlEntered: "Iscritta il",
-                    tlDeleted: "Cancellata il",
                     tlClosed: "Cancellate",
                     tlNet: "Saldo",
                     tlLoading: "Caricamento cronologia…",
@@ -3916,45 +3908,25 @@ vec3 tl_state() {
                 const pos = new Float32Array(2 * n);
                 const rgba = new Uint8Array(4 * n);
                 const rgbByCode = {};
-                // the lamps of one address (one grid cell) sit next to each other on the
-                // Morton curve: each run starts where the cell changes
-                const starts = [];
-                let lastDay = 0, qa = 0, qn = 0, pa = -1, pn = -1;
+                let lastDay = 0, qa = 0, qn = 0;
                 for (let i = 0; i < n; i++) {
                     // positions: zigzag deltas from the previous lamp, modulo 2^16
                     qa = (qa + ((dLat[i] >>> 1) ^ -(dLat[i] & 1))) & 0xffff;
                     qn = (qn + ((dLng[i] >>> 1) ^ -(dLng[i] & 1))) & 0xffff;
                     pos[2 * i] = lng0 + qn * lngStep;
                     pos[2 * i + 1] = lat0 + qa * latStep;
-                    if (qa !== pa || qn !== pn) { starts.push(i); pa = qa; pn = qn; }
                     if (o16[i] !== TL_NONE && o16[i] > lastDay) lastDay = o16[i];
                     if (c16[i] !== TL_NONE && c16[i] > lastDay) lastDay = c16[i];
                 }
-                // The map draws one lamp per address, the timeline one per company. So the
-                // lamps of an address light like that one lamp: each weighs 1/k, k the lamps
-                // there alive on the last day (all of them where none is), and all take the
-                // address's most common legal form (among those alive) for their color.
-                const alive = (i) => o16[i] !== TL_NONE && o16[i] <= lastDay && (c16[i] === TL_NONE || c16[i] > lastDay);
-                const weight = new Float32Array(n);
-                const forms = new Float64Array(256); // lamps per form in the run, the alive ones counted 2^20 times over
-                starts.push(n);
-                for (let r = 0; r + 1 < starts.length; r++) {
-                    const a = starts[r], b = starts[r + 1];
-                    let lit = 0, best = t8[a];
-                    for (let i = a; i < b; i++) {
-                        const on = alive(i);
-                        if (on) lit++;
-                        forms[t8[i]] += on ? 1048576 : 1;
-                        if (forms[t8[i]] > forms[best]) best = t8[i];
-                    }
-                    const code = String.fromCharCode(best);
+                // The map draws one lamp per address, the timeline one per company: each lamp
+                // takes its own legal form's color and the same light as any other, so only
+                // the twinkle sets them apart.
+                const weight = new Float32Array(n).fill(1);
+                for (let i = 0; i < n; i++) {
+                    const code = String.fromCharCode(t8[i]);
                     const rgb = (rgbByCode[code] ??= getColor(T_DECODE[code] || code));
-                    for (let i = a; i < b; i++) {
-                        forms[t8[i]] = 0;
-                        weight[i] = 1 / (lit || b - a);
-                        // the forms' colors turned down to about an ember's light, as on the map
-                        rgba.set([rgb[0] * LAMP_TONE, rgb[1] * LAMP_TONE, rgb[2] * LAMP_TONE, 255], 4 * i);
-                    }
+                    // the forms' colors turned down to about an ember's light, as on the map
+                    rgba.set([rgb[0] * LAMP_TONE, rgb[1] * LAMP_TONE, rgb[2] * LAMP_TONE, 255], 4 * i);
                 }
                 // all lamps set the pace of the clock; the counters follow the legend (tlApplyLegend)
                 const { cumOpen, cumClose, monthOpen, monthClose } = tlStats(o16, c16, lastDay, null);
@@ -4082,28 +4054,15 @@ vec3 tl_state() {
                 _ttObject = `tl:${info.index}`;
                 const i = info.index;
                 const label = T_DECODE[String.fromCharCode(tl.t8[i])] || "";
-                const hex = _labelToHex.get(label) ?? "#888";
-                const day = (d) => (d === TL_NONE ? "" : new Date(TL_EPOCH + d * 864e5).toLocaleDateString(numLocale(), {
-                    year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }));
                 const chunk = Math.floor(i / tlNamesChunk);
                 const names = tlNames.get(chunk);
-                const name = names ? names[i % tlNamesChunk] : "…";
-                const zefix = `https://www.zefix.ch/${currentLang}/search/entity/list?mainSearch=`;
-                const link = names ? `<a class="tt-link" href="${zefix + encodeURIComponent(name)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t("openInZefix"))}" aria-label="${escapeHtml(t("openInZefix"))}">↗</a>` : "";
-                const dates = [
-                    tl.o16[i] !== TL_NONE ? `${escapeHtml(t("tlEntered"))} ${day(tl.o16[i])}` : "",
-                    tl.c16[i] !== TL_NONE ? `<span style="color:#ff6b4a">${escapeHtml(t("tlDeleted"))} ${day(tl.c16[i])}</span>` : "",
-                ].filter(Boolean).join(" · ");
+                const year = tl.o16[i] !== TL_NONE ? new Date(TL_EPOCH + tl.o16[i] * 864e5).getUTCFullYear() : 0;
+                const canton = TL_CANTON_IDS[tl.canton8[i]] || "";
                 tt.style.display = touch ? "flex" : "block";
                 const ttContent = document.getElementById("tooltip-content");
                 ttContent.scrollTop = 0;
-                ttContent.innerHTML = `
-        <div style="display:flex;align-items:center;gap:6px">
-          <span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:${hex}"></span>
-          <span style="color:#fff;font-weight:500;font-size:13px">${escapeHtml(name)}</span>${link}
-        </div>
-        <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:3px">${escapeHtml(labelText(label))}</div>
-        <div style="color:rgba(255,255,255,0.6);font-size:12px;margin-top:3px">${dates}</div>`;
+                // the same card as on the map, for the one company under the cursor
+                ttContent.innerHTML = `${companiesHead(1, canton)}${companyRow({ name: names?.[i % tlNamesChunk], label, year })}`;
                 place();
                 if (!names) {
                     if (!tlNamesLoading.has(chunk)) tlNamesLoading.set(chunk, tlLoadNames(chunk));
@@ -4691,6 +4650,27 @@ vec3 tl_state() {
             }
             // opts.pin: keep it open (click / search result) so it can be read,
             // selected and its links followed; opts.focusName: list that company first
+            // one company in the card, on the map and on the timeline alike: name, the
+            // year it opened as 'yy, the Zefix link and the legal form
+            function companyRow(c) {
+                const hex = _labelToHex.get(c.label) ?? "#888";
+                const zefix = `https://www.zefix.ch/${currentLang}/search/entity/list?mainSearch=`;
+                const link = c.name ? `<a class="tt-link" href="${zefix + encodeURIComponent(c.name)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t("openInZefix"))}" aria-label="${escapeHtml(t("openInZefix"))}">↗</a>` : "";
+                return `
+        <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:8px;padding-top:8px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:${hex}"></span>
+            <span style="color:#fff;font-weight:500;font-size:13px">${escapeHtml(c.name || "…")}${c.year ? ` <span style="color:rgba(255,255,255,0.4);font-weight:400" title="${c.year}">'${String(c.year % 100).padStart(2, "0")}</span>` : ""}</span>
+            ${link}
+          </div>
+          <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:3px">${escapeHtml(labelText(c.label))}</div>
+        </div>`;
+            }
+            const companiesHead = (n, canton) => `
+        <div style="color:rgba(255,255,255,0.4);font-size:11px;letter-spacing:.05em;text-transform:uppercase">
+          ${n.toLocaleString(numLocale())} ${t(n === 1 ? "company" : "companies")}${canton ? ` · ${canton}` : ""}
+        </div>`;
+
             function showTooltip(info, opts = {}) {
                 const tt = document.getElementById("tooltip");
                 const touch = _touchMQ.matches;
@@ -4721,24 +4701,9 @@ vec3 tl_state() {
                     const i = list.findIndex((c) => c.name === opts.focusName);
                     if (i > 0) list.unshift(...list.splice(i, 1));
                 }
-                const zefix = `https://www.zefix.ch/${currentLang}/search/entity/list?mainSearch=`;
                 // the bottom sheet scrolls, so it can list far more than the floating tooltip
                 const MAX = touch ? 500 : 10;
-                const rows = list
-                    .slice(0, MAX)
-                    .map((c) => {
-                        const hex = _labelToHex.get(c.label) ?? "#888";
-                        return `
-        <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:8px;padding-top:8px">
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:${hex}"></span>
-            <span style="color:#fff;font-weight:500;font-size:13px">${escapeHtml(c.name)}${c.year ? ` <span style="color:rgba(255,255,255,0.4);font-weight:400" title="${c.year}">'${String(c.year % 100).padStart(2, "0")}</span>` : ""}</span>
-            <a class="tt-link" href="${zefix + encodeURIComponent(c.name)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t("openInZefix"))}" aria-label="${escapeHtml(t("openInZefix"))}">↗</a>
-          </div>
-          <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:3px">${escapeHtml(labelText(c.label))}</div>
-        </div>`;
-                    })
-                    .join("");
+                const rows = list.slice(0, MAX).map(companyRow).join("");
                 const more =
                     list.length > MAX
                         ? `<div style="color:rgba(255,255,255,0.3);font-size:11px;margin-top:8px">+${(list.length - MAX).toLocaleString(numLocale())} ${t("more")}</div>`
@@ -4747,11 +4712,7 @@ vec3 tl_state() {
                 tt.style.display = touch ? "flex" : "block";
                 const ttContent = document.getElementById("tooltip-content");
                 ttContent.scrollTop = 0;
-                ttContent.innerHTML = `
-        <div style="color:rgba(255,255,255,0.4);font-size:11px;letter-spacing:.05em;text-transform:uppercase">
-          ${list.length.toLocaleString(numLocale())} ${t(list.length === 1 ? "company" : "companies")} · ${info.object.canton}
-        </div>
-        ${rows}${more}`;
+                ttContent.innerHTML = `${companiesHead(list.length, info.object.canton)}${rows}${more}`;
                 // clamp with the real size now that the content is in
                 if (!touch) {
                     placeTooltip(tt, info);
