@@ -1,4 +1,7 @@
-# Cantography
+# SwissViz → Cantography
+
+> **This project moved.** SwissViz is now **Cantography**: code at [github.com/rafapolo/cantography](https://github.com/rafapolo/cantography), live at [cantography.ch](https://cantography.ch). This repository is kept for its history and no longer deploys.
+
 
 An interactive map of every registered company in Switzerland — all 795,000 of them — and a timeline of how they appeared, from 1883 to today.
 
