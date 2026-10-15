@@ -1352,18 +1352,31 @@
                     transform: none;
                     padding: 8px 12px 10px;
                 }
-                /* play and date on the left; the three counters stacked on the right */
+                /* play and date on the left; the three counters on one line on the right */
                 #tl-date {
                     flex: 1;
                     min-width: 0;
                     font-size: 16px;
                 }
+                /* only the numbers fit beside the date: they keep their colors, the
+                   words stay for screen readers */
                 .tl-stats {
-                    flex-direction: column;
-                    align-items: flex-end;
-                    gap: 0;
+                    gap: 8px;
                     font-size: 11px;
-                    line-height: 1.35;
+                }
+                .tl-stats [data-i18n] {
+                    position: absolute;
+                    width: 1px;
+                    height: 1px;
+                    overflow: hidden;
+                    clip: rect(0, 0, 0, 0);
+                    white-space: nowrap;
+                }
+                .tl-stats .tl-open b {
+                    color: rgb(var(--spark-raw));
+                }
+                .tl-stats .tl-close b {
+                    color: #ff6b4a;
                 }
                 .tl-track {
                     height: 52px;
@@ -3872,15 +3885,17 @@ vec3 tl_state() {
                 const pos = new Float32Array(2 * n);
                 const rgba = new Uint8Array(4 * n);
                 const rgbByCode = {};
-                const cell = new Float64Array(n); // the lamp's grid cell: its address
-                let lastDay = 0, qa = 0, qn = 0;
+                // the lamps of one address (one grid cell) sit next to each other on the
+                // Morton curve: each run starts where the cell changes
+                const starts = [];
+                let lastDay = 0, qa = 0, qn = 0, pa = -1, pn = -1;
                 for (let i = 0; i < n; i++) {
                     // positions: zigzag deltas from the previous lamp, modulo 2^16
                     qa = (qa + ((dLat[i] >>> 1) ^ -(dLat[i] & 1))) & 0xffff;
                     qn = (qn + ((dLng[i] >>> 1) ^ -(dLng[i] & 1))) & 0xffff;
                     pos[2 * i] = lng0 + qn * lngStep;
                     pos[2 * i + 1] = lat0 + qa * latStep;
-                    cell[i] = qa * 65536 + qn;
+                    if (qa !== pa || qn !== pn) { starts.push(i); pa = qa; pn = qn; }
                     if (o16[i] !== TL_NONE && o16[i] > lastDay) lastDay = o16[i];
                     if (c16[i] !== TL_NONE && c16[i] > lastDay) lastDay = c16[i];
                 }
@@ -3889,35 +3904,26 @@ vec3 tl_state() {
                 // there alive on the last day (all of them where none is), and all take the
                 // address's most common legal form (among those alive) for their color.
                 const alive = (i) => o16[i] !== TL_NONE && o16[i] <= lastDay && (c16[i] === TL_NONE || c16[i] > lastDay);
-                const groupOf = new Map(), group = new Uint32Array(n);
-                for (let i = 0; i < n; i++) {
-                    let g = groupOf.get(cell[i]);
-                    if (g === undefined) groupOf.set(cell[i], (g = groupOf.size));
-                    group[i] = g;
-                }
-                const groups = groupOf.size;
-                const total = new Uint32Array(groups), lit = new Uint32Array(groups);
-                // lamps per address and form, the alive ones counted 2^20 times over
-                const forms = new Map();
-                for (let i = 0; i < n; i++) {
-                    const g = group[i], on = alive(i), k = g * 256 + t8[i];
-                    total[g]++;
-                    if (on) lit[g]++;
-                    forms.set(k, (forms.get(k) ?? 0) + (on ? 1048576 : 1));
-                }
-                const best = new Uint8Array(groups), bestCount = new Float64Array(groups);
-                for (const [k, v] of forms) {
-                    const g = Math.floor(k / 256);
-                    if (v > bestCount[g]) { bestCount[g] = v; best[g] = k % 256; }
-                }
                 const weight = new Float32Array(n);
-                for (let i = 0; i < n; i++) {
-                    const g = group[i];
-                    weight[i] = 1 / (lit[g] || total[g]);
-                    const code = String.fromCharCode(best[g]);
+                const forms = new Float64Array(256); // lamps per form in the run, the alive ones counted 2^20 times over
+                starts.push(n);
+                for (let r = 0; r + 1 < starts.length; r++) {
+                    const a = starts[r], b = starts[r + 1];
+                    let lit = 0, best = t8[a];
+                    for (let i = a; i < b; i++) {
+                        const on = alive(i);
+                        if (on) lit++;
+                        forms[t8[i]] += on ? 1048576 : 1;
+                        if (forms[t8[i]] > forms[best]) best = t8[i];
+                    }
+                    const code = String.fromCharCode(best);
                     const rgb = (rgbByCode[code] ??= getColor(T_DECODE[code] || code));
-                    // the forms' colors turned down to about an ember's light, as on the map
-                    rgba.set([rgb[0] * LAMP_TONE, rgb[1] * LAMP_TONE, rgb[2] * LAMP_TONE, 255], 4 * i);
+                    for (let i = a; i < b; i++) {
+                        forms[t8[i]] = 0;
+                        weight[i] = 1 / (lit || b - a);
+                        // the forms' colors turned down to about an ember's light, as on the map
+                        rgba.set([rgb[0] * LAMP_TONE, rgb[1] * LAMP_TONE, rgb[2] * LAMP_TONE, 255], 4 * i);
+                    }
                 }
                 // all lamps set the pace of the clock; the counters follow the legend (tlApplyLegend)
                 const { cumOpen, cumClose, monthOpen, monthClose } = tlStats(o16, c16, lastDay, null);
